@@ -1,0 +1,81 @@
+--------------------------------
+Flexim# - A modular and highly extensible multicore simulator written in C#/Mono.
+(version: 0.1 Prerelease)
+--------------------------------
+
+This README briefly describes what Flexim# is and how to setup & run Flexim#. For more details, 
+please refer to the Flexim# User Guide under the subdirectory doc/ of the distribution.
+
+== License Information ==
+   Copyright (c) 2010 by Min Cai <itecgo@163.com>
+   
+   This program is free software, licensed under the GPL3.
+   Please, read the license file "COPYING" for further information.
+
+== About ==
+   Flexim# is an active clone of Flexim written in C#/Mono.
+   It is a modular and highly extensible architectural simulator for evaluating
+   emerging multicore processors. It can run statically compiled MIPS32 LE programs.
+
+== Web Site ==   
+   Please obtain the latest Flexim# code from http://github.com/mcai/FleximSharp.
+
+== Key Features ==
+   Architectural:
+   * Simulation of a classic five-stage superscalar pipeline with out-of-order execution.
+   
+   * Multi-level memory hierarchy with the directory-based MESI cache coherence protocol.
+   
+   Non-architectural:
+   * Developed from scratch in the object-oriented programming language C# on Mono.
+     Great efforts are made to advocate software engineering practices in the simulator construction.
+     
+   * A powerful infrastructure that provides common functionalities such as eventing and logging.
+   
+   * Pervasive use of XML-based I/O for architectural, workload and simulation configs and stats.
+   
+   * Support for Syscall-emulation mode simulation (i.e., application only, no need to boot an OS).
+   
+   * Correct execution of several state-of-the-art benchmark suites,
+     e.g., wcet_bench, Olden and CPU2006.
+     
+   * Easy to begin with and easy to use. No scripting.
+     Only required are a statically compiled simulator executable and a few XML files.
+
+== System Requirements ==
+ 1. Make sure that you have a Ubuntu 10.10 linux machine.
+   Other popular linux distros may work as well if you are lucky.
+ 
+ 2. Make sure that you have the latest Mono and MonoDevelop installed.
+   If not, type the following command to install them:
+   'sudo apt-get install mono monodevelop'
+
+== How to compile Benchmarks for Flexim# ==
+   Flexim# supports the statically linked MIPS32 LE binaries. It supports the full set of wcet_bench benchmarks.
+   Other popular benchmarks such as Olden and CPU2006 are being tested.
+ 
+   Download and unpack cross-compiler-mipsel.tar.bz2 from http://github.com/mcai/flexim/downloads/.
+   Use it to compile MIPS32 LE binaries to be simulated by Flexim#.
+   See the Makefiles under the subdirectory tests/ of the distribution for sample use.
+
+== How to Build and Run Flexim# ==
+ 1. Unpack the zip or tar file containing the Flexim# source.
+ 
+ 2. In the main directory of the distribution (the one that this file is in), you can
+    edit and build Impetus source code by opening the .NET solution file within MonoDevelop.
+    Note: By default, the flexim# binary is placed in the MinCai.Simulators.Flexim/bin/Debug folder.
+
+ 3. In order to run the simulator, you will need to set up a few configuration files.
+    The Flexim# User Guide describes these files in detail.
+    A few sample configuration files have been provided for your reference.
+
+
+Good Luck!
+
+Min Cai
+
+School of Computer Science and Technology
+Beijing Institute of Technology
+Beijing, China
+<itecgo@163.com>
+  
