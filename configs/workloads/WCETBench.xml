@@ -1,0 +1,67 @@
+<?xml version="1.0"?>
+<WorkloadSet title="WCETBench">
+   <Workload title="fir" cwd="tests/benchmarks/wcet_bench" stdin="" exe="fir" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="crc" cwd="tests/benchmarks/wcet_bench" stdin="" exe="crc" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="ludcmp" cwd="tests/benchmarks/wcet_bench" stdin="" exe="ludcmp" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="qsort-exam" cwd="tests/benchmarks/wcet_bench" stdin="" exe="qsort-exam" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="cnt" cwd="tests/benchmarks/wcet_bench" stdin="" exe="cnt" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="insertsort" cwd="tests/benchmarks/wcet_bench" stdin="" exe="insertsort" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="minmax" cwd="tests/benchmarks/wcet_bench" stdin="" exe="minmax" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="matmult" cwd="tests/benchmarks/wcet_bench" stdin="" exe="matmult" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="edn" cwd="tests/benchmarks/wcet_bench" stdin="" exe="edn" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="fft1" cwd="tests/benchmarks/wcet_bench" stdin="" exe="fft1" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="nsichneu" cwd="tests/benchmarks/wcet_bench" stdin="" exe="nsichneu" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="bs" cwd="tests/benchmarks/wcet_bench" stdin="" exe="bs" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="adpcm" cwd="tests/benchmarks/wcet_bench" stdin="" exe="adpcm" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="qurt" cwd="tests/benchmarks/wcet_bench" stdin="" exe="qurt" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="lcdnum" cwd="tests/benchmarks/wcet_bench" stdin="" exe="lcdnum" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="minver" cwd="tests/benchmarks/wcet_bench" stdin="" exe="minver" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="fdct" cwd="tests/benchmarks/wcet_bench" stdin="" exe="fdct" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="statemate" cwd="tests/benchmarks/wcet_bench" stdin="" exe="statemate" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="cover" cwd="tests/benchmarks/wcet_bench" stdin="" exe="cover" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="duff" cwd="tests/benchmarks/wcet_bench" stdin="" exe="duff" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="select" cwd="tests/benchmarks/wcet_bench" stdin="" exe="select" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="fac" cwd="tests/benchmarks/wcet_bench" stdin="" exe="fac" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="ns" cwd="tests/benchmarks/wcet_bench" stdin="" exe="ns" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="expint" cwd="tests/benchmarks/wcet_bench" stdin="" exe="expint" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="janne_complex" cwd="tests/benchmarks/wcet_bench" stdin="" exe="janne_complex" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="compress" cwd="tests/benchmarks/wcet_bench" stdin="" exe="compress" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="jfdctint" cwd="tests/benchmarks/wcet_bench" stdin="" exe="jfdctint" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="loop3" cwd="tests/benchmarks/wcet_bench" stdin="" exe="loop3" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="sqrt" cwd="tests/benchmarks/wcet_bench" stdin="" exe="sqrt" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="bsort100" cwd="tests/benchmarks/wcet_bench" stdin="" exe="bsort100" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="lms" cwd="tests/benchmarks/wcet_bench" stdin="" exe="lms" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="fibcall" cwd="tests/benchmarks/wcet_bench" stdin="" exe="fibcall" args="" stdout="" numThreadsNeeded = "1">
+   </Workload>
+</WorkloadSet>

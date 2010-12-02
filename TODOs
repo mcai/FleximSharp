@@ -1,0 +1,1 @@
+1. Create Logging Facilities. Changes all Debug.Assert, Debug.Fail, Console.WriteLine to Logging calls.

@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<WorkloadSet title="PARSEC">
+   <Workload title="swaptions" cwd="tests/benchmarks/PARSEC/swaptions" stdin="" exe="swaptions" args="-ns 32 -sm 10000 -nt ${nthreads}" stdout="" numThreadsNeeded = "${nthreads}">
+   </Workload>
+   <Workload title="bodytrack" cwd="tests/benchmarks/PARSEC/bodytrack" stdin="" exe="bodytrack" args="sequenceB_2 4 2 2000 5 0 ${nthreads}" stdout="" numThreadsNeeded = "${nthreads}">
+   </Workload>
+   <Workload title="canneal" cwd="tests/benchmarks/PARSEC/canneal" stdin="" exe="canneal" args="${nthreads} 15000 2000 200000.nets" stdout="" numThreadsNeeded = "${nthreads}">
+   </Workload>
+   <Workload title="dedup" cwd="tests/benchmarks/PARSEC/dedup" stdin="" exe="dedup" args="-c -p -f -t ${nthreads} -i media.dat -o output.dat.ddp" stdout="" numThreadsNeeded = "${nthreads}">
+   </Workload>
+   <Workload title="streamcluster" cwd="tests/benchmarks/PARSEC/streamcluster" stdin="" exe="streamcluster" args="10 20 64 8192 8192 1000 none output.txt ${nthreads}" stdout="" numThreadsNeeded = "${nthreads}">
+   </Workload>
+   <Workload title="fluidanimate" cwd="tests/benchmarks/PARSEC/fluidanimate" stdin="" exe="fluidanimate" args="${nthreads} 5 in_100K.fluid out.fluid" stdout="" numThreadsNeeded = "${nthreads}">
+   </Workload>
+</WorkloadSet>

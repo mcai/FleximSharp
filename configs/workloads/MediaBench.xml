@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<WorkloadSet title="MediaBench">
+   <Workload title="adpcm-dec" cwd="tests/benchmarks/MediaBench/adpcm-dec" stdin="clinton.adpcm" exe="rawdaudio" args="" stdout="out.pcm" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="adpcm-enc" cwd="tests/benchmarks/MediaBench/adpcm-enc" stdin="clinton.pcm" exe="rawcaudio" args="" stdout="out.adpcm" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="g721-dec" cwd="tests/benchmarks/MediaBench/g721-dec" stdin="" exe="decode" args="-4 -l -f clinton.g721" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="g721-enc" cwd="tests/benchmarks/MediaBench/g721-enc" stdin="" exe="encode" args="-4 -l -f clinton.pcm" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="jpeg-dec" cwd="tests/benchmarks/MediaBench/jpeg-dec" stdin="" exe="djpeg" args="-dct int -ppm -outfile testout.ppm testimg.jpg" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="jpeg-enc" cwd="tests/benchmarks/MediaBench/jpeg-enc" stdin="" exe="cjpeg" args="-dct int -progressive -opt -outfile testout.jpg testimg.ppm" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="pegwit-dec" cwd="tests/benchmarks/MediaBench/pegwit-dec" stdin="my.sec" exe="pegwit" args="-d pegwit.enc pegwit.dec" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="pegwit-enc" cwd="tests/benchmarks/MediaBench/pegwit-enc" stdin="encryption_junk" exe="pegwit" args="-e my.pub pgptest.plain pegwit.enc" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="rasta" cwd="tests/benchmarks/MediaBench/rasta" stdin="ex5_c1.wav" exe="rasta" args="-z -A -J -S 8000 -n 12 -f map_weights.dat" stdout="ex5.asc" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="epic-dec" cwd="tests/benchmarks/MediaBench/epic-dec" stdin="" exe="unepic" args="test_image.E" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="epic-enc" cwd="tests/benchmarks/MediaBench/epic-enc" stdin="" exe="epic" args="test_image.pgm -b 25" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="ghostscript" cwd="tests/benchmarks/MediaBench/ghostscript" stdin="" exe="gs" args="-sDEVICE=ppm -sOutputFile=test.ppm -dNOPAUSE -q -- tiger.ps" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="gsm-dec" cwd="tests/benchmarks/MediaBench/gsm-dec" stdin="" exe="untoast" args="-fpl clinton.pcm.gsm" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="gsm-enc" cwd="tests/benchmarks/MediaBench/gsm-enc" stdin="" exe="toast" args="-fpl clinton.pcm" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="mpeg-dec" cwd="tests/benchmarks/MediaBench/mpeg-dec" stdin="" exe="mpeg2decode" args="-b mei16v2.m2v -r -f -o0 rec%d" stdout="" numThreadsNeeded = "1">
+   </Workload>
+   <Workload title="mpeg-enc" cwd="tests/benchmarks/MediaBench/mpeg-enc" stdin="" exe="mpeg2encode" args="options.par out.m2v" stdout="" numThreadsNeeded = "1">
+   </Workload>
+</WorkloadSet>
