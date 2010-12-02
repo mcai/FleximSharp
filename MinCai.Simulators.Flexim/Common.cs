@@ -328,64 +328,60 @@ namespace MinCai.Simulators.Flexim.Common
 			string sectionName = "";
 			Section section = null;
 			
-			StreamReader sr = new StreamReader (fileName);
-			
-			string line;
-			while ((line = sr.ReadLine ()) != null) {
-				line = line.Trim ();
-				
-				if (line.Length == 0)
-					continue;
-				
-				if (line[0] == ';' || line[0] == '#')
-					continue;
-				
-				if (line[0] == '[') {
-					sectionName = line.Substring (1, line.Length - 2);
+			using (StreamReader sr = new StreamReader (fileName)) {
+				string line;
+				while ((line = sr.ReadLine ()) != null) {
+					line = line.Trim ();
 					
-					section = new Section (sectionName);
-					this[section.Name] = section;
+					if (line.Length == 0)
+						continue;
 					
-					continue;
+					if (line[0] == ';' || line[0] == '#')
+						continue;
+					
+					if (line[0] == '[') {
+						sectionName = line.Substring (1, line.Length - 2);
+						
+						section = new Section (sectionName);
+						this[section.Name] = section;
+						
+						continue;
+					}
+					
+					int pos;
+					if ((pos = line.IndexOf ('=')) == -1)
+						continue;
+					
+					string name = line.Substring (0, pos - 1).Trim ();
+					string val = line.Substring (pos + 1).Trim ();
+					
+					if (val.Length > 0) {
+						if (val[0] == '"')
+							val = val.Substring (1);
+						if (val[val.Length - 1] == '"')
+							val = val.Substring (0, val.Length - 1);
+					}
+					
+					section[name] = new IniFile.Property (name, val);
 				}
-				
-				int pos;
-				if ((pos = line.IndexOf ('=')) == -1)
-					continue;
-				
-				string name = line.Substring (0, pos - 1).Trim ();
-				string val = line.Substring (pos + 1).Trim ();
-				
-				if (val.Length > 0) {
-					if (val[0] == '"')
-						val = val.Substring (1);
-					if (val[val.Length - 1] == '"')
-						val = val.Substring (0, val.Length - 1);
-				}
-				
-				section[name] = new IniFile.Property (name, val);
 			}
-			
-			sr.Close ();
 		}
 
 		public void save (string fileName)
 		{
-			StreamWriter sw = new StreamWriter (fileName);
-			
-			foreach (var sectionPair in this.Sections) {
-				string sectionName = sectionPair.Key;
-				Section section = sectionPair.Value;
-				
-				sw.WriteLine ("[ " + sectionName + " ]");
-				foreach (var propertyPair in section.Properties) {
-					Property property = propertyPair.Value;
-					sw.WriteLine (property.Name + " = " + property.Value);
+			using (StreamWriter sw = new StreamWriter (fileName)) {
+				foreach (var sectionPair in this.Sections) {
+					string sectionName = sectionPair.Key;
+					Section section = sectionPair.Value;
+					
+					sw.WriteLine ("[ " + sectionName + " ]");
+					foreach (var propertyPair in section.Properties) {
+						Property property = propertyPair.Value;
+						sw.WriteLine (property.Name + " = " + property.Value);
+					}
+					sw.WriteLine ();
 				}
-				sw.WriteLine ();
 			}
-			
-			sw.Close ();
 		}
 
 		public void Register (Section section)
