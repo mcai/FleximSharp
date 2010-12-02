@@ -45,14 +45,14 @@
     <Reference Include="System.Drawing.Design" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Main.cs" />
     <Compile Include="AssemblyInfo.cs" />
-    <Compile Include="Sim.cs" />
-    <Compile Include="Misc.cs" />
-    <Compile Include="Isa.cs" />
-    <Compile Include="Cpu.cs" />
-    <Compile Include="Mem.cs" />
-    <Compile Include="Kernel.cs" />
+    <Compile Include="Startup.cs" />
+    <Compile Include="Interop.cs" />
+    <Compile Include="Common.cs" />
+    <Compile Include="Architecture.cs" />
+    <Compile Include="Microarchitecture.cs" />
+    <Compile Include="MemoryHierarchy.cs" />
+    <Compile Include="OperatingSystem.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
 </Project>

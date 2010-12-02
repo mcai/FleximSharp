@@ -1,1 +1,6 @@
-1. Create Logging Facilities. Changes all Debug.Assert, Debug.Fail, Console.WriteLine to Logging calls.
+1. MMU...per thread? correctness?
+2. Cleanup of XmlConfig stuff...
+3. Verification of Branch predictor stuff.
+4. Multi-level cache hierarchy configuration.
+5. benchmarking.
+6. performance optimization.

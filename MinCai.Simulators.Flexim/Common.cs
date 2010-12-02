@@ -24,15 +24,14 @@ using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Text;
+using System.Threading;
 using System.Xml;
 using MinCai.Simulators.Flexim.Common;
-using MinCai.Simulators.Flexim.Interop;
 using Mono.Unix.Native;
-using System.Threading;
 
 namespace MinCai.Simulators.Flexim.Common
 {
-	public static class BitUtils
+	public static class BitHelper
 	{
 		/// Generate a 32-bit mask of 'nbits' 1s, right justified.
 		public static uint Mask (int nbits)
@@ -204,7 +203,7 @@ namespace MinCai.Simulators.Flexim.Common
 		}
 	}
 
-	public static class PtrUtils
+	public static class PtrHelper
 	{
 		unsafe public static ulong Strlen (char* s)
 		{
@@ -217,14 +216,14 @@ namespace MinCai.Simulators.Flexim.Common
 			return cnt;
 		}
 
-		unsafe public static void memcpy (byte* pDest, byte* pSource, int Count)
+		unsafe public static void Memcpy (byte* pDest, byte* pSource, int Count)
 		{
 			for (uint i = 0; i < Count; i++) {
 				*pDest++ = *pSource++;
 			}
 		}
 
-		unsafe public static void memset (byte* pDest, byte byteVal, int Count)
+		unsafe public static void Memset (byte* pDest, byte byteVal, int Count)
 		{
 			for (uint i = 0; i < Count; i++) {
 				*pDest++ = byteVal;
@@ -232,7 +231,7 @@ namespace MinCai.Simulators.Flexim.Common
 		}
 	}
 
-	public static class ListUtils
+	public static class ListHelper
 	{
 		public static IEnumerable<T> AsReverseEnumerable<T> (this IEnumerable<T> items)
 		{
@@ -245,24 +244,18 @@ namespace MinCai.Simulators.Flexim.Common
 		}
 	}
 
-	public delegate void VoidDelegate ();
-
-	public delegate void HasErrorDelegate (bool hasError);
-
-	public delegate void HasErrorAndIsSharedDelegate (bool hasError, bool isShared);
-
-	public class StringValue : Attribute
+	public sealed class EnumHelper
 	{
-		public StringValue (string value)
+		public sealed class StringValue : Attribute
 		{
-			this.Value = value;
+			public StringValue (string value)
+			{
+				this.Value = value;
+			}
+
+			public string Value { get; private set; }
 		}
 
-		public string Value { get; private set; }
-	}
-
-	public static class EnumUtils
-	{
 		public static string ToStringValue (Enum e)
 		{
 			FieldInfo fi = e.GetType ().GetField (e.ToString ());
@@ -278,7 +271,7 @@ namespace MinCai.Simulators.Flexim.Common
 		{
 			Type enumType = typeof(T);
 			string[] names = Enum.GetNames (enumType);
-			foreach (string name in names) {
+			foreach (var name in names) {
 				if ((ToStringValue ((Enum)Enum.Parse (enumType, name))).Equals (value)) {
 					return (T)(Enum.Parse (enumType, name));
 				}
@@ -380,12 +373,12 @@ namespace MinCai.Simulators.Flexim.Common
 		{
 			StreamWriter sw = new StreamWriter (fileName);
 			
-			foreach (KeyValuePair<string, Section> sectionPair in this.Sections) {
+			foreach (var sectionPair in this.Sections) {
 				string sectionName = sectionPair.Key;
 				Section section = sectionPair.Value;
 				
 				sw.WriteLine ("[ " + sectionName + " ]");
-				foreach (KeyValuePair<string, Property> propertyPair in section.Properties) {
+				foreach (var propertyPair in section.Properties) {
 					Property property = propertyPair.Value;
 					sw.WriteLine (property.Name + " = " + property.Value);
 				}
@@ -404,13 +397,13 @@ namespace MinCai.Simulators.Flexim.Common
 		{
 			StringBuilder sb = new StringBuilder ();
 			
-			foreach (KeyValuePair<string, Section> sectionPair in this.Sections) {
+			foreach (var sectionPair in this.Sections) {
 				string sectionName = sectionPair.Key;
 				Section section = sectionPair.Value;
 				
 				sb.Append ("[" + sectionName.Trim () + "]\n");
 				
-				foreach (KeyValuePair<string, Property> propertyPair in section.Properties) {
+				foreach (var propertyPair in section.Properties) {
 					Property property = propertyPair.Value;
 					
 					sb.Append (string.Format ("{0:s} = {1:s}\n", property.Name, property.Value));
@@ -440,8 +433,8 @@ namespace MinCai.Simulators.Flexim.Common
 			this.Entries = new List<XmlConfig> ();
 		}
 
-		public bool IsNull {
-			get { return this.Attributes.ContainsKey (IS_NULL) && bool.Parse (this[IS_NULL]) == true; }
+		public bool IsPlaceHolder {
+			get { return this.Attributes.ContainsKey (IS_PLACEHOLDER) && bool.Parse (this[IS_PLACEHOLDER]) == true; }
 		}
 
 		public override string ToString ()
@@ -458,14 +451,14 @@ namespace MinCai.Simulators.Flexim.Common
 		public SortedDictionary<string, string> Attributes { get; set; }
 		public List<XmlConfig> Entries { get; set; }
 
-		public static XmlConfig Null (string typeName)
+		public static XmlConfig GetPlaceHolder (string typeName)
 		{
 			XmlConfig xmlConfig = new XmlConfig (typeName);
-			xmlConfig[IS_NULL] = true + "";
+			xmlConfig[IS_PLACEHOLDER] = true + "";
 			return xmlConfig;
 		}
 
-		private static string IS_NULL = "IsNull";
+		private static string IS_PLACEHOLDER = "IsNull";
 	}
 
 	public sealed class XmlConfigFile : XmlConfig
@@ -475,43 +468,38 @@ namespace MinCai.Simulators.Flexim.Common
 		}
 	}
 
-	public delegate XmlConfig SaveEntryDelegate<T> (T entry);
-	public delegate T LoadEntryDelegate<T> (XmlConfig xmlConfig);
-
-	public delegate KeyT KeyOf<KeyT, EntryT> (EntryT entry);
-
 	public abstract class XmlConfigSerializer<T>
 	{
 		public abstract XmlConfig Save (T config);
 		public abstract T Load (XmlConfig xmlConfig);
 
-		public static XmlConfig SaveList<K> (string name, List<K> entries, SaveEntryDelegate<K> saveEntry)
+		public static XmlConfig SaveList<K> (string name, List<K> entries, Func<K, XmlConfig> saveEntry)
 		{
 			XmlConfig xmlConfig = new XmlConfig (name);
 			
-			foreach (K entry in entries) {
+			foreach (var entry in entries) {
 				xmlConfig.Entries.Add (saveEntry (entry));
 			}
 			
 			return xmlConfig;
 		}
 
-		public static List<K> LoadList<K> (XmlConfig xmlConfig, LoadEntryDelegate<K> loadEntry)
+		public static List<K> LoadList<K> (XmlConfig xmlConfig, Func<XmlConfig, K> loadEntry)
 		{
 			List<K> entries = new List<K> ();
 			
-			foreach (XmlConfig child in xmlConfig.Entries) {
+			foreach (var child in xmlConfig.Entries) {
 				entries.Add (loadEntry (child));
 			}
 			
 			return entries;
 		}
 
-		public static XmlConfig SaveUintDictionary<K> (string name, SortedDictionary<uint, K> entries, SaveEntryDelegate<K> saveEntry)
+		public static XmlConfig SaveDictionary<KeyT, K> (string name, SortedDictionary<KeyT, K> entries, Func<K, XmlConfig> saveEntry)
 		{
 			XmlConfig xmlConfig = new XmlConfig (name);
 			
-			foreach (KeyValuePair<uint, K> pair in entries) {
+			foreach (var pair in entries) {
 				XmlConfig child = saveEntry (pair.Value);
 				
 				xmlConfig.Entries.Add (child);
@@ -520,36 +508,11 @@ namespace MinCai.Simulators.Flexim.Common
 			return xmlConfig;
 		}
 
-		public static SortedDictionary<uint, K> LoadUintDictionary<K> (XmlConfig xmlConfig, LoadEntryDelegate<K> loadEntry, KeyOf<uint, K> keyOf)
+		public static SortedDictionary<KeyT, K> LoadDictionary<KeyT, K> (XmlConfig xmlConfig, Func<XmlConfig, K> loadEntry, Func<K, KeyT> keyOf)
 		{
-			SortedDictionary<uint, K> entries = new SortedDictionary<uint, K> ();
+			SortedDictionary<KeyT, K> entries = new SortedDictionary<KeyT, K> ();
 			
-			foreach (XmlConfig child in xmlConfig.Entries) {
-				K entry = loadEntry (child);
-				entries[keyOf (entry)] = entry;
-			}
-			
-			return entries;
-		}
-
-		public static XmlConfig SaveStringDictionary<ValueT> (string name, SortedDictionary<string, ValueT> entries, SaveEntryDelegate<ValueT> saveEntry)
-		{
-			XmlConfig xmlConfig = new XmlConfig (name);
-			
-			foreach (KeyValuePair<string, ValueT> pair in entries) {
-				XmlConfig child = saveEntry (pair.Value);
-				
-				xmlConfig.Entries.Add (child);
-			}
-			
-			return xmlConfig;
-		}
-
-		public static SortedDictionary<string, K> LoadStringDictionary<K> (XmlConfig xmlConfig, LoadEntryDelegate<K> loadEntry, KeyOf<string, K> keyOf)
-		{
-			SortedDictionary<string, K> entries = new SortedDictionary<string, K> ();
-			
-			foreach (XmlConfig child in xmlConfig.Entries) {
+			foreach (var child in xmlConfig.Entries) {
 				K entry = loadEntry (child);
 				entries[keyOf (entry)] = entry;
 			}
@@ -599,11 +562,11 @@ namespace MinCai.Simulators.Flexim.Common
 
 		public static void Serialize (XmlConfig xmlConfig, XmlElement rootElement, XmlElement element)
 		{
-			foreach (KeyValuePair<string, string> pair in xmlConfig.Attributes) {
+			foreach (var pair in xmlConfig.Attributes) {
 				element.SetAttribute (pair.Key, pair.Value);
 			}
 			
-			foreach (XmlConfig child in xmlConfig.Entries) {
+			foreach (var child in xmlConfig.Entries) {
 				Serialize (child, element);
 			}
 		}
@@ -615,11 +578,11 @@ namespace MinCai.Simulators.Flexim.Common
 			XmlElement rootElement = doc.CreateElement (xmlConfigFile.TypeName);
 			doc.AppendChild (rootElement);
 			
-			foreach (KeyValuePair<string, string> pair in xmlConfigFile.Attributes) {
+			foreach (var pair in xmlConfigFile.Attributes) {
 				rootElement.SetAttribute (pair.Key, pair.Value);
 			}
 			
-			foreach (XmlConfig child in xmlConfigFile.Entries) {
+			foreach (var child in xmlConfigFile.Entries) {
 				Serialize (child, rootElement);
 			}
 			
@@ -634,7 +597,7 @@ namespace MinCai.Simulators.Flexim.Common
 				entry[attribute.Name] = attribute.Value;
 			}
 			
-			foreach (XmlNode node in rootElement.ChildNodes) {
+			foreach (var node in rootElement.ChildNodes) {
 				if (node is XmlElement) {
 					XmlElement childElement = (XmlElement)node;
 					Deserialize (entry, childElement);
@@ -657,7 +620,7 @@ namespace MinCai.Simulators.Flexim.Common
 				xmlConfigFile[attribute.Name] = attribute.Value;
 			}
 			
-			foreach (XmlNode node in doc.DocumentElement.ChildNodes) {
+			foreach (var node in doc.DocumentElement.ChildNodes) {
 				if (node is XmlElement) {
 					XmlElement childElement = (XmlElement)node;
 					Deserialize (xmlConfigFile, childElement);
@@ -670,27 +633,27 @@ namespace MinCai.Simulators.Flexim.Common
 
 	public enum LogCategory
 	{
-		EVENT_QUEUE,
-		SIMULATOR,
-		CORE,
-		THREAD,
-		PROCESS,
-		REGISTER,
-		REQUEST,
-		CACHE,
-		COHERENCE,
-		MEMORY,
-		NET,
-		INSTRUCTION,
-		SYSCALL,
-		ELF,
-		CONFIG,
-		STAT,
-		MISC,
-		OOO,
-		TEST,
-		DEBUG,
-		XML
+		EventQueue,
+		Simulator,
+		Core,
+		Thread,
+		Process,
+		Register,
+		Request,
+		Cache,
+		Coherence,
+		Memory,
+		Net,
+		Instruction,
+		Syscall,
+		Elf,
+		Config,
+		Stat,
+		Misc,
+		OoO,
+		Test,
+		Debug,
+		Xml
 	}
 
 	public static class Logger
@@ -699,25 +662,25 @@ namespace MinCai.Simulators.Flexim.Common
 		{
 			LogSwitches = new Dictionary<LogCategory, bool> ();
 			
-			Enable (LogCategory.SIMULATOR);
+			Enable (LogCategory.Simulator);
 			
-			//		Enable(LogCategory.EVENT_QUEUE);
-			//		Enable(LogCategory.PROCESSOR);
-			//		Enable(LogCategory.REGISTER);
-			//		Enable(LogCategory.THREAD);
-//			Enable(LogCategory.PROCESS);
-			Enable (LogCategory.REQUEST);
-			//		Enable(LogCategory.CACHE);
-			Enable (LogCategory.COHERENCE);
-			//		Enable(LogCategory.MEMORY);
-			//		Enable(LogCategory.NET);
-			Enable (LogCategory.CONFIG);
-			Enable (LogCategory.STAT);
-			//		Enable(LogCategory.MISC);
-			//		Enable(LogCategory.OOO);
-			//		Enable(LogCategory.TEST);
-			//		Enable(LogCategory.XML);
-			Enable (LogCategory.DEBUG);
+			//		Enable(LogCategory.EventQueue);
+			//		Enable(LogCategory.Processor);
+			//		Enable(LogCategory.Register);
+			//		Enable(LogCategory.Thread);
+//			Enable(LogCategory.Process);
+			Enable (LogCategory.Request);
+			//		Enable(LogCategory.Cache);
+			Enable (LogCategory.Coherence);
+			//		Enable(LogCategory.Memory);
+			//		Enable(LogCategory.Net);
+			Enable (LogCategory.Config);
+			Enable (LogCategory.Stat);
+			//		Enable(LogCategory.Misc);
+			//		Enable(LogCategory.OoO);
+			//		Enable(LogCategory.Test);
+			//		Enable(LogCategory.Xml);
+			Enable (LogCategory.Debug);
 		}
 
 		public static void Enable (LogCategory category)
@@ -730,7 +693,7 @@ namespace MinCai.Simulators.Flexim.Common
 			LogSwitches[category] = false;
 		}
 
-		public static bool Enabled (LogCategory category)
+		public static bool IsEnabled (LogCategory category)
 		{
 			return true;
 //			return LogSwitches.ContainsKey (category) && LogSwitches[category];
@@ -748,7 +711,7 @@ namespace MinCai.Simulators.Flexim.Common
 
 		public static void Info (LogCategory category, string text)
 		{
-			if (Enabled (category)) {
+			if (IsEnabled (category)) {
 				Console.WriteLine (Message (category + "|" + "info", text));
 			}
 		}
@@ -788,7 +751,7 @@ namespace MinCai.Simulators.Flexim.Common
 		public static Dictionary<LogCategory, bool> LogSwitches { get; private set; }
 	}
 
-	public class Barrier
+	public sealed class Barrier
 	{
 		public Barrier (int participants)
 		{
@@ -802,8 +765,7 @@ namespace MinCai.Simulators.Flexim.Common
 					do {
 						Monitor.Wait (this);
 					} while (this.Participants > 0);
-				}
-				else {
+				} else {
 					Monitor.PulseAll (this);
 				}
 			}

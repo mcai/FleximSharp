@@ -25,61 +25,58 @@ using System.Diagnostics;
 using MinCai.Simulators.Flexim.Common;
 using MinCai.Simulators.Flexim.Interop;
 using MinCai.Simulators.Flexim.MemoryHierarchy;
-using MinCai.Simulators.Flexim.Pipelines;
+using MinCai.Simulators.Flexim.Microarchitecture;
 
 namespace MinCai.Simulators.Flexim.MemoryHierarchy
 {
 	public static class MemoryConstants
 	{
-		public static uint MEM_LOGPAGESIZE = 12;
-		public static uint MEM_PAGESHIFT = MEM_LOGPAGESIZE;
-		public static uint MEM_PAGESIZE = (uint)(1 << (int)MEM_LOGPAGESIZE);
-		public static uint MEM_PAGEMASK = MEM_PAGESIZE - 1;
-		public static uint MEM_PAGE_COUNT = 1024;
+		public static uint LOG_PAGE_SIZE = 12;
+		public static uint PAGE_SHIFT = LOG_PAGE_SIZE;
+		public static uint PAGE_SIZE = (uint)(1 << (int)LOG_PAGE_SIZE);
+		public static uint PAGE_MASK = PAGE_SIZE - 1;
+		public static uint PAGE_COUNT = 1024;
 
-		public static uint MEM_BLOCK_SIZE = 64;
-
-		public static uint MEM_PROT_READ = 0x01;
-		public static uint MEM_PROT_WRITE = 0x02;
+		public static uint BLOCK_SIZE = 64;
 	}
 
 	public enum MemoryAccessType : uint
 	{
-		NONE = 0x00,
-		READ = 0x01,
-		WRITE = 0x02,
-		EXEC = 0x04,
-		INIT = 0x08
+		None = 0x00,
+		Read = 0x01,
+		Write = 0x02,
+		Execute = 0x04,
+		Init = 0x08
 	}
 
-	public class MemoryPage
+	public sealed class MemoryPage
 	{
 		public MemoryPage ()
 		{
 			this.Tag = 0;
-			this.perm = MemoryAccessType.NONE;
-			this.Data = new byte[MemoryConstants.MEM_PAGESIZE];
+			this.Permission = MemoryAccessType.None;
+			this.Data = new byte[MemoryConstants.PAGE_SIZE];
 			this.Next = null;
 		}
 
 		public uint Tag { get; set; }
-		public MemoryAccessType perm { get; set; }
+		public MemoryAccessType Permission { get; set; }
 		public byte[] Data { get; set; }
 
 		public MemoryPage Next { get; set; }
 	}
 
-	public class SegmentationFaultException : Exception
+	public sealed class SegmentationFaultException : Exception
 	{
 		public SegmentationFaultException (uint addr) : base(string.Format ("SegmentationFaultException @ 0x{0:x8}", addr))
 		{
-			this.addr = addr;
+			this.Addr = addr;
 		}
 
-		public uint addr;
+		public uint Addr {get; private set;}
 	}
 
-	public class Memory
+	public sealed class Memory
 	{
 		public Memory ()
 		{
@@ -90,27 +87,27 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 
 		unsafe public void InitByte (uint addr, byte data)
 		{
-			this.Access (addr, 1, &data, MemoryAccessType.INIT);
+			this.Access (addr, 1, &data, MemoryAccessType.Init);
 		}
 
 		unsafe public void InitHalfWord (uint addr, ushort data)
 		{
-			this.Access (addr, 2, (byte*)&data, MemoryAccessType.INIT);
+			this.Access (addr, 2, (byte*)&data, MemoryAccessType.Init);
 		}
 
 		unsafe public void InitWord (uint addr, uint data)
 		{
-			this.Access (addr, 4, (byte*)&data, MemoryAccessType.INIT);
+			this.Access (addr, 4, (byte*)&data, MemoryAccessType.Init);
 		}
 
 		unsafe public void InitDoubleWord (uint addr, ulong data)
 		{
-			this.Access (addr, 8, (byte*)&data, MemoryAccessType.INIT);
+			this.Access (addr, 8, (byte*)&data, MemoryAccessType.Init);
 		}
 
 		unsafe public void InitString (uint addr, char* str)
 		{
-			this.Access (addr, (int)(PtrUtils.Strlen (str) + 1), (byte*)str, MemoryAccessType.INIT);
+			this.Access (addr, (int)(PtrHelper.Strlen (str) + 1), (byte*)str, MemoryAccessType.Init);
 		}
 
 		unsafe public void InitBlock (uint addr, uint size, byte* p)
@@ -122,59 +119,59 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 
 		unsafe public void WriteByte (uint addr, byte data)
 		{
-			this.Access (addr, 1, &data, MemoryAccessType.WRITE);
+			this.Access (addr, 1, &data, MemoryAccessType.Write);
 		}
 
 		unsafe public void WriteHalfWord (uint addr, ushort data)
 		{
-			this.Access (addr, 2, (byte*)&data, MemoryAccessType.WRITE);
+			this.Access (addr, 2, (byte*)&data, MemoryAccessType.Write);
 		}
 
 		unsafe public void WriteWord (uint addr, uint data)
 		{
-			this.Access (addr, 4, (byte*)&data, MemoryAccessType.WRITE);
+			this.Access (addr, 4, (byte*)&data, MemoryAccessType.Write);
 		}
 
 		unsafe public void WriteDoubleWord (uint addr, ulong data)
 		{
-			this.Access (addr, 8, (byte*)&data, MemoryAccessType.WRITE);
+			this.Access (addr, 8, (byte*)&data, MemoryAccessType.Write);
 		}
 
 		unsafe public void WriteString (uint addr, char* str)
 		{
-			this.Access (addr, (int)(PtrUtils.Strlen (str) + 1), (byte*)str, MemoryAccessType.WRITE);
+			this.Access (addr, (int)(PtrHelper.Strlen (str) + 1), (byte*)str, MemoryAccessType.Write);
 		}
 
 		unsafe public void WriteBlock (uint addr, uint size, byte* data)
 		{
-			this.Access (addr, (int)size, data, MemoryAccessType.WRITE);
+			this.Access (addr, (int)size, data, MemoryAccessType.Write);
 		}
 
 		unsafe public void ReadByte (uint addr, byte* data)
 		{
-			this.Access (addr, 1, data, MemoryAccessType.READ);
+			this.Access (addr, 1, data, MemoryAccessType.Read);
 		}
 
 		unsafe public void ReadHalfWord (uint addr, ushort* data)
 		{
-			this.Access (addr, 2, (byte*)data, MemoryAccessType.READ);
+			this.Access (addr, 2, (byte*)data, MemoryAccessType.Read);
 		}
 
 		unsafe public void ReadWord (uint addr, uint* data)
 		{
-			this.Access (addr, 4, (byte*)data, MemoryAccessType.READ);
+			this.Access (addr, 4, (byte*)data, MemoryAccessType.Read);
 		}
 
 		unsafe public void ReadDoubleWord (uint addr, ulong* data)
 		{
-			this.Access (addr, 8, (byte*)data, MemoryAccessType.READ);
+			this.Access (addr, 8, (byte*)data, MemoryAccessType.Read);
 		}
 
 		unsafe public int ReadString (uint addr, int size, char* str)
 		{
 			int i;
 			for (i = 0; i < size; i++) {
-				this.Access ((uint)(addr + i), 1, (byte*)(str + i), MemoryAccessType.READ);
+				this.Access ((uint)(addr + i), 1, (byte*)(str + i), MemoryAccessType.Read);
 				if (str[i] == 0)
 					break;
 			}
@@ -183,30 +180,30 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 
 		unsafe public void ReadBlock (uint addr, int size, byte* p)
 		{
-			this.Access (addr, size, p, MemoryAccessType.READ);
+			this.Access (addr, size, p, MemoryAccessType.Read);
 		}
 
 		unsafe public void Zero (uint addr, int size)
 		{
 			byte zero = 0;
 			while (size-- > 0) {
-				this.Access (addr++, 0, &zero, MemoryAccessType.WRITE);
+				this.Access (addr++, 0, &zero, MemoryAccessType.Write);
 			}
 		}
 
 		public uint GetTag (uint addr)
 		{
-			return addr & ~(MemoryConstants.MEM_PAGESIZE - 1);
+			return addr & ~(MemoryConstants.PAGE_SIZE - 1);
 		}
 
 		public uint GetOffset (uint addr)
 		{
-			return addr & (MemoryConstants.MEM_PAGESIZE - 1);
+			return addr & (MemoryConstants.PAGE_SIZE - 1);
 		}
 
 		public uint GetIndex (uint addr)
 		{
-			return (addr >> (int)MemoryConstants.MEM_LOGPAGESIZE) % MemoryConstants.MEM_PAGE_COUNT;
+			return (addr >> (int)MemoryConstants.LOG_PAGE_SIZE) % MemoryConstants.PAGE_COUNT;
 		}
 
 		public bool IsAligned (uint addr)
@@ -235,18 +232,18 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			return page;
 		}
 
-		public MemoryPage AddPage (uint addr, MemoryAccessType perm)
+		public MemoryPage AddPage (uint addr, MemoryAccessType permission)
 		{
 			uint tag = GetTag (addr);
 			uint index = GetIndex (addr);
 			
 			MemoryPage page = new MemoryPage ();
 			page.Tag = tag;
-			page.perm = perm;
+			page.Permission = permission;
 			
 			page.Next = this[index];
 			this[index] = page;
-			this.mappedSpace += MemoryConstants.MEM_PAGESIZE;
+			this.mappedSpace += MemoryConstants.PAGE_SIZE;
 			this.maxMappedSpace = Math.Max (this.maxMappedSpace, this.mappedSpace);
 			
 			return page;
@@ -274,7 +271,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 				this[index] = page.Next;
 			}
 			
-			this.mappedSpace -= MemoryConstants.MEM_PAGESIZE;
+			this.mappedSpace -= MemoryConstants.PAGE_SIZE;
 			
 			page = null;
 		}
@@ -285,38 +282,38 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			Debug.Assert (IsAligned (src));
 			Debug.Assert (IsAligned ((uint)size));
 			if ((src < dest && src + size > dest) || (dest < src && dest + size > src))
-				Logger.Fatal (LogCategory.MEMORY, "mem_copy: cannot copy overlapping regions");
+				Logger.Fatal (LogCategory.Memory, "mem_copy: cannot copy overlapping regions");
 			
 			while (size > 0) {
 				MemoryPage pageDest = this.GetPage (dest);
 				MemoryPage pageSrc = this.GetPage (src);
 				Debug.Assert (pageSrc != null && pageDest != null);
-				Array.Copy (pageSrc.Data, pageDest.Data, MemoryConstants.MEM_PAGESIZE);
-				src += MemoryConstants.MEM_PAGESIZE;
-				dest += MemoryConstants.MEM_PAGESIZE;
-				size -= (int)MemoryConstants.MEM_PAGESIZE;
+				Array.Copy (pageSrc.Data, pageDest.Data, MemoryConstants.PAGE_SIZE);
+				src += MemoryConstants.PAGE_SIZE;
+				dest += MemoryConstants.PAGE_SIZE;
+				size -= (int)MemoryConstants.PAGE_SIZE;
 			}
 		}
 
-		unsafe public void AccessPageBoundary (uint addr, int size, byte* buf, MemoryAccessType access)
+		unsafe private void AccessPageBoundary (uint addr, int size, byte* buf, MemoryAccessType access)
 		{
 			MemoryPage page = this.GetPage (addr);
 			
 			if (page == null && !this.safe) {
 				switch (access) {
-				case MemoryAccessType.READ:
-				case MemoryAccessType.EXEC:
-					Logger.Warnf (LogCategory.MEMORY, "Memory.accessPageBoundary: unsafe reading 0x{0:x8}", addr);
-					PtrUtils.memset (buf, 0, size);
+				case MemoryAccessType.Read:
+				case MemoryAccessType.Execute:
+					Logger.Warnf (LogCategory.Memory, "Memory.accessPageBoundary: unsafe reading 0x{0:x8}", addr);
+					PtrHelper.Memset (buf, 0, size);
 					return;
 				
-				case MemoryAccessType.WRITE:
-				case MemoryAccessType.INIT:
-					Logger.Warnf (LogCategory.MEMORY, "Memory.accessPageBoundary: unsafe writing 0x{0:x8}", addr);
-					page = AddPage (addr, MemoryAccessType.READ | MemoryAccessType.WRITE | MemoryAccessType.EXEC | MemoryAccessType.INIT);
+				case MemoryAccessType.Write:
+				case MemoryAccessType.Init:
+					Logger.Warnf (LogCategory.Memory, "Memory.accessPageBoundary: unsafe writing 0x{0:x8}", addr);
+					page = AddPage (addr, MemoryAccessType.Read | MemoryAccessType.Write | MemoryAccessType.Execute | MemoryAccessType.Init);
 					break;
 				default:
-					Logger.Panic (LogCategory.MEMORY, "Memory.accessPageBoundary: unknown access");
+					Logger.Panic (LogCategory.Memory, "Memory.accessPageBoundary: unknown access");
 					break;
 				}
 			}
@@ -325,26 +322,26 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 				if (page == null) {
 					throw new SegmentationFaultException (addr);
 				}
-				if ((page.perm & access) != access) {
-					Logger.Fatalf (LogCategory.MEMORY, "Memory.accessPageBoundary: permission denied at 0x{0:x8}, page.perm: 0x{1:x8}, access: 0x{2:x8}", addr, page.perm, access);
+				if ((page.Permission & access) != access) {
+					Logger.Fatalf (LogCategory.Memory, "Memory.accessPageBoundary: permission denied at 0x{0:x8}, page.Permission: 0x{1:x8}, access: 0x{2:x8}", addr, page.Permission, access);
 				}
 			}
 			
 			uint offset = this.GetOffset (addr);
-			Debug.Assert (offset + size <= MemoryConstants.MEM_PAGESIZE);
+			Debug.Assert (offset + size <= MemoryConstants.PAGE_SIZE);
 			
 			fixed (byte* data = &page.Data[offset]) {
 				switch (access) {
-				case MemoryAccessType.READ:
-				case MemoryAccessType.EXEC:
-					PtrUtils.memcpy (buf, data, size);
+				case MemoryAccessType.Read:
+				case MemoryAccessType.Execute:
+					PtrHelper.Memcpy (buf, data, size);
 					break;
-				case MemoryAccessType.WRITE:
-				case MemoryAccessType.INIT:
-					PtrUtils.memcpy (data, buf, size);
+				case MemoryAccessType.Write:
+				case MemoryAccessType.Init:
+					PtrHelper.Memcpy (data, buf, size);
 					break;
 				default:
-					Logger.Panic (LogCategory.MEMORY, "Memory.accessPageBoundary: unknown access");
+					Logger.Panic (LogCategory.Memory, "Memory.accessPageBoundary: unknown access");
 					break;
 				}
 			}
@@ -354,7 +351,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 		{
 			while (size > 0) {
 				uint offset = this.GetOffset (addr);
-				int chunksize = Math.Min (size, (int)(MemoryConstants.MEM_PAGESIZE - offset));
+				int chunksize = Math.Min (size, (int)(MemoryConstants.PAGE_SIZE - offset));
 				this.AccessPageBoundary (addr, chunksize, buf, access);
 				
 				size -= chunksize;
@@ -377,17 +374,17 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 				}
 				
 				if (this.GetPage (tagEnd) != null) {
-					tagEnd += MemoryConstants.MEM_PAGESIZE;
+					tagEnd += MemoryConstants.PAGE_SIZE;
 					tagStart = tagEnd;
 					continue;
 				}
 				
-				if (tagEnd - tagStart + MemoryConstants.MEM_PAGESIZE == size)
+				if (tagEnd - tagStart + MemoryConstants.PAGE_SIZE == size)
 					break;
 				
-				Debug.Assert (tagEnd - tagStart + MemoryConstants.MEM_PAGESIZE < size);
+				Debug.Assert (tagEnd - tagStart + MemoryConstants.PAGE_SIZE < size);
 				
-				tagEnd += MemoryConstants.MEM_PAGESIZE;
+				tagEnd += MemoryConstants.PAGE_SIZE;
 			}
 			
 			return tagStart;
@@ -407,31 +404,31 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 				}
 				
 				if (this.GetPage (tagStart) != null) {
-					tagStart += MemoryConstants.MEM_PAGESIZE;
+					tagStart += MemoryConstants.PAGE_SIZE;
 					tagEnd = tagStart;
 					continue;
 				}
 				
-				if (tagEnd - tagStart + MemoryConstants.MEM_PAGESIZE == size)
+				if (tagEnd - tagStart + MemoryConstants.PAGE_SIZE == size)
 					break;
 				
-				Debug.Assert (tagEnd - tagStart + MemoryConstants.MEM_PAGESIZE < size);
+				Debug.Assert (tagEnd - tagStart + MemoryConstants.PAGE_SIZE < size);
 				
-				tagEnd -= MemoryConstants.MEM_PAGESIZE;
+				tagEnd -= MemoryConstants.PAGE_SIZE;
 			}
 			
 			return tagStart;
 		}
 
-		public void Map (uint addr, int size, MemoryAccessType perm)
+		public void Map (uint addr, int size, MemoryAccessType permission)
 		{
-//			Logger.Infof(LogCategory.MEMORY, "Memory.Map(), addr: 0x{0:x8} ~ 0x{1:x8}, size: {2:d}, perm: 0x{3:x8}", addr, addr + size, size, perm);
+//			Logger.Infof(LogCategory.MEMORY, "Memory.Map(), addr: 0x{0:x8} ~ 0x{1:x8}, size: {2:d}, permission: 0x{3:x8}", addr, addr + size, size, permission);
 			
-			for (uint tag = this.GetTag (addr); tag <= this.GetTag ((uint)(addr + size - 1)); tag += MemoryConstants.MEM_PAGESIZE) {
+			for (uint tag = this.GetTag (addr); tag <= this.GetTag ((uint)(addr + size - 1)); tag += MemoryConstants.PAGE_SIZE) {
 				MemoryPage page = this.GetPage (tag);
 				if (page == null) {
-					page = this.AddPage (tag, perm);
-					page.perm |= perm;
+					page = this.AddPage (tag, permission);
+					page.Permission |= permission;
 				}
 			}
 		}
@@ -441,22 +438,22 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			Debug.Assert (IsAligned (addr));
 			Debug.Assert (IsAligned ((uint)size));
 			
-			for (uint tag = GetTag (addr); tag <= GetTag ((uint)(addr + size - 1)); tag += MemoryConstants.MEM_PAGESIZE) {
+			for (uint tag = GetTag (addr); tag <= GetTag ((uint)(addr + size - 1)); tag += MemoryConstants.PAGE_SIZE) {
 				if (this.GetPage (tag) != null) {
 					this.RemovePage (tag);
 				}
 			}
 		}
 
-		public void Protect (uint addr, int size, MemoryAccessType perm)
+		public void Protect (uint addr, int size, MemoryAccessType permission)
 		{
 			Debug.Assert (IsAligned (addr));
 			Debug.Assert (IsAligned ((uint)size));
 			
-			for (uint tag = GetTag (addr); tag <= GetTag ((uint)(addr + size - 1)); tag += MemoryConstants.MEM_PAGESIZE) {
+			for (uint tag = GetTag (addr); tag <= GetTag ((uint)(addr + size - 1)); tag += MemoryConstants.PAGE_SIZE) {
 				MemoryPage page = this.GetPage (tag);
 				if (page != null) {
-					page.perm = perm;
+					page.Permission = permission;
 				}
 			}
 		}
@@ -477,52 +474,34 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 		private ulong mappedSpace = 0;
 		private ulong maxMappedSpace = 0;
 
-		private bool safe = true;
+		private bool safe {get; set;}
 	}
 
-	public class CAM<T, K, V>
+	public sealed class MemoryManagementUnit //TODO: correctness?
 	{
-		public CAM ()
+		private sealed class Page
 		{
+			public Page ()
+			{
+			}
+
+			public uint VirtualAddress { get; set; }
+			public uint PhysicalAddress { get; set; }
+			public Page Next { get; set; }
+			public Directory Directory { get; set; } //TODO: what about the usage?
 		}
 
-		public K Tag { get; set; }
-		public V Content { get; set; }
-		public T Next { get; set; }
-	}
-
-	public class MMUPage : CAM<MMUPage, uint, uint>
-	{
-		public MMUPage ()
+		public MemoryManagementUnit ()
 		{
+			this.Pages = new Dictionary<uint, Page> ();
 		}
 
-		public uint VirtualAddress {
-			get { return this.Tag; }
-			set { this.Tag = value; }
-		}
-
-		public uint PhysicalAddress {
-			get { return this.Content; }
-			set { this.Content = value; }
-		}
-
-		public Dir Dir { get; set; }
-	}
-
-	public class MMU
-	{
-		public MMU ()
+		private Page getPage (uint virtualAddress)
 		{
-			this.Pages = new Dictionary<uint, MMUPage> ();
-		}
-
-		public MMUPage getPage (uint vtladdr)
-		{
-			uint idx = Page (vtladdr);
-			uint tag = Tag (vtladdr);
+			uint pageIndex = GetPageIndex (virtualAddress);
+			uint tag = GetTag (virtualAddress);
 			
-			MMUPage page = this[idx];
+			Page page = this[pageIndex];
 			
 			while (page != null) {
 				if (page.VirtualAddress == tag)
@@ -531,14 +510,14 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			}
 			
 			if (page == null) {
-				page = new MMUPage ();
-				page.Dir = new Dir (MemoryConstants.MEM_PAGESIZE / MemoryConstants.MEM_BLOCK_SIZE, 1);
+				page = new Page ();
+				page.Directory = new Directory (MemoryConstants.PAGE_SIZE / MemoryConstants.BLOCK_SIZE, 1);
 				
 				page.VirtualAddress = tag;
-				page.PhysicalAddress = this.PageCount << (int)MemoryConstants.MEM_LOGPAGESIZE;
+				page.PhysicalAddress = this.PageCount << (int)MemoryConstants.LOG_PAGE_SIZE;
 				
-				page.Next = this[idx];
-				this[idx] = page;
+				page.Next = this[pageIndex];
+				this[pageIndex] = page;
 				
 				this.PageCount++;
 			}
@@ -546,28 +525,13 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			return page;
 		}
 
-		public uint Translate (uint vtladdr)
+		public uint GetPhysicalAddress (uint virtualAddress)
 		{
-			MMUPage page = this.getPage (vtladdr);
-			return page.PhysicalAddress | Offset (vtladdr);
+			Page page = this.getPage (virtualAddress);
+			return page.PhysicalAddress | GetOffset (virtualAddress);
 		}
 
-		public Dir getDir (uint phaddr)
-		{
-			uint idx = Page (phaddr);
-			if (idx >= this.PageCount) {
-				return null;
-			}
-			
-			return this[idx].Dir;
-		}
-
-		public bool validPhysicalAddress (uint phaddr)
-		{
-			return Page (phaddr) < this.PageCount;
-		}
-
-		public MMUPage this[uint index] {
+		private Page this[uint index] {
 			get {
 				if (this.Pages.ContainsKey (index)) {
 					return this.Pages[index];
@@ -578,28 +542,28 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			set { this.Pages[index] = value; }
 		}
 
-		public Dictionary<uint, MMUPage> Pages { get; private set; }
-		public uint PageCount { get; set; }
+		private Dictionary<uint, Page> Pages { get; set; }
+		private uint PageCount { get; set; }
 
-		public static uint Page (uint virtualAddress)
+		private static uint GetPageIndex (uint virtualAddress)
 		{
-			return virtualAddress >> (int)MemoryConstants.MEM_LOGPAGESIZE;
+			return virtualAddress >> (int)MemoryConstants.LOG_PAGE_SIZE;
 		}
 
-		public static uint Tag (uint virtualAddress)
+		private static uint GetTag (uint virtualAddress)
 		{
-			return virtualAddress & ~MemoryConstants.MEM_PAGEMASK;
+			return virtualAddress & ~MemoryConstants.PAGE_MASK;
 		}
 
-		public static uint Offset (uint virtualAddress)
+		private static uint GetOffset (uint virtualAddress)
 		{
-			return virtualAddress & MemoryConstants.MEM_PAGEMASK;
+			return virtualAddress & MemoryConstants.PAGE_MASK;
 		}
 	}
 
-	public class DirEntry
+	public sealed class DirectoryEntry
 	{
-		public DirEntry (uint x, uint y)
+		public DirectoryEntry (uint x, uint y)
 		{
 			this.X = x;
 			this.Y = y;
@@ -647,98 +611,85 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			get { return this.IsShared || this.IsOwned; }
 		}
 
-		public uint X { get; set; }
-		public uint Y { get; set; }
+		public uint X { get; private set; }
+		public uint Y { get; private set; }
 
 		public CoherentCacheNode Owner { get; set; }
-		public List<CoherentCacheNode> Sharers { get; set; }
+		public List<CoherentCacheNode> Sharers { get; private set; }
 	}
 
-	public class DirLock
+	public sealed class DirectoryLock
 	{
-		public DirLock (uint x)
+		public DirectoryLock (uint x)
 		{
 			this.X = x;
 		}
 
 		public bool Lock ()
 		{
-			if (this.Locked) {
+			if (this.IsLocked) {
 				return false;
 			} else {
-				this.Locked = true;
+				this.IsLocked = true;
 				return true;
 			}
 		}
 
 		public void Unlock ()
 		{
-			this.Locked = false;
+			this.IsLocked = false;
 		}
 
 		public override string ToString ()
 		{
-			return string.Format ("[DirLock: X={0}, Locked={1}]", this.X, this.Locked);
+			return string.Format ("[DirLock: X={0}, IsLocked={1}]", this.X, this.IsLocked);
 		}
 
-		public uint X { get; set; }
-		public bool Locked { get; set; }
+		public uint X { get; private set; }
+		public bool IsLocked { get; private set; }
 	}
 
-	public class Dir
+	public sealed class Directory
 	{
-		public Dir (uint xSize, uint ySize)
+		public Directory (uint xSize, uint ySize)
 		{
 			this.XSize = xSize;
 			this.YSize = ySize;
 			
-			this.DirEntries = new List<List<DirEntry>> ();
+			this.Entries = new List<List<DirectoryEntry>> ();
 			for (uint i = 0; i < this.XSize; i++) {
-				List<DirEntry> dirEntries = new List<DirEntry> ();
-				this.DirEntries.Add (dirEntries);
+				List<DirectoryEntry> entries = new List<DirectoryEntry> ();
+				this.Entries.Add (entries);
 				
 				for (uint j = 0; j < this.YSize; j++) {
-					dirEntries.Add (new DirEntry (i, j));
+					entries.Add (new DirectoryEntry (i, j));
 				}
 			}
 			
-			this.DirLocks = new List<DirLock> ();
+			this.Locks = new List<DirectoryLock> ();
 			for (uint i = 0; i < this.XSize; i++) {
-				this.DirLocks.Add (new DirLock (i));
+				this.Locks.Add (new DirectoryLock (i));
 			}
 		}
 
 		public bool IsSharedOrOwned (int x, int y)
 		{
-			return this.DirEntries[x][y].IsSharedOrOwned;
+			return this.Entries[x][y].IsSharedOrOwned;
 		}
 
-		public uint XSize { get; set; }
-		public uint YSize { get; set; }
+		public uint XSize { get; private set; }
+		public uint YSize { get; private set; }
 
-		public List<List<DirEntry>> DirEntries { get; set; }
-		public List<DirLock> DirLocks { get; set; }
+		public List<List<DirectoryEntry>> Entries { get; private set; }
+		public List<DirectoryLock> Locks { get; private set; }
 	}
 
 	public enum MESIState
 	{
-		MODIFIED,
-		EXCLUSIVE,
-		SHARED,
-		INVALID
-	}
-
-	public static class MESIUtils
-	{
-		public static bool IsReadHit (MESIState state)
-		{
-			return state != MESIState.INVALID;
-		}
-
-		public static bool IsWriteHit (MESIState state)
-		{
-			return state == MESIState.MODIFIED || state == MESIState.EXCLUSIVE;
-		}
+		Modified,
+		Exclusive,
+		Shared,
+		Invalid
 	}
 
 	public enum CacheReplacementPolicy
@@ -748,36 +699,36 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 		Random
 	}
 
-	public class CacheBlock
+	public sealed class CacheBlock
 	{
-		public CacheBlock (CacheSet st, uint way)
+		public CacheBlock (CacheSet @set, uint way)
 		{
-			this.Set = st;
+			this.Set = @set;
 			this.Way = way;
 			
 			this.Tag = 0;
 			this.TransientTag = 0;
-			this.State = MESIState.INVALID;
+			this.State = MESIState.Invalid;
 			
-			this.LastAccess = 0;
+			this.LastAccessCycle = 0;
 		}
 
 		public override string ToString ()
 		{
-			return string.Format ("[CacheBlock: Set={0}, Way={1}, Tag={2}, TransientTag={3}, State={4}, LastAccess={5}]", this.Set, this.Way, this.Tag, this.TransientTag, this.State, this.LastAccess);
+			return string.Format ("[CacheBlock: Set={0}, Way={1}, Tag={2}, TransientTag={3}, State={4}, LastAccessCycle={5}]", this.Set, this.Way, this.Tag, this.TransientTag, this.State, this.LastAccessCycle);
 		}
 
-		public CacheSet Set { get; set; }
-		public uint Way { get; set; }
+		public CacheSet Set { get; private set; }
+		public uint Way { get; private set; }
 
 		public uint Tag { get; set; }
 		public uint TransientTag { get; set; }
 		public MESIState State { get; set; }
 
-		public ulong LastAccess { get; set; }
+		public ulong LastAccessCycle { get; set; }
 	}
 
-	public class CacheSet
+	public sealed class CacheSet
 	{
 		public CacheSet (Cache cache, uint assoc, uint num)
 		{
@@ -785,9 +736,9 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			this.Assoc = assoc;
 			this.Num = num;
 			
-			this.Blks = new List<CacheBlock> ();
+			this.Blocks = new List<CacheBlock> ();
 			for (uint i = 0; i < this.Assoc; i++) {
-				this.Blks.Add (new CacheBlock (this, i));
+				this.Blocks.Add (new CacheBlock (this, i));
 			}
 		}
 
@@ -797,42 +748,41 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 		}
 
 		public CacheBlock this[uint index] {
-			get { return this.Blks[(int)index]; }
+			get { return this.Blocks[(int)index]; }
 		}
 
-		public uint Assoc { get; set; }
-		public List<CacheBlock> Blks { get; set; }
+		public uint Assoc { get; private set; }
+		public List<CacheBlock> Blocks { get; private set; }
 
-		public Cache Cache { get; set; }
+		public Cache Cache { get; private set; }
 
-		public uint Num { get; set; }
+		public uint Num { get; private set; }
 	}
 
-	public class Cache
+	public sealed class Cache
 	{
-		public Cache (CoherentCache coherentCache, CacheConfig cacheConfig)
+		public Cache (CoherentCache coherentCache)
 		{
 			this.CoherentCache = coherentCache;
-			this.CacheConfig = cacheConfig;
 			
 			this.Sets = new List<CacheSet> ();
 			for (uint i = 0; i < this.NumSets; i++) {
 				this.Sets.Add (new CacheSet (this, this.Assoc, i));
 			}
 			
-			this.Dir = new Dir (this.NumSets, this.Assoc);
+			this.Directory = new Directory (this.NumSets, this.Assoc);
 		}
 
-		public CacheBlock BlockOf (uint addr, bool checkTransientTag)
+		public CacheBlock GetBlock (uint addr, bool checkTransientTag)
 		{
-			uint tag = this.Tag (addr);
-			uint @set = this.Set (addr);
+			uint tag = this.GetTag (addr);
+			uint @set = this.GetSet (addr);
 			
 			for (uint way = 0; way < this[@set].Assoc; way++) {
-				CacheBlock blk = this[@set][way];
+				CacheBlock block = this[@set][way];
 				
-				if ((blk.Tag == tag && blk.State != MESIState.INVALID) || (checkTransientTag && blk.TransientTag == tag && this.Dir.DirLocks[(int)@set].Locked)) {
-					return blk;
+				if ((block.Tag == tag && block.State != MESIState.Invalid) || (checkTransientTag && block.TransientTag == tag && this.Directory.Locks[(int)@set].IsLocked)) {
+					return block;
 				}
 			}
 			
@@ -841,15 +791,15 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 
 		public bool FindBlock (uint addr, out uint @set, out uint way, out uint tag, out MESIState state, bool checkTransientTag)
 		{
-			@set = this.Set (addr);
-			tag = this.Tag (addr);
+			@set = this.GetSet (addr);
+			tag = this.GetTag (addr);
 			
-			CacheBlock blkFound = this.BlockOf (addr, checkTransientTag);
+			CacheBlock blockFound = this.GetBlock (addr, checkTransientTag);
 			
-			way = blkFound != null ? blkFound.Way : 0;
-			state = blkFound != null ? blkFound.State : MESIState.INVALID;
+			way = blockFound != null ? blockFound.Way : 0;
+			state = blockFound != null ? blockFound.State : MESIState.Invalid;
 			
-			return blkFound != null;
+			return blockFound != null;
 		}
 
 		public void SetBlock (uint @set, uint way, uint tag, MESIState state)
@@ -876,20 +826,20 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			Debug.Assert (@set >= 0 && @set < this.NumSets);
 			Debug.Assert (way >= 0 && way < this.Assoc);
 			
-			this[@set][way].LastAccess = this.CoherentCache.CycleProvider.CurrentCycle;
+			this[@set][way].LastAccessCycle = this.CoherentCache.CycleProvider.CurrentCycle;
 		}
 
 		public uint ReplaceBlock (uint @set)
 		{
 			Debug.Assert (@set >= 0 && @set < this.NumSets);
 			
-			ulong smallestTime = this[@set][0].LastAccess;
+			ulong smallestTime = this[@set][0].LastAccessCycle;
 			uint smallestIndex = 0;
 			
 			for (uint way = 0; way < this[@set].Assoc; way++) {
-				CacheBlock blk = this[@set][way];
+				CacheBlock block = this[@set][way];
 				
-				ulong time = blk.LastAccess;
+				ulong time = block.LastAccessCycle;
 				if (time < smallestTime) {
 					smallestIndex = way;
 					smallestTime = time;
@@ -912,105 +862,103 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			get { return this.BlockSize - 1; }
 		}
 
-		public uint Set (uint addr)
+		public uint GetSet (uint addr)
 		{
 			return (addr >> (int)this.LogBlockSize) % this.NumSets;
 		}
 
-		public uint Tag (uint addr)
+		public uint GetTag (uint addr)
 		{
 			return addr & ~this.BlockMask;
 		}
 
-		public uint Offset (uint addr)
+		public uint GetOffset (uint addr)
 		{
 			return addr & this.BlockMask;
 		}
 
 		public uint Assoc {
-			get { return this.CacheConfig.Assoc; }
+			get { return this.CoherentCache.Config.Assoc; }
 		}
 
 		public uint NumSets {
-			get { return this.CacheConfig.NumSets; }
+			get { return this.CoherentCache.Config.NumSets; }
 		}
 
 		public uint BlockSize {
-			get { return this.CacheConfig.BlockSize; }
+			get { return this.CoherentCache.Config.BlockSize; }
 		}
 
-		public List<CacheSet> Sets { get; set; }
-		public Dir Dir { get; set; }
+		public List<CacheSet> Sets { get; private set; }
+		public Directory Directory { get; private set; }
 
-		public CoherentCache CoherentCache { get; set; }
-		public CacheConfig CacheConfig { get; set; }
+		public CoherentCache CoherentCache { get; private set; }
 	}
 
 	public abstract class CoherentCacheNode
 	{
 		public CoherentCacheNode (ICycleProvider cycleProvider, string name)
 		{
-			this.Name = name;
 			this.CycleProvider = cycleProvider;
+			this.Name = name;
 			
 			this.EventQueue = new DelegateEventQueue ();
-			
 			this.CycleProvider.EventProcessors.Add (this.EventQueue);
 		}
 
-		public void Schedule (VoidDelegate evt, ulong delay)
+		protected void Schedule (Action action, ulong delay)
 		{
-			this.EventQueue.Schedule (evt, delay);
+			this.EventQueue.Schedule (action, delay);
 		}
 
-		public delegate void FindAndLockDelegate (bool hasError, uint @set, uint way, MESIState state, uint tag, DirLock dirLock);
+		public delegate void FindAndLockDelegate (bool hasError, uint @set, uint way, MESIState state, uint tag, DirectoryLock dirLock);
 
 		public virtual void FindAndLock (uint addr, bool isBlocking, bool isRead, bool isRetry, FindAndLockDelegate onCompletedCallback)
 		{
 			throw new NotImplementedException ();
 		}
 
-		public virtual void Load (uint addr, bool isRetry, VoidDelegate onCompletedCallback)
+		public virtual void Load (uint addr, bool isRetry, Action onCompletedCallback)
 		{
 			throw new NotImplementedException ();
 		}
 
-		public virtual void Store (uint addr, bool isRetry, VoidDelegate onCompletedCallback)
+		public virtual void Store (uint addr, bool isRetry, Action onCompletedCallback)
 		{
 			throw new NotImplementedException ();
 		}
 
-		public virtual void Evict (uint @set, uint way, HasErrorDelegate onCompletedCallback)
+		public virtual void Evict (uint @set, uint way, Action<bool> onCompletedCallback)
 		{
 			throw new NotImplementedException ();
 		}
 
-		public virtual void EvictReceive (CoherentCacheNode source, uint addr, bool isWriteback, HasErrorDelegate onReceiveReplyCallback)
+		public virtual void EvictReceive (CoherentCacheNode source, uint addr, bool isWriteback, Action<bool> onReceiveReplyCallback)
 		{
 			throw new NotImplementedException ();
 		}
 
-		public virtual void ReadRequest (CoherentCacheNode target, uint addr, HasErrorAndIsSharedDelegate onCompletedCallback)
+		public virtual void ReadRequest (CoherentCacheNode target, uint addr, Action<bool, bool> onCompletedCallback)
 		{
 			throw new NotImplementedException ();
 		}
 
-		public virtual void ReadRequestReceive (CoherentCacheNode source, uint addr, HasErrorAndIsSharedDelegate onCompletedCallback)
+		public virtual void ReadRequestReceive (CoherentCacheNode source, uint addr, Action<bool, bool> onCompletedCallback)
 		{
 			throw new NotImplementedException ();
 		}
 
-		public virtual void WriteRequest (CoherentCacheNode target, uint addr, HasErrorDelegate onCompletedCallback)
+		public virtual void WriteRequest (CoherentCacheNode target, uint addr, Action<bool> onCompletedCallback)
 		{
 			throw new NotImplementedException ();
 		}
 
-		public virtual void WriteRequestReceive (CoherentCacheNode source, uint addr, HasErrorDelegate onCompletedCallback)
+		public virtual void WriteRequestReceive (CoherentCacheNode source, uint addr, Action<bool> onCompletedCallback)
 		{
 			throw new NotImplementedException ();
 		}
 
-		public virtual void Invalidate (CoherentCacheNode except, uint @set, uint way, VoidDelegate onCompletedCallback)
+		public virtual void Invalidate (CoherentCacheNode except, uint @set, uint way, Action onCompletedCallback)
 		{
 			throw new NotImplementedException ();
 		}
@@ -1021,31 +969,31 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 		}
 
 		public abstract uint Level { get; }
-
-		public string Name { get; set; }
-		public ICycleProvider CycleProvider { get; set; }
+			
+		public ICycleProvider CycleProvider { get; private set; }
+		public string Name { get; private set; }
 		public CoherentCacheNode Next { get; set; }
-		public DelegateEventQueue EventQueue { get; set; }
+		private DelegateEventQueue EventQueue { get; set; }
 	}
 
-	public class Sequencer : CoherentCacheNode
+	public sealed class Sequencer : CoherentCacheNode
 	{
 		public Sequencer (string name, CoherentCache l1Cache) : base(l1Cache.CycleProvider, name)
 		{
 			this.L1Cache = l1Cache;
 		}
 
-		public void Load (uint addr, bool isRetry, ReorderBufferEntry reorderBufferEntry, ReorderBufferEntryDelegate onCompletedCallback)
+		public void Load (uint addr, bool isRetry, ReorderBufferEntry reorderBufferEntry, Action<ReorderBufferEntry> onCompletedCallback)
 		{
 			this.Load (addr, isRetry, delegate() { onCompletedCallback (reorderBufferEntry); });
 		}
 
-		public override void Load (uint addr, bool isRetry, VoidDelegate onCompletedCallback)
+		public override void Load (uint addr, bool isRetry, Action onCompletedCallback)
 		{
 			this.L1Cache.Load (addr, isRetry, onCompletedCallback);
 		}
 
-		public override void Store (uint addr, bool isRetry, VoidDelegate onCompletedCallback)
+		public override void Store (uint addr, bool isRetry, Action onCompletedCallback)
 		{
 			this.L1Cache.Store (addr, isRetry, onCompletedCallback);
 		}
@@ -1055,13 +1003,13 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			return string.Format ("[Sequencer: Name={0}]", this.Name);
 		}
 
-		public uint BlockSize {
-			get { return this.L1Cache.Cache.BlockSize; }
+		public uint GetBlockAddress (uint addr)
+		{
+			return this.L1Cache.Cache.GetTag (addr);
 		}
 
-		public uint BlockAddress (uint addr)
-		{
-			return this.L1Cache.Cache.Tag (addr);
+		public uint BlockSize {
+			get { return this.L1Cache.Cache.BlockSize; }
 		}
 
 		public override uint Level {
@@ -1070,33 +1018,18 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			}
 		}
 
-		CoherentCache L1Cache { get; set; }
+		public CoherentCache L1Cache { get; private set; }
 	}
 
-	public class CoherentCache : CoherentCacheNode
-	{
+	public sealed class CoherentCache : CoherentCacheNode
+	{		
 		public CoherentCache (ICycleProvider cycleProvider, CacheConfig config, CacheStat stat) : base(cycleProvider, config.Name)
 		{
-			this.Cache = new Cache (this, config);
 			this.Config = config;
 			this.Stat = stat;
-		}
-
-		public uint RetryLat {
-			get { return (uint)(this.HitLatency + (new Random ().Next (0, (int)(this.HitLatency + 2)))); }
-		}
-
-		public void Retry (VoidDelegate action)
-		{
-			this.EventQueue.Schedule (action, this.RetryLat);
-		}
-
-		public uint HitLatency {
-			get { return this.Config.HitLatency; }
-		}
-
-		public override uint Level {
-			get { return this.Config.Level; }
+			this.Cache = new Cache (this);
+			
+			this.Random = new Random ();
 		}
 
 		public override void FindAndLock (uint addr, bool isBlocking, bool isRead, bool isRetry, FindAndLockDelegate onCompletedCallback)
@@ -1104,10 +1037,10 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			uint @set, way, tag;
 			MESIState state;
 			
-			bool hit = this.Cache.FindBlock (addr, out @set, out way, out tag, out state, true);
+			bool hasHit = this.Cache.FindBlock (addr, out @set, out way, out tag, out state, true);
 			
 			this.Stat.Accesses++;
-			if (hit) {
+			if (hasHit) {
 				this.Stat.Hits++;
 			}
 			if (isRead) {
@@ -1119,7 +1052,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 					this.Stat.NonblockingReads++;
 				}
 				
-				if (hit) {
+				if (hasHit) {
 					this.Stat.ReadHits++;
 				}
 			} else {
@@ -1131,7 +1064,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 					this.Stat.NonblockingWrites++;
 				}
 				
-				if (hit) {
+				if (hasHit) {
 					this.Stat.WriteHits++;
 				}
 			}
@@ -1139,20 +1072,20 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			if (!isRetry) {
 				this.Stat.NoRetryAccesses++;
 				
-				if (hit) {
+				if (hasHit) {
 					this.Stat.NoRetryHits++;
 				}
 				
 				if (isRead) {
 					this.Stat.NoRetryReads++;
 					
-					if (hit) {
+					if (hasHit) {
 						this.Stat.NoRetryReadHits++;
 					}
 				} else {
 					this.Stat.NoRetryWrites++;
 					
-					if (hit) {
+					if (hasHit) {
 						this.Stat.NoRetryWriteHits++;
 					}
 				}
@@ -1160,12 +1093,12 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			
 			uint dumbTag;
 			
-			if (!hit) {
+			if (!hasHit) {
 				way = this.Cache.ReplaceBlock (@set);
 				this.Cache.GetBlock (@set, way, out dumbTag, out state);
 			}
 			
-			DirLock dirLock = this.Cache.Dir.DirLocks[(int)@set];
+			DirectoryLock dirLock = this.Cache.Directory.Locks[(int)@set];
 			if (!dirLock.Lock ()) {
 				if (isBlocking) {
 					onCompletedCallback (true, @set, way, state, tag, dirLock);
@@ -1175,7 +1108,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			} else {
 				this.Cache[@set][way].TransientTag = tag;
 				
-				if (!hit && state != MESIState.INVALID) {
+				if (!hasHit && state != MESIState.Invalid) {
 					
 					this.Schedule (delegate() { this.Evict (@set, way, delegate(bool hasError) {uint dumbTag1;if (!hasError) {this.Stat.Evictions++;this.Cache.GetBlock (@set, way, out dumbTag1, out state);onCompletedCallback (false, @set, way, state, tag, dirLock);} else {this.Cache.GetBlock (@set, way, out dumbTag, out state);dirLock.Unlock ();onCompletedCallback (true, @set, way, state, tag, dirLock);}}); }, this.HitLatency);
 				} else {
@@ -1184,14 +1117,14 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			}
 		}
 
-		public override void Load (uint addr, bool isRetry, VoidDelegate onCompletedCallback)
+		public override void Load (uint addr, bool isRetry, Action onCompletedCallback)
 		{
-			this.FindAndLock (addr, false, true, isRetry, delegate(bool hasError, uint @set, uint way, MESIState state, uint tag, DirLock dirLock) {
+			this.FindAndLock (addr, false, true, isRetry, delegate(bool hasError, uint @set, uint way, MESIState state, uint tag, DirectoryLock dirLock) {
 				if (!hasError) {
-					if (!MESIUtils.IsReadHit (state)) {
+					if (!IsReadHit (state)) {
 						this.ReadRequest (this.Next, tag, delegate(bool hasError1, bool isShared) {
 							if (!hasError1) {
-								this.Cache.SetBlock (@set, way, tag, isShared ? MESIState.SHARED : MESIState.EXCLUSIVE);
+								this.Cache.SetBlock (@set, way, tag, isShared ? MESIState.Shared : MESIState.Exclusive);
 								this.Cache.AccessBlock (@set, way);
 								dirLock.Unlock ();
 								onCompletedCallback ();
@@ -1213,15 +1146,15 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			});
 		}
 
-		public override void Store (uint addr, bool isRetry, VoidDelegate onCompletedCallback)
+		public override void Store (uint addr, bool isRetry, Action onCompletedCallback)
 		{
-			this.FindAndLock (addr, false, false, isRetry, delegate(bool hasError, uint @set, uint way, MESIState state, uint tag, DirLock dirLock) {
+			this.FindAndLock (addr, false, false, isRetry, delegate(bool hasError, uint @set, uint way, MESIState state, uint tag, DirectoryLock dirLock) {
 				if (!hasError) {
-					if (!MESIUtils.IsWriteHit (state)) {
+					if (!IsWriteHit (state)) {
 						this.WriteRequest (this.Next, tag, delegate(bool hasError1) {
 							if (!hasError1) {
 								this.Cache.AccessBlock (@set, way);
-								this.Cache.SetBlock (@set, way, tag, MESIState.MODIFIED);
+								this.Cache.SetBlock (@set, way, tag, MESIState.Modified);
 								dirLock.Unlock ();
 								onCompletedCallback ();
 							} else {
@@ -1232,7 +1165,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 						});
 					} else {
 						this.Cache.AccessBlock (@set, way);
-						this.Cache.SetBlock (@set, way, tag, MESIState.MODIFIED);
+						this.Cache.SetBlock (@set, way, tag, MESIState.Modified);
 						dirLock.Unlock ();
 						onCompletedCallback ();
 					}
@@ -1243,7 +1176,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			});
 		}
 
-		public override void Evict (uint @set, uint way, HasErrorDelegate onCompletedCallback)
+		public override void Evict (uint @set, uint way, Action<bool> onCompletedCallback)
 		{
 			uint tag;
 			MESIState state;
@@ -1257,9 +1190,9 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			CoherentCacheNode target = this.Next;
 			
 			this.Invalidate (null, @set, way, delegate() {
-				if (state == MESIState.INVALID) {
+				if (state == MESIState.Invalid) {
 					onCompletedCallback (false);
-				} else if (state == MESIState.MODIFIED) {
+				} else if (state == MESIState.Modified) {
 					this.Schedule (delegate() { target.EvictReceive (this, srcTag, true, delegate(bool hasError) { this.Schedule (delegate() { this.EvictReplyReceive (hasError, srcSet, srcWay, onCompletedCallback); }, 2); }); }, 2);
 				} else {
 					this.Schedule (delegate() { target.EvictReceive (this, srcTag, false, delegate(bool hasError) { this.Schedule (delegate() { this.EvictReplyReceive (hasError, srcSet, srcWay, onCompletedCallback); }, 2); }); }, 2);
@@ -1267,15 +1200,15 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			});
 		}
 
-		public override void EvictReceive (CoherentCacheNode source, uint addr, bool isWriteback, HasErrorDelegate onReceiveReplyCallback)
+		public override void EvictReceive (CoherentCacheNode source, uint addr, bool isWriteback, Action<bool> onReceiveReplyCallback)
 		{
-			this.FindAndLock (addr, false, false, false, delegate(bool hasError, uint @set, uint way, MESIState state, uint tag, DirLock dirLock) {
+			this.FindAndLock (addr, false, false, false, delegate(bool hasError, uint @set, uint way, MESIState state, uint tag, DirectoryLock dirLock) {
 				if (!hasError) {
 					if (!isWriteback) {
 						this.EvictProcess (source, @set, way, dirLock, onReceiveReplyCallback);
 					} else {
 						this.Invalidate (source, @set, way, delegate() {
-							if (state == MESIState.SHARED) {
+							if (state == MESIState.Shared) {
 								this.WriteRequest (this.Next, tag, delegate(bool hasError1) { this.EvictWritebackFinish (source, hasError1, @set, way, tag, dirLock, onReceiveReplyCallback); });
 							} else {
 								this.EvictWritebackFinish (source, false, @set, way, tag, dirLock, onReceiveReplyCallback);
@@ -1288,10 +1221,10 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			});
 		}
 
-		public void EvictWritebackFinish (CoherentCacheNode source, bool hasError, uint @set, uint way, uint tag, DirLock dirLock, HasErrorDelegate onReceiveReplyCallback)
+		private void EvictWritebackFinish (CoherentCacheNode source, bool hasError, uint @set, uint way, uint tag, DirectoryLock dirLock, Action<bool> onReceiveReplyCallback)
 		{
 			if (!hasError) {
-				this.Cache.SetBlock (@set, way, tag, MESIState.MODIFIED);
+				this.Cache.SetBlock (@set, way, tag, MESIState.Modified);
 				this.Cache.AccessBlock (@set, way);
 				this.EvictProcess (source, @set, way, dirLock, onReceiveReplyCallback);
 			} else {
@@ -1300,9 +1233,9 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			}
 		}
 
-		public void EvictProcess (CoherentCacheNode source, uint @set, uint way, DirLock dirLock, HasErrorDelegate onReceiveReplyCallback)
+		private void EvictProcess (CoherentCacheNode source, uint @set, uint way, DirectoryLock dirLock, Action<bool> onReceiveReplyCallback)
 		{
-			DirEntry dirEntry = this.Cache.Dir.DirEntries[(int)@set][(int)way];
+			DirectoryEntry dirEntry = this.Cache.Directory.Entries[(int)@set][(int)way];
 			dirEntry.UnsetSharer (source);
 			if (dirEntry.Owner == source) {
 				dirEntry.Owner = null;
@@ -1311,24 +1244,24 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			onReceiveReplyCallback (false);
 		}
 
-		public void EvictReplyReceive (bool hasError, uint srcSet, uint srcWay, HasErrorDelegate onCompletedCallback)
+		private void EvictReplyReceive (bool hasError, uint srcSet, uint srcWay, Action<bool> onCompletedCallback)
 		{
 			this.Schedule (delegate() {
 				if (!hasError) {
-					this.Cache.SetBlock (srcSet, srcWay, 0, MESIState.INVALID);
+					this.Cache.SetBlock (srcSet, srcWay, 0, MESIState.Invalid);
 				}
 				onCompletedCallback (hasError);
 			}, 2);
 		}
 
-		public override void ReadRequest (CoherentCacheNode target, uint addr, HasErrorAndIsSharedDelegate onCompletedCallback)
+		public override void ReadRequest (CoherentCacheNode target, uint addr, Action<bool, bool> onCompletedCallback)
 		{
 			this.Schedule (delegate() { target.ReadRequestReceive (this, addr, onCompletedCallback); }, 2);
 		}
 
-		public override void ReadRequestReceive (CoherentCacheNode source, uint addr, HasErrorAndIsSharedDelegate onCompletedCallback)
+		public override void ReadRequestReceive (CoherentCacheNode source, uint addr, Action<bool, bool> onCompletedCallback)
 		{
-			this.FindAndLock (addr, this.Next == source, true, false, delegate(bool hasError, uint @set, uint way, MESIState state, uint tag, DirLock dirLock) {
+			this.FindAndLock (addr, this.Next == source, true, false, delegate(bool hasError, uint @set, uint way, MESIState state, uint tag, DirectoryLock dirLock) {
 				if (!hasError) {
 					if (source.Next == this) {
 						this.ReadRequestUpdown (source, @set, way, tag, state, dirLock, onCompletedCallback);
@@ -1341,12 +1274,12 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			});
 		}
 
-		public void ReadRequestUpdown (CoherentCacheNode source, uint @set, uint way, uint tag, MESIState state, DirLock dirLock, HasErrorAndIsSharedDelegate onCompletedCallback)
+		private void ReadRequestUpdown (CoherentCacheNode source, uint @set, uint way, uint tag, MESIState state, DirectoryLock dirLock, Action<bool, bool> onCompletedCallback)
 		{
 			uint pending = 1;
 			
-			if (state != MESIState.INVALID) {
-				DirEntry dirEntry = this.Cache.Dir.DirEntries[(int)@set][(int)way];
+			if (state != MESIState.Invalid) {
+				DirectoryEntry dirEntry = this.Cache.Directory.Entries[(int)@set][(int)way];
 				
 				if (dirEntry.Owner != null && dirEntry.Owner != source) {
 					pending++;
@@ -1357,7 +1290,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			} else {
 				this.ReadRequest (this.Next, tag, delegate(bool hasError, bool isShared) {
 					if (!hasError) {
-						this.Cache.SetBlock (@set, way, tag, isShared ? MESIState.SHARED : MESIState.EXCLUSIVE);
+						this.Cache.SetBlock (@set, way, tag, isShared ? MESIState.Shared : MESIState.Exclusive);
 						this.ReadRequestUpdownFinish (source, @set, way, dirLock, ref pending, onCompletedCallback);
 					} else {
 						dirLock.Unlock ();
@@ -1367,12 +1300,12 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			}
 		}
 
-		public void ReadRequestUpdownFinish (CoherentCacheNode source, uint @set, uint way, DirLock dirLock, ref uint pending, HasErrorAndIsSharedDelegate onCompletedCallback)
+		private void ReadRequestUpdownFinish (CoherentCacheNode source, uint @set, uint way, DirectoryLock dirLock, ref uint pending, Action<bool, bool> onCompletedCallback)
 		{
 			pending--;
 			
 			if (pending == 0) {
-				DirEntry dirEntry = this.Cache.Dir.DirEntries[(int)@set][(int)way];
+				DirectoryEntry dirEntry = this.Cache.Directory.Entries[(int)@set][(int)way];
 				if (dirEntry.Owner != null && dirEntry.Owner != source) {
 					dirEntry.Owner = null;
 				}
@@ -1388,11 +1321,11 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			}
 		}
 
-		public void ReadRequestDownup (uint @set, uint way, uint tag, DirLock dirLock, HasErrorAndIsSharedDelegate onCompletedCallback)
+		private void ReadRequestDownup (uint @set, uint way, uint tag, DirectoryLock dirLock, Action<bool, bool> onCompletedCallback)
 		{
 			uint pending = 1;
 			
-			DirEntry dirEntry = this.Cache.Dir.DirEntries[(int)@set][(int)way];
+			DirectoryEntry dirEntry = this.Cache.Directory.Entries[(int)@set][(int)way];
 			if (dirEntry.Owner != null) {
 				pending++;
 				
@@ -1402,39 +1335,39 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			this.ReadRequestDownupFinish (@set, way, tag, dirLock, ref pending, onCompletedCallback);
 		}
 
-		public void ReadRequestDownupFinish (uint @set, uint way, uint tag, DirLock dirLock, ref uint pending, HasErrorAndIsSharedDelegate onCompletedCallback)
+		private void ReadRequestDownupFinish (uint @set, uint way, uint tag, DirectoryLock dirLock, ref uint pending, Action<bool, bool> onCompletedCallback)
 		{
 			pending--;
 			
 			if (pending == 0) {
-				DirEntry dirEntry = this.Cache.Dir.DirEntries[(int)@set][(int)way];
+				DirectoryEntry dirEntry = this.Cache.Directory.Entries[(int)@set][(int)way];
 				dirEntry.Owner = null;
 				
-				this.Cache.SetBlock (@set, way, tag, MESIState.SHARED);
+				this.Cache.SetBlock (@set, way, tag, MESIState.Shared);
 				this.Cache.AccessBlock (@set, way);
 				dirLock.Unlock ();
 				this.Schedule (delegate() { onCompletedCallback (false, false); }, 2);
 			}
 		}
 
-		public override void WriteRequest (CoherentCacheNode target, uint addr, HasErrorDelegate onCompletedCallback)
+		public override void WriteRequest (CoherentCacheNode target, uint addr, Action<bool> onCompletedCallback)
 		{
 			this.Schedule (delegate() { target.WriteRequestReceive (this, addr, onCompletedCallback); }, 2);
 		}
 
-		public override void WriteRequestReceive (CoherentCacheNode source, uint addr, HasErrorDelegate onCompletedCallback)
+		public override void WriteRequestReceive (CoherentCacheNode source, uint addr, Action<bool> onCompletedCallback)
 		{
-			this.FindAndLock (addr, this.Next == source, false, false, delegate(bool hasError, uint @set, uint way, MESIState state, uint tag, DirLock dirLock) {
+			this.FindAndLock (addr, this.Next == source, false, false, delegate(bool hasError, uint @set, uint way, MESIState state, uint tag, DirectoryLock dirLock) {
 				if (!hasError) {
 					this.Invalidate (source, @set, way, delegate() {
 						if (source.Next == this) {
-							if (state == MESIState.MODIFIED || state == MESIState.EXCLUSIVE) {
+							if (state == MESIState.Modified || state == MESIState.Exclusive) {
 								this.WriteRequestUpdownFinish (source, false, @set, way, tag, state, dirLock, onCompletedCallback);
 							} else {
 								this.WriteRequest (this.Next, tag, delegate(bool hasSError) { this.WriteRequestUpdownFinish (source, hasError, @set, way, tag, state, dirLock, onCompletedCallback); });
 							}
 						} else {
-							this.Cache.SetBlock (@set, way, 0, MESIState.INVALID);
+							this.Cache.SetBlock (@set, way, 0, MESIState.Invalid);
 							dirLock.Unlock ();
 							this.Schedule (delegate() { onCompletedCallback (false); }, 2);
 						}
@@ -1445,16 +1378,16 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			});
 		}
 
-		public void WriteRequestUpdownFinish (CoherentCacheNode source, bool hasError, uint @set, uint way, uint tag, MESIState state, DirLock dirLock, HasErrorDelegate onCompletedCallback)
+		private void WriteRequestUpdownFinish (CoherentCacheNode source, bool hasError, uint @set, uint way, uint tag, MESIState state, DirectoryLock dirLock, Action<bool> onCompletedCallback)
 		{
 			if (!hasError) {
-				DirEntry dirEntry = this.Cache.Dir.DirEntries[(int)@set][(int)way];
+				DirectoryEntry dirEntry = this.Cache.Directory.Entries[(int)@set][(int)way];
 				dirEntry.SetSharer (source);
 				dirEntry.Owner = source;
 				
 				this.Cache.AccessBlock (@set, way);
-				if (state != MESIState.MODIFIED) {
-					this.Cache.SetBlock (@set, way, tag, MESIState.EXCLUSIVE);
+				if (state != MESIState.Modified) {
+					this.Cache.SetBlock (@set, way, tag, MESIState.Exclusive);
 				}
 				
 				dirLock.Unlock ();
@@ -1465,7 +1398,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			}
 		}
 
-		public override void Invalidate (CoherentCacheNode except, uint @set, uint way, VoidDelegate onCompletedCallback)
+		public override void Invalidate (CoherentCacheNode except, uint @set, uint way, Action onCompletedCallback)
 		{
 			uint tag;
 			MESIState state;
@@ -1474,9 +1407,9 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			
 			uint pending = 1;
 			
-			DirEntry dirEntry = this.Cache.Dir.DirEntries[(int)@set][(int)way];
+			DirectoryEntry dirEntry = this.Cache.Directory.Entries[(int)@set][(int)way];
 			
-			foreach (CoherentCacheNode sharer in dirEntry.Sharers.FindAll (sharer => sharer != except)) {
+			foreach (var sharer in dirEntry.Sharers.FindAll (sharer => sharer != except)) {
 				dirEntry.UnsetSharer (sharer);
 				if (dirEntry.Owner == sharer) {
 					dirEntry.Owner = null;
@@ -1500,17 +1433,67 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			}
 		}
 
-		public Cache Cache { get; set; }
-		public CacheConfig Config { get; set; }
-		public CacheStat Stat { get; set; }
+		private void Retry (Action action)
+		{
+			ulong retryLatency = (ulong)(this.HitLatency + (this.Random.Next (0, (int)(this.HitLatency + 2))));
+			this.Schedule (action, retryLatency);
+		}
+
+		public override uint Level {
+			get { return this.Config.Level; }
+		}
+
+		public uint HitLatency {
+			get { return this.Config.HitLatency; }
+		}
+
+		public Cache Cache { get; private set; }
+		public CacheConfig Config { get; private set; }
+		public CacheStat Stat { get; private set; }
+
+		private Random Random { get; set; }
+		
+		public static bool IsReadHit (MESIState state)
+		{
+			return state != MESIState.Invalid;
+		}
+
+		public static bool IsWriteHit (MESIState state)
+		{
+			return state == MESIState.Modified || state == MESIState.Exclusive;
+		}
 	}
 
-	public class MemoryController : CoherentCacheNode
+	public sealed class MemoryController : CoherentCacheNode
 	{
 		public MemoryController (ICycleProvider cycleProvider, MainMemoryConfig config, MainMemoryStat stat) : base(cycleProvider, "mem")
 		{
 			this.Config = config;
 			this.Stat = stat;
+		}
+
+		public override void EvictReceive (CoherentCacheNode source, uint addr, bool isWriteback, Action<bool> onReceiveReplyCallback)
+		{
+			this.Stat.Accesses++;
+			this.Stat.Writes++;
+			
+			this.Schedule (delegate() { onReceiveReplyCallback (false); }, this.Latency);
+		}
+
+		public override void ReadRequestReceive (CoherentCacheNode source, uint addr, Action<bool, bool> onCompletedCallback)
+		{
+			this.Stat.Accesses++;
+			this.Stat.Reads++;
+			
+			this.Schedule (delegate() { onCompletedCallback (false, false); }, this.Latency);
+		}
+
+		public override void WriteRequestReceive (CoherentCacheNode source, uint addr, Action<bool> onCompletedCallback)
+		{
+			this.Stat.Accesses++;
+			this.Stat.Writes++;
+			
+			this.Schedule (delegate() { onCompletedCallback (false); }, this.Latency);
 		}
 
 		public override uint Level {
@@ -1523,31 +1506,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			get { return this.Config.Latency; }
 		}
 
-		public override void EvictReceive (CoherentCacheNode source, uint addr, bool isWriteback, HasErrorDelegate onReceiveReplyCallback)
-		{
-			this.Stat.Accesses++;
-			this.Stat.Writes++;
-			
-			this.Schedule (delegate() { onReceiveReplyCallback (false); }, this.Latency);
-		}
-
-		public override void ReadRequestReceive (CoherentCacheNode source, uint addr, HasErrorAndIsSharedDelegate onCompletedCallback)
-		{
-			this.Stat.Accesses++;
-			this.Stat.Reads++;
-			
-			this.Schedule (delegate() { onCompletedCallback (false, false); }, this.Latency);
-		}
-
-		public override void WriteRequestReceive (CoherentCacheNode source, uint addr, HasErrorDelegate onCompletedCallback)
-		{
-			this.Stat.Accesses++;
-			this.Stat.Writes++;
-			
-			this.Schedule (delegate() { onCompletedCallback (false); }, this.Latency);
-		}
-
-		public MainMemoryConfig Config { get; set; }
-		public MainMemoryStat Stat { get; set; }
+		public MainMemoryConfig Config { get; private set; }
+		public MainMemoryStat Stat { get; private set; }
 	}
 }

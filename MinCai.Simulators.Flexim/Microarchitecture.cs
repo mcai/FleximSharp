@@ -30,11 +30,11 @@ using MinCai.Simulators.Flexim.Common;
 using MinCai.Simulators.Flexim.Interop;
 using MinCai.Simulators.Flexim.MemoryHierarchy;
 using MinCai.Simulators.Flexim.OperatingSystem;
-using MinCai.Simulators.Flexim.Pipelines;
+using MinCai.Simulators.Flexim.Microarchitecture;
 using Mono.Unix.Native;
 using Process = MinCai.Simulators.Flexim.OperatingSystem.Process;
 
-namespace MinCai.Simulators.Flexim.Pipelines
+namespace MinCai.Simulators.Flexim.Microarchitecture
 {
 	public class PipelineList<EntryT> where EntryT : class
 	{
@@ -44,7 +44,7 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			this.Entries = new List<EntryT> ();
 		}
 
-		public bool Empty {
+		public bool IsEmpty {
 			get { return this.Entries.Count == 0; }
 		}
 
@@ -64,7 +64,7 @@ namespace MinCai.Simulators.Flexim.Pipelines
 
 		public EntryT Front {
 			get {
-				if (!this.Empty) {
+				if (!this.IsEmpty) {
 					return this.Entries[0];
 				}
 				
@@ -74,7 +74,7 @@ namespace MinCai.Simulators.Flexim.Pipelines
 
 		public EntryT Back {
 			get {
-				if (!this.Empty) {
+				if (!this.IsEmpty) {
 					return this.Entries[this.Entries.Count - 1];
 				}
 				
@@ -118,14 +118,14 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			this.Capacity = capacity;
 		}
 
-		public bool Full {
+		public bool IsFull {
 			get { return this.Size >= this.Capacity; }
 		}
 
 		public override void Add (EntryT val)
 		{
-			if (this.Full) {
-				Logger.Fatalf (LogCategory.MISC, "%s", this);
+			if (this.IsFull) {
+				Logger.Fatalf (LogCategory.Misc, "%s", this);
 			}
 			
 			base.Add (val);
@@ -133,38 +133,38 @@ namespace MinCai.Simulators.Flexim.Pipelines
 
 		public override string ToString ()
 		{
-			return string.Format ("[PipelineQueue: Name={0}, Capacity={1}, Size={2}, Full={3}]", this.Name, this.Capacity, this.Size, this.Full);
+			return string.Format ("[PipelineQueue: Name={0}, Capacity={1}, Size={2}, Full={3}]", this.Name, this.Capacity, this.Size, this.IsFull);
 		}
 
 		public uint Capacity { get; private set; }
 	}
 
-	public static class BpredConstants
+	public static class BranchPredictorConstants
 	{
-		public static uint MD_BR_SHIFT = 3;
+		public static uint BRANCH_SHIFT = 3;
 	}
 
-	public class BpredBtbEntry
+	public sealed class BranchTargetBufferEntry
 	{
-		public BpredBtbEntry ()
+		public BranchTargetBufferEntry ()
 		{
 		}
 
 		public uint Addr { get; set; }
 		public StaticInst StaticInst { get; set; }
 		public uint Target { get; set; }
-		public BpredBtbEntry Prev { get; set; }
-		public BpredBtbEntry Next { get; set; }
+		public BranchTargetBufferEntry Prev { get; set; }
+		public BranchTargetBufferEntry Next { get; set; }
 	}
 
-	public interface BpredDir
+	public interface BranchPredictorDir
 	{
 		byte[] Table { get; }
 	}
 
-	public class BpredDirInfo
+	public sealed class BranchPredictorInfo
 	{
-		public BpredDirInfo (BpredDir dir, uint offset)
+		public BranchPredictorInfo (BranchPredictorDir dir, uint offset)
 		{
 			this.Dir = dir;
 			this.Offset = offset;
@@ -175,13 +175,13 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			set { this.Dir.Table[this.Offset] = value; }
 		}
 
-		public BpredDir Dir { get; set; }
-		public uint Offset { get; set; }
+		public BranchPredictorDir Dir { get; private set; }
+		public uint Offset { get; private set; }
 	}
 
-	public class BimodBpredDir : BpredDir
+	public sealed class BimodBranchPredictorDir : BranchPredictorDir
 	{
-		public BimodBpredDir (uint size)
+		public BimodBranchPredictorDir (uint size)
 		{
 			this.Size = size;
 			this.Table = new byte[this.Size];
@@ -193,23 +193,23 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			}
 		}
 
-		public uint Hash (uint baddr)
+		private uint Hash (uint baddr)
 		{
-			return (baddr >> 19) ^ (baddr >> (int)BpredConstants.MD_BR_SHIFT) & (this.Size - 1);
+			return (baddr >> 19) ^ (baddr >> (int)BranchPredictorConstants.BRANCH_SHIFT) & (this.Size - 1);
 		}
 
-		public BpredDirInfo Lookup (uint baddr)
+		public BranchPredictorInfo Lookup (uint baddr)
 		{
-			return new BpredDirInfo (this, this.Hash (baddr));
+			return new BranchPredictorInfo (this, this.Hash (baddr));
 		}
 
-		public uint Size { get; set; }
-		public byte[] Table { get; set; }
+		public uint Size { get; private set; }
+		public byte[] Table { get; private set; }
 	}
 
-	public class TwoLevelBpredDir : BpredDir
+	public sealed class TwoLevelBranchPredictorDir : BranchPredictorDir
 	{
-		public TwoLevelBpredDir (uint l1Size, uint l2Size, uint shiftWidth, bool xor)
+		public TwoLevelBranchPredictorDir (uint l1Size, uint l2Size, uint shiftWidth, bool xor)
 		{
 			this.L1Size = l1Size;
 			this.L2Size = l2Size;
@@ -226,44 +226,44 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			}
 		}
 
-		public BpredDirInfo Lookup (uint baddr)
+		public BranchPredictorInfo Lookup (uint baddr)
 		{
-			uint l1Index = (baddr >> (int)BpredConstants.MD_BR_SHIFT) & (this.L1Size - 1);
+			uint l1Index = (baddr >> (int)BranchPredictorConstants.BRANCH_SHIFT) & (this.L1Size - 1);
 			uint l2Index = this.ShiftRegs[l1Index];
 			
 			if (this.Xor) {
-				l2Index = (uint)(((l2Index ^ (baddr >> (int)BpredConstants.MD_BR_SHIFT)) & ((1 << (int)this.ShiftWidth) - 1)) | ((baddr >> (int)BpredConstants.MD_BR_SHIFT) << (int)this.ShiftWidth));
+				l2Index = (uint)(((l2Index ^ (baddr >> (int)BranchPredictorConstants.BRANCH_SHIFT)) & ((1 << (int)this.ShiftWidth) - 1)) | ((baddr >> (int)BranchPredictorConstants.BRANCH_SHIFT) << (int)this.ShiftWidth));
 			} else {
-				l2Index |= (baddr >> (int)BpredConstants.MD_BR_SHIFT) << (int)this.ShiftWidth;
+				l2Index |= (baddr >> (int)BranchPredictorConstants.BRANCH_SHIFT) << (int)this.ShiftWidth;
 			}
 			
 			l2Index &= (this.L2Size - 1);
 			
-			return new BpredDirInfo (this, l2Index);
+			return new BranchPredictorInfo (this, l2Index);
 		}
 
 		public byte[] Table {
 			get { return this.L2Table; }
 		}
 
-		public uint L1Size { get; set; }
-		public uint L2Size { get; set; }
-		public uint ShiftWidth { get; set; }
-		public bool Xor { get; set; }
-		public uint[] ShiftRegs { get; set; }
-		public byte[] L2Table { get; set; }
+		public uint L1Size { get; private set; }
+		public uint L2Size { get; private set; }
+		public uint ShiftWidth { get; private set; }
+		public bool Xor { get; private set; }
+		public uint[] ShiftRegs { get; private set; }
+		public byte[] L2Table { get; private set; }
 	}
 
-	public class BTB
+	public sealed class BranchTargetBuffer
 	{
-		public BTB (uint sets, uint assoc)
+		public BranchTargetBuffer (uint sets, uint assoc)
 		{
 			this.Sets = sets;
 			this.Assoc = assoc;
 			
-			this.Entries = new BpredBtbEntry[this.Sets * this.Assoc];
+			this.Entries = new BranchTargetBufferEntry[this.Sets * this.Assoc];
 			for (uint i = 0; i < this.Sets * this.Assoc; i++) {
-				this[i] = new BpredBtbEntry ();
+				this[i] = new BranchTargetBufferEntry ();
 			}
 			
 			if (this.Assoc > 1) {
@@ -281,48 +281,48 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			}
 		}
 
-		public BpredBtbEntry this[uint index] {
+		public BranchTargetBufferEntry this[uint index] {
 			get { return this.Entries[index]; }
 			set { this.Entries[index] = value; }
 		}
 
-		public uint Sets { get; set; }
-		public uint Assoc { get; set; }
-		public BpredBtbEntry[] Entries { get; set; }
+		public uint Sets { get; private set; }
+		public uint Assoc { get; private set; }
+		public BranchTargetBufferEntry[] Entries { get; private set; }
 	}
 
-	public class RAS
+	public sealed class ReturnAddressStack
 	{
-		public RAS (uint size)
+		public ReturnAddressStack (uint size)
 		{
 			this.Size = size;
-			this.Entries = new BpredBtbEntry[this.Size];
+			this.Entries = new BranchTargetBufferEntry[this.Size];
 			for (uint i = 0; i < this.Size; i++) {
-				this[i] = new BpredBtbEntry ();
+				this[i] = new BranchTargetBufferEntry ();
 			}
 			
-			this.Tos = this.Size - 1;
+			this.TopOfStack = this.Size - 1;
 		}
 
-		public BpredBtbEntry this[uint index] {
+		public BranchTargetBufferEntry this[uint index] {
 			get { return this.Entries[index]; }
 			set { this.Entries[index] = value; }
 		}
 
-		public uint Size { get; set; }
-		public uint Tos { get; set; }
-		public BpredBtbEntry[] Entries { get; set; }
+		public uint Size { get; private set; }
+		public uint TopOfStack { get; set; }
+		public BranchTargetBufferEntry[] Entries { get; private set; }
 	}
 
-	public class BpredUpdate
+	public sealed class BranchPredictorUpdate
 	{
-		public BpredUpdate ()
+		public BranchPredictorUpdate ()
 		{
 		}
 
-		public BpredDirInfo Pdir1 { get; set; }
-		public BpredDirInfo Pdir2 { get; set; }
-		public BpredDirInfo Pmeta { get; set; }
+		public BranchPredictorInfo Pdir1 { get; set; }
+		public BranchPredictorInfo Pdir2 { get; set; }
+		public BranchPredictorInfo Pmeta { get; set; }
 
 		public bool Ras { get; set; }
 		public bool Bimod { get; set; }
@@ -330,52 +330,52 @@ namespace MinCai.Simulators.Flexim.Pipelines
 		public bool Meta { get; set; }
 	}
 
-	public interface Bpred
+	public interface IBranchPredictor
 	{
-		uint Lookup (uint baddr, uint btarget, DynamicInst dynamicInst, out BpredUpdate dirUpdate, out uint stackRecoverIdx);
+		uint Lookup (uint baddr, uint btarget, DynamicInst dynamicInst, out BranchPredictorUpdate dirUpdate, out uint stackRecoverIndex);
 
 		void Recover (uint baddr, uint stackRecoverIdx);
 
-		void Update (uint baddr, uint btarget, bool taken, bool predTaken, bool correct, DynamicInst dynamicInst, BpredUpdate dirUpdate);
+		void Update (uint baddr, uint btarget, bool isTaken, bool isPredTaken, bool isCorrect, DynamicInst dynamicInst, BranchPredictorUpdate dirUpdate);
 	}
 
-	public class CombinedBpred : Bpred
+	public sealed class CombinedBranchPredictor : IBranchPredictor
 	{
-		public CombinedBpred () : this(65536, 1, 65536, 65536, 16, true, 1024, 4, 1024)
+		public CombinedBranchPredictor () : this(65536, 1, 65536, 65536, 16, true, 1024, 4, 1024)
 		{
 		}
 
-		public CombinedBpred (uint bimodSize, uint l1Size, uint l2Size, uint metaSize, uint shiftWidth, bool xor, uint btbSets, uint btbAssoc, uint rasSize)
+		public CombinedBranchPredictor (uint bimodSize, uint l1Size, uint l2Size, uint metaSize, uint shiftWidth, bool xor, uint btbSets, uint btbAssoc, uint rasSize)
 		{
-			this.TwoLevel = new TwoLevelBpredDir (l1Size, l2Size, shiftWidth, xor);
-			this.Bimod = new BimodBpredDir (bimodSize);
-			this.Meta = new BimodBpredDir (metaSize);
+			this.TwoLevel = new TwoLevelBranchPredictorDir (l1Size, l2Size, shiftWidth, xor);
+			this.Bimod = new BimodBranchPredictorDir (bimodSize);
+			this.Meta = new BimodBranchPredictorDir (metaSize);
 			
-			this.Btb = new BTB (btbSets, btbAssoc);
-			this.RetStack = new RAS (rasSize);
+			this.Btb = new BranchTargetBuffer (btbSets, btbAssoc);
+			this.Ras = new ReturnAddressStack (rasSize);
 		}
 
-		public uint Lookup (uint baddr, uint btarget, DynamicInst dynamicInst, out BpredUpdate dirUpdate, out uint stackRecoverIdx)
+		public uint Lookup (uint baddr, uint btarget, DynamicInst dynamicInst, out BranchPredictorUpdate dirUpdate, out uint stackRecoverIndex)
 		{
 			StaticInst staticInst = dynamicInst.StaticInst;
 			
 			if (!staticInst.IsControl) {
 				dirUpdate = null;
-				stackRecoverIdx = 0;
+				stackRecoverIndex = 0;
 				
 				return 0;
 			}
 			
-			dirUpdate = new BpredUpdate ();
+			dirUpdate = new BranchPredictorUpdate ();
 			dirUpdate.Ras = false;
 			dirUpdate.Pdir1 = null;
 			dirUpdate.Pdir2 = null;
 			dirUpdate.Pmeta = null;
 			
 			if (staticInst.IsControl && !staticInst.IsUnconditional) {
-				BpredDirInfo bimodCtr = this.Bimod.Lookup (baddr);
-				BpredDirInfo twoLevelCtr = this.TwoLevel.Lookup (baddr);
-				BpredDirInfo metaCtr = this.Meta.Lookup (baddr);
+				BranchPredictorInfo bimodCtr = this.Bimod.Lookup (baddr);
+				BranchPredictorInfo twoLevelCtr = this.TwoLevel.Lookup (baddr);
+				BranchPredictorInfo metaCtr = this.Meta.Lookup (baddr);
 				
 				dirUpdate.Pmeta = metaCtr;
 				dirUpdate.Meta = (metaCtr.Value >= 2);
@@ -391,25 +391,25 @@ namespace MinCai.Simulators.Flexim.Pipelines
 				}
 			}
 			
-			if (this.RetStack.Size > 0) {
-				stackRecoverIdx = this.RetStack.Tos;
+			if (this.Ras.Size > 0) {
+				stackRecoverIndex = this.Ras.TopOfStack;
 			} else {
-				stackRecoverIdx = 0;
+				stackRecoverIndex = 0;
 			}
 			
-			if (staticInst.IsReturn && this.RetStack.Size > 0) {
-				this.RetStack.Tos = (this.RetStack.Tos + this.RetStack.Size - 1) % this.RetStack.Size;
+			if (staticInst.IsFunctionReturn && this.Ras.Size > 0) {
+				this.Ras.TopOfStack = (this.Ras.TopOfStack + this.Ras.Size - 1) % this.Ras.Size;
 				dirUpdate.Ras = true;
 			}
 			
-			if (staticInst.IsCall && this.RetStack.Size > 0) {
-				this.RetStack.Tos = (this.RetStack.Tos + 1) % this.RetStack.Size;
-				this.RetStack[this.RetStack.Tos].Target = (uint)(baddr + Marshal.SizeOf (typeof(uint)));
+			if (staticInst.IsCall && this.Ras.Size > 0) {
+				this.Ras.TopOfStack = (this.Ras.TopOfStack + 1) % this.Ras.Size;
+				this.Ras[this.Ras.TopOfStack].Target = (uint)(baddr + Marshal.SizeOf (typeof(uint)));
 			}
 			
-			uint index = (baddr >> (int)BpredConstants.MD_BR_SHIFT) & (this.Btb.Sets - 1);
+			uint index = (baddr >> (int)BranchPredictorConstants.BRANCH_SHIFT) & (this.Btb.Sets - 1);
 			
-			BpredBtbEntry btbEntry = null;
+			BranchTargetBufferEntry btbEntry = null;
 			
 			if (this.Btb.Assoc > 1) {
 				index *= this.Btb.Assoc;
@@ -440,32 +440,32 @@ namespace MinCai.Simulators.Flexim.Pipelines
 
 		public void Recover (uint baddr, uint stackRecoverIdx)
 		{
-			this.RetStack.Tos = stackRecoverIdx;
+			this.Ras.TopOfStack = stackRecoverIdx;
 		}
 
-		public void Update (uint baddr, uint btarget, bool taken, bool predTaken, bool correct, DynamicInst dynamicInst, BpredUpdate dirUpdate)
+		public void Update (uint baddr, uint btarget, bool isTaken, bool isPredTaken, bool isCorrect, DynamicInst dynamicInst, BranchPredictorUpdate dirUpdate)
 		{
 			StaticInst staticInst = dynamicInst.StaticInst;
 			
-			BpredBtbEntry btbEntry = null;
+			BranchTargetBufferEntry btbEntry = null;
 			
 			if (!staticInst.IsControl) {
 				return;
 			}
 			
 			if (staticInst.IsControl && !staticInst.IsUnconditional) {
-				uint l1Index = (baddr >> (int)BpredConstants.MD_BR_SHIFT) & (this.TwoLevel.L1Size - 1);
-				uint shiftReg = (this.TwoLevel.ShiftRegs[l1Index] << 1) | (uint)(taken ? 1 : 0);
+				uint l1Index = (baddr >> (int)BranchPredictorConstants.BRANCH_SHIFT) & (this.TwoLevel.L1Size - 1);
+				uint shiftReg = (this.TwoLevel.ShiftRegs[l1Index] << 1) | (uint)(isTaken ? 1 : 0);
 				this.TwoLevel.ShiftRegs[l1Index] = (uint)(shiftReg & ((1 << (int)this.TwoLevel.ShiftWidth) - 1));
 			}
 			
-			if (taken) {
-				uint index = (baddr >> (int)BpredConstants.MD_BR_SHIFT) & (this.Btb.Sets - 1);
+			if (isTaken) {
+				uint index = (baddr >> (int)BranchPredictorConstants.BRANCH_SHIFT) & (this.Btb.Sets - 1);
 				
 				if (this.Btb.Assoc > 1) {
 					index *= this.Btb.Assoc;
 					
-					BpredBtbEntry lruHead = null, lruItem = null;
+					BranchTargetBufferEntry lruHead = null, lruItem = null;
 					
 					for (uint i = index; i < (index + this.Btb.Assoc); i++) {
 						if (this.Btb[i].Addr == baddr) {
@@ -504,7 +504,7 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			}
 			
 			if (dirUpdate.Pdir1 != null) {
-				if (taken) {
+				if (isTaken) {
 					if (dirUpdate.Pdir1.Value < 3) {
 						dirUpdate.Pdir1.Value++;
 					}
@@ -516,7 +516,7 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			}
 			
 			if (dirUpdate.Pdir2 != null) {
-				if (taken) {
+				if (isTaken) {
 					if (dirUpdate.Pdir2.Value < 3) {
 						dirUpdate.Pdir2.Value++;
 					}
@@ -529,7 +529,7 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			
 			if (dirUpdate.Pmeta != null) {
 				if (dirUpdate.Bimod != dirUpdate.TwoLevel) {
-					if (dirUpdate.TwoLevel == taken) {
+					if (dirUpdate.TwoLevel == isTaken) {
 						if (dirUpdate.Pmeta.Value < 3) {
 							dirUpdate.Pmeta.Value++;
 						}
@@ -543,7 +543,7 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			
 			if (btbEntry != null) {
 				if (btbEntry.Addr == baddr) {
-					if (!correct) {
+					if (!isCorrect) {
 						btbEntry.Target = btarget;
 					}
 				} else {
@@ -554,64 +554,62 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			}
 		}
 
-		public TwoLevelBpredDir TwoLevel { get; set; }
-		public BimodBpredDir Bimod { get; set; }
-		public BimodBpredDir Meta { get; set; }
+		public TwoLevelBranchPredictorDir TwoLevel { get; set; }
+		public BimodBranchPredictorDir Bimod { get; set; }
+		public BimodBranchPredictorDir Meta { get; set; }
 
-		public BTB Btb { get; set; }
-		public RAS RetStack { get; set; }
+		public BranchTargetBuffer Btb { get; set; }
+		public ReturnAddressStack Ras { get; set; }
 	}
 
 	public enum FunctionalUnitType : uint
 	{
-		NONE = 0,
+		None = 0,
 		IntALU,
-		IntMULT,
-		IntDIV,
-		FloatADD,
-		FloatCMP,
-		FloatCVT,
-		FloatMULT,
-		FloatDIV,
-		FloatSQRT,
-		RdPort,
-		WrPort
+		IntMultiply,
+		IntDivide,
+		FloatAdd,
+		FloatCompare,
+		FloatConvert,
+		FloatMultiply,
+		FloatDivide,
+		FloatSquareRoot,
+		ReadPort,
+		WritePort
 	}
 
-	public class FunctionalUnit
+	public sealed class FunctionalUnit
 	{
-		public FunctionalUnit (FunctionalUnitPool pool, FunctionalUnitType type, uint opLat, uint issueLat)
+		public FunctionalUnit (FunctionalUnitPool pool, FunctionalUnitType type, uint operationLatency, uint issueLatency)
 		{
 			this.Pool = pool;
 			this.Type = type;
-			this.OpLat = opLat;
-			this.IssueLat = issueLat;
+			this.OperationLatency = operationLatency;
+			this.IssueLatency = issueLatency;
 		}
 
-		public void Acquire (ReorderBufferEntry reorderBufferEntry, VoidDelegate onCompletedCallback)
+		public void Acquire (ReorderBufferEntry reorderBufferEntry, Action onCompletedCallback)
 		{
 			this.Pool.EventQueue.Schedule (delegate() {
-				this.Busy = false;
+				this.IsBusy = false;
 				onCompletedCallback ();
-			}, this.IssueLat + this.OpLat);
-			this.Busy = true;
+			}, this.IssueLatency + this.OperationLatency);
+			this.IsBusy = true;
 		}
 
 		public override string ToString ()
 		{
-			return string.Format ("[FunctionalUnit: Type={0}, OpLat={1}, IssueLat={2}, Busy={3}]", this.Type, this.OpLat, this.IssueLat, this.Busy);
+			return string.Format ("[FunctionalUnit: Type={0}, OperationLatency={1}, IssueLatency={2}, IsBusy={3}]", this.Type, this.OperationLatency, this.IssueLatency, this.IsBusy);
 		}
 
-		public FunctionalUnitPool Pool { get; set; }
-		public FunctionalUnitType Type { get; set; }
-		public uint OpLat { get; set; }
-		public uint IssueLat { get; set; }
-		public bool Busy { get; set; }
+		public FunctionalUnitPool Pool { get; private set; }
+		public FunctionalUnitType Type { get; private set; }
+		public uint OperationLatency { get; private set; }
+		public uint IssueLatency { get; private set; }
+		public bool IsBusy { get; private set; }
 	}
 
-	public delegate void ReorderBufferEntryDelegate (ReorderBufferEntry reorderBufferEntry);
-
-	public class FunctionalUnitPool
+	public sealed class FunctionalUnitPool
 	{
 		public FunctionalUnitPool (Core core)
 		{
@@ -622,89 +620,89 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			this.Entities = new Dictionary<FunctionalUnitType, List<FunctionalUnit>> ();
 			
 			this.Add (FunctionalUnitType.IntALU, 4, 1, 1);
-			this.Add (FunctionalUnitType.IntMULT, 1, 3, 1);
-			this.Add (FunctionalUnitType.IntDIV, 1, 20, 19);
-			this.Add (FunctionalUnitType.RdPort, 2, 1, 1);
-			this.Add (FunctionalUnitType.WrPort, 2, 1, 1);
-			this.Add (FunctionalUnitType.FloatADD, 4, 2, 1);
-			this.Add (FunctionalUnitType.FloatCMP, 4, 2, 1);
-			this.Add (FunctionalUnitType.FloatCVT, 4, 2, 1);
-			this.Add (FunctionalUnitType.FloatMULT, 1, 4, 1);
-			this.Add (FunctionalUnitType.FloatDIV, 1, 12, 12);
-			this.Add (FunctionalUnitType.FloatSQRT, 1, 24, 24);
+			this.Add (FunctionalUnitType.IntMultiply, 1, 3, 1);
+			this.Add (FunctionalUnitType.IntDivide, 1, 20, 19);
+			this.Add (FunctionalUnitType.ReadPort, 2, 1, 1);
+			this.Add (FunctionalUnitType.WritePort, 2, 1, 1);
+			this.Add (FunctionalUnitType.FloatAdd, 4, 2, 1);
+			this.Add (FunctionalUnitType.FloatCompare, 4, 2, 1);
+			this.Add (FunctionalUnitType.FloatConvert, 4, 2, 1);
+			this.Add (FunctionalUnitType.FloatMultiply, 1, 4, 1);
+			this.Add (FunctionalUnitType.FloatDivide, 1, 12, 12);
+			this.Add (FunctionalUnitType.FloatSquareRoot, 1, 24, 24);
 			
 			this.EventQueue = new DelegateEventQueue ();
 			
 			this.Core.EventProcessors.Add (this.EventQueue);
 		}
 
-		public void Add (FunctionalUnitType type, uint quantity, uint opLat, uint issueLat)
+		public void Add (FunctionalUnitType type, uint quantity, uint operationLatency, uint issueLatency)
 		{
 			this.Entities[type] = new List<FunctionalUnit> ();
 			for (uint i = 0; i < quantity; i++) {
-				this.Entities[type].Add (new FunctionalUnit (this, type, opLat, issueLat));
+				this.Entities[type].Add (new FunctionalUnit (this, type, operationLatency, issueLatency));
 			}
 		}
 
 		public FunctionalUnit FindFree (FunctionalUnitType type)
 		{
-			return this.Entities[type].Find (fu => !fu.Busy);
+			return this.Entities[type].Find (fu => !fu.IsBusy);
 		}
 
-		public void Acquire (ReorderBufferEntry reorderBufferEntry, ReorderBufferEntryDelegate onCompletedCallback2)
+		public void Acquire (ReorderBufferEntry reorderBufferEntry, Action<ReorderBufferEntry> onCompletedCallback)
 		{
 			FunctionalUnitType type = reorderBufferEntry.DynamicInst.StaticInst.FuType;
 			FunctionalUnit fu = this.FindFree (type);
 			
 			if (fu != null) {
-				fu.Acquire (reorderBufferEntry, delegate() { onCompletedCallback2 (reorderBufferEntry); });
+				fu.Acquire (reorderBufferEntry, delegate() { onCompletedCallback (reorderBufferEntry); });
 			} else {
-				this.EventQueue.Schedule (delegate() { this.Acquire (reorderBufferEntry, onCompletedCallback2); }, 10);
+				this.EventQueue.Schedule (delegate() { this.Acquire (reorderBufferEntry, onCompletedCallback); }, 10);
 			}
 		}
 
-		public Core Core { get; set; }
-		public string Name { get; set; }
+		public Core Core { get; private set; }
+		public string Name { get; private set; }
 
 		public Dictionary<FunctionalUnitType, List<FunctionalUnit>> Entities { get; private set; }
-		public DelegateEventQueue EventQueue { get; set; }
+		public DelegateEventQueue EventQueue { get; private set; }
 	}
 
 	public enum PhysicalRegisterState
 	{
-		FREE,
-		ALLOC,
-		WB,
-		ARCH
+		Free,
+		Allocated,
+		WrittenBack,
+		Architectural
 	}
 
-	public class PhysicalRegister
+	public sealed class PhysicalRegister
 	{
 		public PhysicalRegister (PhysicalRegisterFile file)
 		{
 			this.File = file;
-			this.State = PhysicalRegisterState.FREE;
+			this.State = PhysicalRegisterState.Free;
 		}
 
 		public void Alloc (ReorderBufferEntry reorderBufferEntry)
 		{
-			this.State = PhysicalRegisterState.ALLOC;
+			this.State = PhysicalRegisterState.Allocated;
 			this.ReorderBufferEntry = reorderBufferEntry;
 		}
 
 		public void Writeback ()
 		{
-			this.State = PhysicalRegisterState.WB;
+			this.State = PhysicalRegisterState.WrittenBack;
 		}
 
 		public void Commit ()
 		{
-			this.State = PhysicalRegisterState.ARCH;
+			this.State = PhysicalRegisterState.Architectural;
 		}
 
 		public void Dealloc ()
 		{
-			this.State = PhysicalRegisterState.FREE;
+			this.State = PhysicalRegisterState.Free;
 			this.ReorderBufferEntry = null;
 		}
 
@@ -714,22 +712,23 @@ namespace MinCai.Simulators.Flexim.Pipelines
 		}
 
 		public bool IsReady {
-			get { return this.State == PhysicalRegisterState.WB || this.State == PhysicalRegisterState.ARCH; }
+			get { return this.State == PhysicalRegisterState.WrittenBack || this.State == PhysicalRegisterState.Architectural; }
 		}
 
-		public PhysicalRegisterFile File { get; set; }
-		public PhysicalRegisterState State { get; set; }
+		public PhysicalRegisterFile File { get; private set; }
+		public PhysicalRegisterState State { get; private set; }
+		
 		public ReorderBufferEntry ReorderBufferEntry { get; set; }
 	}
 
-	public class NoFreePhysicalRegisterException : Exception
+	public sealed class NoFreePhysicalRegisterException : Exception
 	{
 		public NoFreePhysicalRegisterException () : base("NoFreePhysicalRegisterException")
 		{
 		}
 	}
 
-	public class PhysicalRegisterFile
+	public sealed class PhysicalRegisterFile
 	{
 		public PhysicalRegisterFile (Core core, string namePostfix, uint capacity)
 		{
@@ -745,7 +744,7 @@ namespace MinCai.Simulators.Flexim.Pipelines
 
 		public PhysicalRegister FindFree ()
 		{
-			return this.Entries.Find (physReg => physReg.State == PhysicalRegisterState.FREE);
+			return this.Entries.Find (physReg => physReg.State == PhysicalRegisterState.Free);
 		}
 
 		public PhysicalRegister Alloc (ReorderBufferEntry reorderBufferEntry)
@@ -770,13 +769,13 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			set { this.Entries[(int)index] = value; }
 		}
 
-		public Core Core { get; set; }
-		public string Name { get; set; }
-		public uint Capacity { get; set; }
-		public List<PhysicalRegister> Entries { get; set; }
+		public Core Core { get; private set; }
+		public string Name { get; private set; }
+		public uint Capacity { get; private set; }
+		public List<PhysicalRegister> Entries { get; private set; }
 	}
 
-	public class RegisterRenameTable
+	public sealed class RegisterRenameTable
 	{
 		public RegisterRenameTable (Thread thread)
 		{
@@ -785,9 +784,9 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			
 			this.Entries = new Dictionary<RegisterDependencyType, Dictionary<uint, PhysicalRegister>> ();
 			
-			this.Entries[RegisterDependencyType.INT] = new Dictionary<uint, PhysicalRegister> ();
-			this.Entries[RegisterDependencyType.FP] = new Dictionary<uint, PhysicalRegister> ();
-			this.Entries[RegisterDependencyType.MISC] = new Dictionary<uint, PhysicalRegister> ();
+			this.Entries[RegisterDependencyType.Integer] = new Dictionary<uint, PhysicalRegister> ();
+			this.Entries[RegisterDependencyType.Float] = new Dictionary<uint, PhysicalRegister> ();
+			this.Entries[RegisterDependencyType.Misc] = new Dictionary<uint, PhysicalRegister> ();
 		}
 
 		public PhysicalRegister this[RegisterDependency dep] {
@@ -800,12 +799,12 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			set { this.Entries[type][Num] = value; }
 		}
 
-		public Thread Thread { get; set; }
-		public string Name { get; set; }
-		Dictionary<RegisterDependencyType, Dictionary<uint, PhysicalRegister>> Entries { get; set; }
+		public Thread Thread { get; private set; }
+		public string Name { get; private set; }
+		public Dictionary<RegisterDependencyType, Dictionary<uint, PhysicalRegister>> Entries { get; private set; }
 	}
 
-	public class DecodeBufferEntry
+	public sealed class DecodeBufferEntry
 	{
 		public DecodeBufferEntry (DynamicInst dynamicInst)
 		{
@@ -818,33 +817,33 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			return string.Format ("[DecodeBufferEntry: Id={0}, Npc=0x{1:x8}, Nnpc=0x{2:x8}, PredNpc=0x{3:x8}, PredNnpc=0x{4:x8}, DynamicInst={5}, IsSpeculative={6}, StackRecoverIndex={7}, DirUpdate={8}]", this.Id, this.Npc, this.Nnpc, this.PredNpc, this.PredNnpc, this.DynamicInst, this.IsSpeculative, this.StackRecoverIndex, this.DirUpdate);
 		}
 
-		public ulong Id { get; set; }
+		public ulong Id { get; private set; }
 		public uint Npc { get; set; }
 		public uint Nnpc { get; set; }
 		public uint PredNpc { get; set; }
 		public uint PredNnpc { get; set; }
-		public DynamicInst DynamicInst { get; set; }
+		public DynamicInst DynamicInst { get; private set; }
 
 		public bool IsSpeculative { get; set; }
 		public uint StackRecoverIndex { get; set; }
-		public BpredUpdate DirUpdate { get; set; }
+		public BranchPredictorUpdate DirUpdate { get; set; }
 
 		static DecodeBufferEntry ()
 		{
 			CurrentId = 0;
 		}
 
-		public static ulong CurrentId;
+		public static ulong CurrentId {get; private set;}
 	}
 
-	public class DecodeBuffer : PipelineQueue<DecodeBufferEntry>
+	public sealed class DecodeBuffer : PipelineQueue<DecodeBufferEntry>
 	{
 		public DecodeBuffer (Thread thread, uint capacity) : base("c" + thread.Core.Num + "t" + thread.Num + ".decodeBuffer", capacity)
 		{
 		}
 	}
 
-	public class ReorderBufferEntry
+	public sealed class ReorderBufferEntry
 	{
 		public ReorderBufferEntry (DynamicInst dynamicInst, List<RegisterDependency> iDeps, List<RegisterDependency> oDeps)
 		{
@@ -876,18 +875,18 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			this.IsCompleted, this.IsValid, this.LoadStoreQueueEntry, this.Ea, this.IsSpeculative, this.StackRecoverIndex, this.DirUpdate);
 		}
 
-		public bool AllOperandsReady {
+		public bool IsAllOperandsReady {
 			get { return this.IDeps.All (iDep => this.SrcPhysRegs[iDep].IsReady); }
 		}
 
-		public bool StoreAddressReady {
+		public bool IsStoreAddressReady {
 			get {
 				MemoryOp memOp = this.DynamicInst.StaticInst as MemoryOp;
 				return this.SrcPhysRegs[memOp.MemIDeps[0]].IsReady;
 			}
 		}
 
-		public bool StoreOperandReady {
+		public bool IsStoreOperandReady {
 			get {
 				MemoryOp memOp = this.DynamicInst.StaticInst as MemoryOp;
 				
@@ -896,21 +895,23 @@ namespace MinCai.Simulators.Flexim.Pipelines
 		}
 
 		public bool IsInLoadStoreQueue {
-			get { return this.DynamicInst.StaticInst.IsMem && this.LoadStoreQueueEntry == null; }
+			get { return this.DynamicInst.StaticInst.IsMemory && this.LoadStoreQueueEntry == null; }
 		}
 
 		public bool IsEAComputation {
-			get { return this.DynamicInst.StaticInst.IsMem && this.LoadStoreQueueEntry != null; }
+			get { return this.DynamicInst.StaticInst.IsMemory && this.LoadStoreQueueEntry != null; }
 		}
+
+		public ulong Id { get; private set; }
 
 		public uint Npc { get; set; }
 		public uint Nnpc { get; set; }
 		public uint PredNpc { get; set; }
 		public uint PredNnpc { get; set; }
-		public DynamicInst DynamicInst { get; set; }
+		public DynamicInst DynamicInst { get; private set; }
 
-		public List<RegisterDependency> IDeps { get; set; }
-		public List<RegisterDependency> ODeps { get; set; }
+		public List<RegisterDependency> IDeps { get; private set; }
+		public List<RegisterDependency> ODeps { get; private set; }
 		public Dictionary<RegisterDependency, PhysicalRegister> OldPhysRegs { get; private set; }
 		public Dictionary<RegisterDependency, PhysicalRegister> PhysRegs { get; private set; }
 		public Dictionary<RegisterDependency, PhysicalRegister> SrcPhysRegs { get; private set; }
@@ -926,54 +927,52 @@ namespace MinCai.Simulators.Flexim.Pipelines
 
 		public bool IsSpeculative { get; set; }
 		public uint StackRecoverIndex { get; set; }
-		public BpredUpdate DirUpdate { get; set; }
-
-		public ulong Id { get; set; }
+		public BranchPredictorUpdate DirUpdate { get; set; }
 
 		static ReorderBufferEntry ()
 		{
 			CurrentId = 0;
 		}
 
-		public static ulong CurrentId;
+		public static ulong CurrentId {get; private set;}
 	}
 
-	public class ReadyQueue : PipelineList<ReorderBufferEntry>
+	public sealed class ReadyQueue : PipelineList<ReorderBufferEntry>
 	{
 		public ReadyQueue (Core core) : base("c" + core.Num + ".readyQueue")
 		{
 		}
 	}
 
-	public class WaitingQueue : PipelineList<ReorderBufferEntry>
+	public sealed class WaitingQueue : PipelineList<ReorderBufferEntry>
 	{
 		public WaitingQueue (Core core) : base("c" + core.Num + ".waitingQueue")
 		{
 		}
 	}
 
-	public class OoOEventQueue : PipelineList<ReorderBufferEntry>
+	public sealed class OoOEventQueue : PipelineList<ReorderBufferEntry>
 	{
 		public OoOEventQueue (Core core) : base("c" + core.Num + ".oooEventQueue")
 		{
 		}
 	}
 
-	public class ReorderBuffer : PipelineQueue<ReorderBufferEntry>
+	public sealed class ReorderBuffer : PipelineQueue<ReorderBufferEntry>
 	{
 		public ReorderBuffer (Thread thread, uint capacity) : base("c" + thread.Core.Num + "t" + thread.Num + ".reorderBuffer", capacity)
 		{
 		}
 	}
 
-	public class LoadStoreQueue : PipelineQueue<ReorderBufferEntry>
+	public sealed class LoadStoreQueue : PipelineQueue<ReorderBufferEntry>
 	{
 		public LoadStoreQueue (Thread thread, uint capacity) : base("c" + thread.Core.Num + "t" + thread.Num + ".loadStoreQueue", capacity)
 		{
 		}
 	}
 
-	public class Core : ICycleProvider
+	public sealed class Core : ICycleProvider
 	{
 		public Core (Processor processor, ProcessorConfig config, uint num)
 		{
@@ -995,7 +994,7 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			
 			this.FuPool = new FunctionalUnitPool (this);
 			
-			this.Isa = new MipsISA ();
+			this.Isa = new Mips32InstructionSetArchitecture ();
 			
 			this.ReadyQueue = new ReadyQueue (this);
 			this.WaitingQueue = new WaitingQueue (this);
@@ -1004,27 +1003,27 @@ namespace MinCai.Simulators.Flexim.Pipelines
 
 		public void Fetch ()
 		{
-			foreach (Thread thread in this.Threads) {
+			foreach (var thread in this.Threads) {
 				thread.Fetch ();
 			}
 		}
 
-		private uint FindNextThreadIdToDecode (ref bool allStalled, ref Dictionary<uint, bool> decodeStalled)
+		private uint FindNextThreadIdToDecode (ref bool isAllStalled, ref Dictionary<uint, bool> decodeStalled)
 		{
 			for (uint i = 0; i < this.Threads.Count; i++) {
 				Thread thread = this.Threads[(int)i];
 				
-				if (!decodeStalled[i] && !thread.DecodeBuffer.Empty && !thread.ReorderBuffer.Full && !thread.LoadStoreQueue.Full) {
-					allStalled = false;
+				if (!decodeStalled[i] && !thread.DecodeBuffer.IsEmpty && !thread.ReorderBuffer.IsFull && !thread.LoadStoreQueue.IsFull) {
+					isAllStalled = false;
 					return i;
 				}
 			}
 			
-			allStalled = true;
+			isAllStalled = true;
 			return uint.MaxValue;
 		}
 
-		uint decodeThreadId = 0;
+		private uint decodeThreadId = 0;
 
 		public void RegisterRename ()
 		{
@@ -1039,17 +1038,17 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			uint numRenamed = 0;
 			
 			while (numRenamed < this.DecodeWidth) {
-				bool allStalled = true;
+				bool isAllStalled = true;
 				
-				decodeThreadId = this.FindNextThreadIdToDecode (ref allStalled, ref decodeStalled);
+				decodeThreadId = this.FindNextThreadIdToDecode (ref isAllStalled, ref decodeStalled);
 				
-				if (allStalled) {
+				if (isAllStalled) {
 					break;
 				}
 				
 				DecodeBufferEntry decodeBufferEntry = this.Threads[(int)decodeThreadId].DecodeBuffer.Front;
 				
-				this.Threads[(int)decodeThreadId].Regs.IntRegs[RegisterConstants.ZeroReg] = 0;
+				this.Threads[(int)decodeThreadId].Regs.IntRegs[RegisterConstants.ZERO_REG] = 0;
 				
 				DynamicInst dynamicInst = decodeBufferEntry.DynamicInst;
 				
@@ -1063,12 +1062,12 @@ namespace MinCai.Simulators.Flexim.Pipelines
 					reorderBufferEntry.DirUpdate = decodeBufferEntry.DirUpdate;
 					reorderBufferEntry.IsSpeculative = decodeBufferEntry.IsSpeculative;
 					
-					foreach (RegisterDependency iDep in reorderBufferEntry.IDeps) {
+					foreach (var iDep in reorderBufferEntry.IDeps) {
 						reorderBufferEntry.SrcPhysRegs[iDep] = this.Threads[(int)decodeThreadId].RenameTable[iDep];
 					}
 					
 					try {
-						foreach (RegisterDependency oDep in reorderBufferEntry.ODeps) {
+						foreach (var oDep in reorderBufferEntry.ODeps) {
 							reorderBufferEntry.OldPhysRegs[oDep] = this.Threads[(int)decodeThreadId].RenameTable[oDep];
 							this.Threads[(int)decodeThreadId].RenameTable[oDep] = reorderBufferEntry.PhysRegs[oDep] = this.GetPhysicalRegisterFile (oDep.Type).Alloc (reorderBufferEntry);
 						}
@@ -1077,7 +1076,7 @@ namespace MinCai.Simulators.Flexim.Pipelines
 						continue;
 					}
 					
-					if (dynamicInst.StaticInst.IsMem) {
+					if (dynamicInst.StaticInst.IsMemory) {
 						ReorderBufferEntry loadStoreQueueEntry = new ReorderBufferEntry (dynamicInst, (dynamicInst.StaticInst as MemoryOp).MemIDeps, (dynamicInst.StaticInst as MemoryOp).MemODeps);
 						
 						loadStoreQueueEntry.Npc = decodeBufferEntry.Npc;
@@ -1092,12 +1091,12 @@ namespace MinCai.Simulators.Flexim.Pipelines
 						
 						reorderBufferEntry.LoadStoreQueueEntry = loadStoreQueueEntry;
 						
-						foreach (RegisterDependency iDep in loadStoreQueueEntry.IDeps) {
+						foreach (var iDep in loadStoreQueueEntry.IDeps) {
 							loadStoreQueueEntry.SrcPhysRegs[iDep] = this.Threads[(int)decodeThreadId].RenameTable[iDep];
 						}
 						
 						try {
-							foreach (RegisterDependency oDep in loadStoreQueueEntry.ODeps) {
+							foreach (var oDep in loadStoreQueueEntry.ODeps) {
 								loadStoreQueueEntry.OldPhysRegs[oDep] = this.Threads[(int)decodeThreadId].RenameTable[oDep];
 								this.Threads[(int)decodeThreadId].RenameTable[oDep] = loadStoreQueueEntry.PhysRegs[oDep] = this.GetPhysicalRegisterFile (oDep.Type).Alloc (loadStoreQueueEntry);
 							}
@@ -1118,7 +1117,7 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			}
 		}
 
-		uint dispatchThreadId = 0;
+		private uint dispatchThreadId = 0;
 
 		public void Dispatch ()
 		{
@@ -1157,7 +1156,7 @@ namespace MinCai.Simulators.Flexim.Pipelines
 				
 				numDispatchedPerThread[dispatchThreadId]++;
 				
-				if (reorderBufferEntry.AllOperandsReady) {
+				if (reorderBufferEntry.IsAllOperandsReady) {
 					this.ReadyQueue.Add (reorderBufferEntry);
 					reorderBufferEntry.IsInReadyQueue = true;
 				} else {
@@ -1170,7 +1169,7 @@ namespace MinCai.Simulators.Flexim.Pipelines
 					ReorderBufferEntry loadStoreQueueEntry = reorderBufferEntry.LoadStoreQueueEntry;
 					
 					if (loadStoreQueueEntry.DynamicInst.StaticInst.IsStore) {
-						if (loadStoreQueueEntry.AllOperandsReady) {
+						if (loadStoreQueueEntry.IsAllOperandsReady) {
 							this.ReadyQueue.Add (loadStoreQueueEntry);
 							loadStoreQueueEntry.IsInReadyQueue = true;
 						} else {
@@ -1189,7 +1188,7 @@ namespace MinCai.Simulators.Flexim.Pipelines
 		{
 			List<ReorderBufferEntry> toWaitingQueue = new List<ReorderBufferEntry> ();
 			
-			while (!this.WaitingQueue.Empty) {
+			while (!this.WaitingQueue.IsEmpty) {
 				ReorderBufferEntry waitingQueueEntry = this.WaitingQueue.Front;
 				
 				if (!waitingQueueEntry.IsValid) {
@@ -1197,7 +1196,7 @@ namespace MinCai.Simulators.Flexim.Pipelines
 					continue;
 				}
 				
-				if (waitingQueueEntry.AllOperandsReady) {
+				if (waitingQueueEntry.IsAllOperandsReady) {
 					this.ReadyQueue.Add (waitingQueueEntry);
 					waitingQueueEntry.IsInReadyQueue = true;
 				} else {
@@ -1207,7 +1206,7 @@ namespace MinCai.Simulators.Flexim.Pipelines
 				this.WaitingQueue.TakeFront ();
 			}
 			
-			foreach (ReorderBufferEntry waitingQueueEntry in toWaitingQueue) {
+			foreach (var waitingQueueEntry in toWaitingQueue) {
 				this.WaitingQueue.Add (waitingQueueEntry);
 			}
 		}
@@ -1216,7 +1215,7 @@ namespace MinCai.Simulators.Flexim.Pipelines
 		{
 			uint numIssued = 0;
 			
-			while (numIssued < this.IssueWidth && !this.ReadyQueue.Empty) {
+			while (numIssued < this.IssueWidth && !this.ReadyQueue.IsEmpty) {
 				ReorderBufferEntry readyQueueEntry = this.ReadyQueue.Front;
 				
 				if (readyQueueEntry.IsInLoadStoreQueue && readyQueueEntry.DynamicInst.StaticInst.IsStore) {
@@ -1224,25 +1223,25 @@ namespace MinCai.Simulators.Flexim.Pipelines
 					readyQueueEntry.IsCompleted = true;
 				} else if (readyQueueEntry.IsInLoadStoreQueue && readyQueueEntry.DynamicInst.StaticInst.IsLoad) {
 					this.FuPool.Acquire (readyQueueEntry, delegate(ReorderBufferEntry readyQueueEntry1) {
-						bool hitInLoadStoreQueue = false;
+						bool isHitInLoadStoreQueue = false;
 						
-						foreach (ReorderBufferEntry loadStoreQueueEntry in readyQueueEntry1.DynamicInst.Thread.LoadStoreQueue.Entries.AsReverseEnumerable ()) {
+						foreach (var loadStoreQueueEntry in readyQueueEntry1.DynamicInst.Thread.LoadStoreQueue.Entries.AsReverseEnumerable ()) {
 							if (loadStoreQueueEntry.DynamicInst.StaticInst.IsStore && loadStoreQueueEntry.Ea == readyQueueEntry.Ea) {
-								hitInLoadStoreQueue = true;
+								isHitInLoadStoreQueue = true;
 								break;
 							}
 						}
 						
-						if (hitInLoadStoreQueue) {
+						if (isHitInLoadStoreQueue) {
 							readyQueueEntry1.SignalCompleted ();
 						} else {
-							this.SeqD.Load (this.MMU.Translate (readyQueueEntry1.Ea), false, readyQueueEntry1, delegate(ReorderBufferEntry readyQueueEntry2) { readyQueueEntry2.SignalCompleted (); });
+							this.SeqD.Load (this.MMU.GetPhysicalAddress (readyQueueEntry1.Ea), false, readyQueueEntry1, delegate(ReorderBufferEntry readyQueueEntry2) { readyQueueEntry2.SignalCompleted (); });
 						}
 					});
 					
 					readyQueueEntry.IsIssued = true;
 				} else {
-					if (readyQueueEntry.DynamicInst.StaticInst.FuType != FunctionalUnitType.NONE) {
+					if (readyQueueEntry.DynamicInst.StaticInst.FuType != FunctionalUnitType.None) {
 						this.FuPool.Acquire (readyQueueEntry, delegate(ReorderBufferEntry readyQueueEntry1) { readyQueueEntry1.SignalCompleted (); });
 						readyQueueEntry.IsIssued = true;
 					} else {
@@ -1260,7 +1259,7 @@ namespace MinCai.Simulators.Flexim.Pipelines
 
 		public void Writeback ()
 		{
-			while (!this.OoOEventQueue.Empty) {
+			while (!this.OoOEventQueue.IsEmpty) {
 				ReorderBufferEntry reorderBufferEntry = this.OoOEventQueue.Front;
 				
 				if (!reorderBufferEntry.IsValid) {
@@ -1270,14 +1269,14 @@ namespace MinCai.Simulators.Flexim.Pipelines
 				
 				reorderBufferEntry.IsCompleted = true;
 				
-				foreach (RegisterDependency oDep in reorderBufferEntry.ODeps) {
+				foreach (var oDep in reorderBufferEntry.ODeps) {
 					reorderBufferEntry.PhysRegs[oDep].Writeback ();
 				}
 				
 				if (reorderBufferEntry.IsSpeculative) {
 					reorderBufferEntry.DynamicInst.Thread.Bpred.Recover (reorderBufferEntry.DynamicInst.PhysPc, reorderBufferEntry.StackRecoverIndex);
 					
-					reorderBufferEntry.DynamicInst.Thread.Regs.Speculative = reorderBufferEntry.DynamicInst.Thread.IsSpeculative = false;
+					reorderBufferEntry.DynamicInst.Thread.Regs.IsSpeculative = reorderBufferEntry.DynamicInst.Thread.IsSpeculative = false;
 					reorderBufferEntry.DynamicInst.Thread.FetchNpc = reorderBufferEntry.DynamicInst.Thread.Regs.Npc;
 					reorderBufferEntry.DynamicInst.Thread.FetchNnpc = reorderBufferEntry.DynamicInst.Thread.Regs.Nnpc;
 					
@@ -1292,14 +1291,14 @@ namespace MinCai.Simulators.Flexim.Pipelines
 
 		public void RefreshLoadStoreQueue ()
 		{
-			foreach (Thread thread in this.Threads) {
+			foreach (var thread in this.Threads) {
 				thread.RefreshLoadStoreQueue ();
 			}
 		}
 
 		public void Commit ()
 		{
-			foreach (Thread thread in this.Threads) {
+			foreach (var thread in this.Threads) {
 				thread.Commit ();
 			}
 		}
@@ -1315,61 +1314,61 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			this.RegisterRename ();
 			this.Fetch ();
 			
-			foreach (EventProcessor eventProcessor in this.EventProcessors) {
+			foreach (var eventProcessor in this.EventProcessors) {
 				eventProcessor.AdvanceOneCycle ();
 			}
 			
 			this.CurrentCycle++;
 		}
 
-		public PhysicalRegisterFile GetPhysicalRegisterFile (RegisterDependencyType type)
+		private PhysicalRegisterFile GetPhysicalRegisterFile (RegisterDependencyType type)
 		{
-			if (type == RegisterDependencyType.INT) {
+			if (type == RegisterDependencyType.Integer) {
 				return this.IntRegFile;
-			} else if (type == RegisterDependencyType.FP) {
+			} else if (type == RegisterDependencyType.Float) {
 				return this.FpRegFile;
 			} else {
 				return this.MiscRegFile;
 			}
 		}
 
-		public Sequencer SeqI {get;set;}
-
-		public CoherentCacheNode L1I {get;set;}
-
-		public Sequencer SeqD {get;set;}
-
-		public CoherentCacheNode L1D {get;set;}
-
-		public MMU MMU {
+		public MemoryManagementUnit MMU { // TODO: here?
 			get { return this.Processor.MemorySystem.MMU; }
 		}
 
-		public uint Num { get; set; }
-		public Processor Processor { get; set; }
-		public List<Thread> Threads { get; set; }
+		public Sequencer SeqI { get; set; }
 
-		public uint DecodeWidth { get; set; }
-		public uint IssueWidth { get; set; }
+		public CoherentCacheNode L1I { get; set; }
 
-		public FunctionalUnitPool FuPool { get; set; }
+		public Sequencer SeqD { get; set; }
 
-		public PhysicalRegisterFile IntRegFile { get; set; }
-		public PhysicalRegisterFile FpRegFile { get; set; }
-		public PhysicalRegisterFile MiscRegFile { get; set; }
+		public CoherentCacheNode L1D { get; set; }
 
-		public ISA Isa { get; set; }
+		public uint Num { get; private set; }
+		public Processor Processor { get; private set; }
+		public List<Thread> Threads { get; private set; }
 
-		public ReadyQueue ReadyQueue { get; set; }
-		public WaitingQueue WaitingQueue { get; set; }
-		public OoOEventQueue OoOEventQueue { get; set; }
+		public uint DecodeWidth { get; private set; }
+		public uint IssueWidth { get; private set; }
 
-		public ulong CurrentCycle { get; set; }
+		public FunctionalUnitPool FuPool { get; private set; }
 
-		public List<EventProcessor> EventProcessors { get; set; }
+		public PhysicalRegisterFile IntRegFile { get; private set; }
+		public PhysicalRegisterFile FpRegFile { get; private set; }
+		public PhysicalRegisterFile MiscRegFile { get; private set; }
+
+		public InstructionSetArchitecture Isa { get; private set; }
+
+		public ReadyQueue ReadyQueue { get; private set; }
+		public WaitingQueue WaitingQueue { get; private set; }
+		public OoOEventQueue OoOEventQueue { get; private set; }
+
+		public ulong CurrentCycle { get; private set; }
+
+		public List<EventProcessor> EventProcessors { get; private set; }
 	}
 
-	public class Thread
+	public sealed class Thread
 	{
 		public enum ThreadState
 		{
@@ -1386,9 +1385,7 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			
 			this.Process = process;
 			
-			this.SyscallEmul = new SyscallEmul ();
-			
-			this.Bpred = new CombinedBpred ();
+			this.Bpred = new CombinedBranchPredictor ();
 			
 			this.RenameTable = new RegisterRenameTable (this);
 			
@@ -1402,22 +1399,22 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			
 			this.State = ThreadState.Active;
 			
-			for (uint i = 0; i < RegisterConstants.NumIntRegs; i++) {
-				PhysicalRegister physReg = this.Core.IntRegFile[this.Num * RegisterConstants.NumIntRegs + i];
+			for (uint i = 0; i < RegisterConstants.NUM_INT_REGS; i++) {
+				PhysicalRegister physReg = this.Core.IntRegFile[this.Num * RegisterConstants.NUM_INT_REGS + i];
 				physReg.Commit ();
-				this.RenameTable[RegisterDependencyType.INT, i] = physReg;
+				this.RenameTable[RegisterDependencyType.Integer, i] = physReg;
 			}
 			
-			for (uint i = 0; i < RegisterConstants.NumFloatRegs; i++) {
-				PhysicalRegister physReg = this.Core.FpRegFile[this.Num * RegisterConstants.NumFloatRegs + i];
+			for (uint i = 0; i < RegisterConstants.NUM_FLOAT_REGS; i++) {
+				PhysicalRegister physReg = this.Core.FpRegFile[this.Num * RegisterConstants.NUM_FLOAT_REGS + i];
 				physReg.Commit ();
-				this.RenameTable[RegisterDependencyType.FP, i] = physReg;
+				this.RenameTable[RegisterDependencyType.Float, i] = physReg;
 			}
 			
-			for (uint i = 0; i < RegisterConstants.NumMiscRegs; i++) {
-				PhysicalRegister physReg = this.Core.MiscRegFile[this.Num * RegisterConstants.NumMiscRegs + i];
+			for (uint i = 0; i < RegisterConstants.NUM_MISC_REGS; i++) {
+				PhysicalRegister physReg = this.Core.MiscRegFile[this.Num * RegisterConstants.NUM_MISC_REGS + i];
 				physReg.Commit ();
-				this.RenameTable[RegisterDependencyType.MISC, i] = physReg;
+				this.RenameTable[RegisterDependencyType.Misc, i] = physReg;
 			}
 			
 			this.CommitWidth = config.CommitWidth;
@@ -1460,20 +1457,20 @@ namespace MinCai.Simulators.Flexim.Pipelines
 
 		public void Fetch ()
 		{
-			uint blockToFetch = BitUtils.Aligned (this.FetchNpc, this.Core.SeqI.BlockSize);
+			uint blockToFetch = BitHelper.Aligned (this.FetchNpc, this.Core.SeqI.BlockSize);
 			if (blockToFetch != this.LastFetchedBlock) {
 				this.LastFetchedBlock = blockToFetch;
 				
-				this.Core.SeqI.Load (this.Core.MMU.Translate (this.FetchNpc), false, delegate() { this.FetchStalled = false; });
+				this.Core.SeqI.Load (this.Core.MMU.GetPhysicalAddress (this.FetchNpc), false, delegate() { this.IsFetchStalled = false; });
 				
-				this.FetchStalled = true;
+				this.IsFetchStalled = true;
 			}
 			
-			bool done = false;
+			bool hasDone = false;
 			
-			while (!done && !this.DecodeBuffer.Full && !this.FetchStalled) {
+			while (!hasDone && !this.DecodeBuffer.IsFull && !this.IsFetchStalled) {
 				if (this.SetNpc ()) {
-					this.Regs.Speculative = this.IsSpeculative = true;
+					this.Regs.IsSpeculative = this.IsSpeculative = true;
 				}
 				
 				this.FetchPc = this.FetchNpc;
@@ -1482,17 +1479,17 @@ namespace MinCai.Simulators.Flexim.Pipelines
 				DynamicInst dynamicInst = this.DecodeAndExecute ();
 				
 				if (this.FetchNpc != this.FetchPc + Marshal.SizeOf (typeof(uint))) {
-					done = true;
+					hasDone = true;
 				}
 				
 				if ((this.FetchPc + Marshal.SizeOf (typeof(uint))) % this.Core.SeqI.BlockSize == 0) {
-					done = true;
+					hasDone = true;
 				}
 				
 				uint stackRecoverIndex;
-				BpredUpdate dirUpdate = new BpredUpdate ();
+				BranchPredictorUpdate dirUpdate = new BranchPredictorUpdate ();
 				
-				uint dest = this.Bpred.Lookup (this.Core.MMU.Translate (this.FetchPc), 0, dynamicInst, out dirUpdate, out stackRecoverIndex);
+				uint dest = this.Bpred.Lookup (this.Core.MMU.GetPhysicalAddress (this.FetchPc), 0, dynamicInst, out dirUpdate, out stackRecoverIndex);
 				this.FetchNnpc = dest <= 1 ? (uint)(this.FetchNpc + Marshal.SizeOf (typeof(uint))) : dest;
 				
 				this.FetchNnpc = this.Regs.Nnpc;
@@ -1519,11 +1516,11 @@ namespace MinCai.Simulators.Flexim.Pipelines
 		{
 			List<uint> stdUnknowns = new List<uint> ();
 			
-			foreach (ReorderBufferEntry loadStoreQueueEntry in this.LoadStoreQueue) {
+			foreach (var loadStoreQueueEntry in this.LoadStoreQueue) {
 				if (loadStoreQueueEntry.DynamicInst.StaticInst.IsStore) {
-					if (loadStoreQueueEntry.StoreAddressReady) {
+					if (loadStoreQueueEntry.IsStoreAddressReady) {
 						break;
-					} else if (!loadStoreQueueEntry.AllOperandsReady) {
+					} else if (!loadStoreQueueEntry.IsAllOperandsReady) {
 						stdUnknowns.Add (loadStoreQueueEntry.Ea);
 					} else {
 						for (int i = 0; i < stdUnknowns.Count; i++) {
@@ -1534,7 +1531,7 @@ namespace MinCai.Simulators.Flexim.Pipelines
 					}
 				}
 				
-				if (loadStoreQueueEntry.DynamicInst.StaticInst.IsLoad && loadStoreQueueEntry.IsDispatched && !loadStoreQueueEntry.IsInReadyQueue && !loadStoreQueueEntry.IsIssued && !loadStoreQueueEntry.IsCompleted && loadStoreQueueEntry.AllOperandsReady) {
+				if (loadStoreQueueEntry.DynamicInst.StaticInst.IsLoad && loadStoreQueueEntry.IsDispatched && !loadStoreQueueEntry.IsInReadyQueue && !loadStoreQueueEntry.IsIssued && !loadStoreQueueEntry.IsCompleted && loadStoreQueueEntry.IsAllOperandsReady) {
 					if (!stdUnknowns.Contains (loadStoreQueueEntry.Ea)) {
 						this.Core.ReadyQueue.Add (loadStoreQueueEntry);
 						loadStoreQueueEntry.IsInReadyQueue = true;
@@ -1546,12 +1543,12 @@ namespace MinCai.Simulators.Flexim.Pipelines
 		public void Commit ()
 		{
 			if (this.Core.CurrentCycle - this.LastCommitCycle > COMMIT_TIMEOUT) {
-				Logger.Fatalf (LogCategory.SIMULATOR, "Thread {0:s} - No instruction committed for {1:d} cycles", this.Name, COMMIT_TIMEOUT);
+				Logger.Fatalf (LogCategory.Simulator, "Thread {0:s} - No instruction committed for {1:d} cycles", this.Name, COMMIT_TIMEOUT);
 			}
 			
 			uint numCommitted = 0;
 			
-			while (!this.ReorderBuffer.Empty && numCommitted < this.CommitWidth) {
+			while (!this.ReorderBuffer.IsEmpty && numCommitted < this.CommitWidth) {
 				ReorderBufferEntry reorderBufferEntry = this.ReorderBuffer.Front;
 				
 				if (!reorderBufferEntry.IsCompleted) {
@@ -1566,10 +1563,10 @@ namespace MinCai.Simulators.Flexim.Pipelines
 					}
 					
 					if (loadStoreQueueEntry.DynamicInst.StaticInst.IsStore) {
-						this.Core.FuPool.Acquire (loadStoreQueueEntry, delegate(ReorderBufferEntry loadStoreQueueEntry1) { this.Core.SeqD.Store (this.Core.MMU.Translate (loadStoreQueueEntry1.Ea), false, delegate() { }); });
+						this.Core.FuPool.Acquire (loadStoreQueueEntry, delegate(ReorderBufferEntry loadStoreQueueEntry1) { this.Core.SeqD.Store (this.Core.MMU.GetPhysicalAddress (loadStoreQueueEntry1.Ea), false, delegate() { }); });
 					}
 					
-					foreach (RegisterDependency oDep in loadStoreQueueEntry.ODeps) {
+					foreach (var oDep in loadStoreQueueEntry.ODeps) {
 						loadStoreQueueEntry.OldPhysRegs[oDep].Dealloc ();
 						loadStoreQueueEntry.PhysRegs[oDep].Commit ();
 					}
@@ -1577,7 +1574,7 @@ namespace MinCai.Simulators.Flexim.Pipelines
 					this.LoadStoreQueue.TakeFront ();
 				}
 				
-				foreach (RegisterDependency oDep in reorderBufferEntry.ODeps) {
+				foreach (var oDep in reorderBufferEntry.ODeps) {
 					reorderBufferEntry.OldPhysRegs[oDep].Dealloc ();
 					reorderBufferEntry.PhysRegs[oDep].Commit ();
 				}
@@ -1596,15 +1593,15 @@ namespace MinCai.Simulators.Flexim.Pipelines
 				
 				this.Core.Processor.Simulation.Stat.TotalInsts++;
 				
-				Logger.Infof (LogCategory.DEBUG, "instruction committed (dynamicInst={0})", reorderBufferEntry.DynamicInst);
+//				Logger.Infof (LogCategory.Debug, "instruction committed (dynamicInst={0})", reorderBufferEntry.DynamicInst);
 			}
 		}
 
 		public void RecoverReorderBuffer (ReorderBufferEntry branchReorderBufferEntry)
 		{
-			Logger.Infof (LogCategory.SIMULATOR, "RecoverReorderBuffer({0:s})", branchReorderBufferEntry);
+			Logger.Infof (LogCategory.Simulator, "RecoverReorderBuffer({0:s})", branchReorderBufferEntry); //TODO
 			
-			while (!this.ReorderBuffer.Empty) {
+			while (!this.ReorderBuffer.IsEmpty) {
 				ReorderBufferEntry reorderBufferEntry = this.ReorderBuffer.Back;
 				
 				if (!reorderBufferEntry.IsSpeculative) {
@@ -1616,7 +1613,7 @@ namespace MinCai.Simulators.Flexim.Pipelines
 					
 					loadStoreQueueEntry.Invalidate ();
 					
-					foreach (RegisterDependency oDep in loadStoreQueueEntry.ODeps) {
+					foreach (var oDep in loadStoreQueueEntry.ODeps) {
 						loadStoreQueueEntry.PhysRegs[oDep].Dealloc ();
 						this.RenameTable[oDep] = loadStoreQueueEntry.OldPhysRegs[oDep];
 					}
@@ -1628,7 +1625,7 @@ namespace MinCai.Simulators.Flexim.Pipelines
 				
 				reorderBufferEntry.Invalidate ();
 				
-				foreach (RegisterDependency oDep in reorderBufferEntry.ODeps) {
+				foreach (var oDep in reorderBufferEntry.ODeps) {
 					reorderBufferEntry.PhysRegs[oDep].Dealloc ();
 					this.RenameTable[oDep] = reorderBufferEntry.OldPhysRegs[oDep];
 				}
@@ -1642,27 +1639,27 @@ namespace MinCai.Simulators.Flexim.Pipelines
 		public uint GetSyscallArg (int i)
 		{
 			Debug.Assert (i < 6);
-			return this.Regs.IntRegs[(uint)(RegisterConstants.FirstArgumentReg + i)];
+			return this.Regs.IntRegs[(uint)(RegisterConstants.FIRST_ARGUMENT_REG + i)];
 		}
 
 		public void SetSyscallArg (int i, uint val)
 		{
 			Debug.Assert (i < 6);
-			this.Regs.IntRegs[(uint)(RegisterConstants.FirstArgumentReg + i)] = val;
+			this.Regs.IntRegs[(uint)(RegisterConstants.FIRST_ARGUMENT_REG + i)] = val;
 		}
 
 		public void SetSyscallReturn (int returnVal)
 		{
-			this.Regs.IntRegs[RegisterConstants.ReturnValueReg] = (uint)returnVal;
-			this.Regs.IntRegs[RegisterConstants.SyscallSuccessReg] = (returnVal == -(int)Errno.EINVAL ? 1u : 0);
+			this.Regs.IntRegs[RegisterConstants.RETURN_VALUE_REG] = (uint)returnVal;
+			this.Regs.IntRegs[RegisterConstants.SYSCALL_SUCCESS_REG] = (returnVal == -(int)Errno.EINVAL ? 1u : 0);
 		}
 
 		public void Syscall (uint callNum)
 		{
-			this.SyscallEmul.DoSyscall (callNum, this);
+			SyscallEmulation.DoSyscall (callNum, this);
 		}
 
-		public void ClearArchRegs ()
+		private void ClearArchRegs ()
 		{
 			this.Regs = new CombinedRegisterFile ();
 			this.Regs.Pc = 0;
@@ -1673,11 +1670,11 @@ namespace MinCai.Simulators.Flexim.Pipelines
 		public void Halt (int exitCode)
 		{
 			if (this.State != ThreadState.Halted) {
-				Logger.Infof (LogCategory.SIMULATOR, "target called exit({0:d})", exitCode);
+				Logger.Infof (LogCategory.Simulator, "target called exit({0:d})", exitCode);
 				this.State = ThreadState.Halted;
 				this.Core.Processor.ActiveThreadCount--;
 			} else {
-				throw new Exception("Halted thread can not be halted again.");
+				throw new Exception ("Halted thread can not be halted again.");
 			}
 		}
 
@@ -1685,77 +1682,76 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			get { return "c" + this.Core.Num + "t" + this.Num; }
 		}
 
-		public uint Num { get; set; }
+		public uint Num { get; private set; }
 
-		public ThreadState State { get; set; }
+		public ThreadState State { get; private set; }
 
-		public Core Core { get; set; }
+		public Core Core { get; private set; }
 
-		public Process Process { get; set; }
-		public SyscallEmul SyscallEmul { get; set; }
+		public Process Process { get; private set; }
 
-		public Memory Mem { get; set; }
+		public Memory Mem { get; private set; }
 
-		public CombinedRegisterFile Regs { get; set; }
+		public CombinedRegisterFile Regs { get; private set; }
 
 		public uint FetchPc { get; set; }
 		public uint FetchNpc { get; set; }
 		public uint FetchNnpc { get; set; }
 
-		public bool FetchStalled { get; set; }
-		public uint LastFetchedBlock { get; set; }
+		private bool IsFetchStalled { get; set; }
+		private uint LastFetchedBlock { get; set; }
 
-		public Bpred Bpred { get; set; }
+		public IBranchPredictor Bpred { get; set; }
 
-		public RegisterRenameTable RenameTable { get; set; }
+		public RegisterRenameTable RenameTable { get; private set; }
 
-		public uint CommitWidth { get; set; }
-		public ulong LastCommitCycle { get; set; }
+		public uint CommitWidth { get; private set; }
+		private ulong LastCommitCycle { get; set; }
 
-		public DecodeBuffer DecodeBuffer { get; set; }
-		public ReorderBuffer ReorderBuffer { get; set; }
-		public LoadStoreQueue LoadStoreQueue { get; set; }
+		public DecodeBuffer DecodeBuffer { get; private set; }
+		public ReorderBuffer ReorderBuffer { get; private set; }
+		public LoadStoreQueue LoadStoreQueue { get; private set; }
 
 		public bool IsSpeculative { get; set; }
 
-		public ContextStat Stat { get; set; }
+		public ContextStat Stat { get; private set; }
 
-		public static uint COMMIT_TIMEOUT = 1000;//000;
+		public static uint COMMIT_TIMEOUT = 1000;
 	}
 
-	public class Event<EventTypeT, EventContextT>
+	public sealed class Event<EventTypeT, EventContextT>
 	{
-		public Event (EventTypeT eventType, EventContextT context, ulong scheduled, ulong when)
+		public Event (EventTypeT eventType, EventContextT context, ulong scheduledCycle, ulong when)
 		{
 			this.EventType = eventType;
 			this.Context = context;
-			this.Scheduled = scheduled;
+			this.ScheduledCycle = scheduledCycle;
 			this.When = when;
 		}
 
 		public override string ToString ()
 		{
-			return string.Format ("[Event: EventType={0}, Context={1}, Scheduled={2}, When={3}]", this.EventType, this.Context, this.Scheduled, this.When);
+			return string.Format ("[Event: EventType={0}, Context={1}, ScheduledCycle={2}, When={3}]", this.EventType, this.Context, this.ScheduledCycle, this.When);
 		}
 
-		public EventTypeT EventType { get; set; }
-		public EventContextT Context { get; set; }
-		public ulong Scheduled { get; set; }
-		public ulong When { get; set; }
+		public EventTypeT EventType { get; private set; }
+		public EventContextT Context { get; private set; }
+		public ulong ScheduledCycle { get; private set; }
+		public ulong When { get; private set; }
 	}
 
-	public class DelegateEventQueue : EventProcessor
+	public sealed class DelegateEventQueue : EventProcessor
 	{
 		public class EventT
 		{
-			public EventT (VoidDelegate del, ulong when)
+			public EventT (Action action, ulong when)
 			{
-				this.Del = del;
+				this.Action = action;
 				this.When = when;
 			}
 
-			public VoidDelegate Del { get; set; }
-			public ulong When { get; set; }
+			public Action Action { get; private set; }
+			public ulong When { get; private set; }
 		}
 
 		public DelegateEventQueue ()
@@ -1766,8 +1762,8 @@ namespace MinCai.Simulators.Flexim.Pipelines
 		public void AdvanceOneCycle ()
 		{
 			if (this.Events.ContainsKey (this.CurrentCycle)) {
-				foreach (EventT evt in this.Events[this.CurrentCycle]) {
-					evt.Del ();
+				foreach (var evt in this.Events[this.CurrentCycle]) {
+					evt.Action ();
 				}
 				
 				this.Events.Remove (this.CurrentCycle);
@@ -1776,7 +1772,7 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			this.CurrentCycle++;
 		}
 
-		public void Schedule (VoidDelegate del, ulong delay)
+		public void Schedule (Action action, ulong delay)
 		{
 			ulong when = this.CurrentCycle + delay;
 			
@@ -1784,10 +1780,10 @@ namespace MinCai.Simulators.Flexim.Pipelines
 				this.Events[when] = new List<EventT> ();
 			}
 			
-			this.Events[when].Add (new EventT (del, when));
+			this.Events[when].Add (new EventT (action, when));
 		}
 
-		public ulong CurrentCycle { get; set; }
+		public ulong CurrentCycle { get; private set; }
 		public Dictionary<ulong, List<EventT>> Events { get; private set; }
 	}
 
@@ -1796,14 +1792,13 @@ namespace MinCai.Simulators.Flexim.Pipelines
 		void AdvanceOneCycle ();
 	}
 
-	public interface ICycleProvider
+	public interface ICycleProvider : EventProcessor
 	{
-		ulong CurrentCycle { get; set; }
-		List<EventProcessor> EventProcessors { get; set; }
-		void AdvanceOneCycle ();
+		ulong CurrentCycle { get;}
+		List<EventProcessor> EventProcessors { get;}
 	}
 
-	public class MemorySystem : ICycleProvider
+	public sealed class MemorySystem : ICycleProvider
 	{
 		public MemorySystem (Processor processor)
 		{
@@ -1818,7 +1813,7 @@ namespace MinCai.Simulators.Flexim.Pipelines
 
 		public void AdvanceOneCycle ()
 		{
-			foreach (EventProcessor eventProcessor in this.EventProcessors) {
+			foreach (var eventProcessor in this.EventProcessors) {
 				eventProcessor.AdvanceOneCycle ();
 			}
 			
@@ -1835,14 +1830,10 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			for (int i = 0; i < this.Processor.Simulation.Config.Architecture.Processor.Cores.Count; i++) {
 				Core core = this.Processor.Cores[i];
 				
-				CoherentCache l1I = new CoherentCache (core, 
-				                                       this.Processor.Simulation.Config.Architecture.Processor.Cores[i].ICache, 
-				                                       this.Processor.Simulation.Stat.Processor.Cores[i].ICache);
+				CoherentCache l1I = new CoherentCache (core, this.Processor.Simulation.Config.Architecture.Processor.Cores[i].ICache, this.Processor.Simulation.Stat.Processor.Cores[i].ICache);
 				Sequencer seqI = new Sequencer ("seqI-" + i, l1I);
 				
-				CoherentCache l1D = new CoherentCache (core, 
-				                                       this.Processor.Simulation.Config.Architecture.Processor.Cores[i].DCache, 
-				                                       this.Processor.Simulation.Stat.Processor.Cores[i].DCache);
+				CoherentCache l1D = new CoherentCache (core, this.Processor.Simulation.Config.Architecture.Processor.Cores[i].DCache, this.Processor.Simulation.Stat.Processor.Cores[i].DCache);
 				Sequencer seqD = new Sequencer ("seqD-" + i, l1D);
 				
 				core.SeqI = seqI;
@@ -1854,23 +1845,23 @@ namespace MinCai.Simulators.Flexim.Pipelines
 				l1I.Next = l1D.Next = this.L2;
 			}
 			
-			this.MMU = new MMU ();
+			this.MMU = new MemoryManagementUnit ();
 		}
 
-		public CoherentCache L2 { get; set; }
+		public CoherentCache L2 { get; private set; }
 
-		public MemoryController Mem { get; set; }
+		public MemoryController Mem { get; private set; }
 
-		public MMU MMU { get; set; }
+		public MemoryManagementUnit MMU { get; private set; }
 
-		public Processor Processor {get;set;}
-		
-		public ulong CurrentCycle { get; set; }
+		public Processor Processor { get; private set; }
 
-		public List<EventProcessor> EventProcessors { get; set; }
+		public ulong CurrentCycle { get; private set; }
+
+		public List<EventProcessor> EventProcessors { get; private set; }
 	}
 
-	public class Processor
+	public sealed class Processor
 	{
 		public Processor (Simulation simulation)
 		{
@@ -1921,8 +1912,8 @@ namespace MinCai.Simulators.Flexim.Pipelines
 //			Barrier barrier = new Barrier(this.Cores.Count);
 //			barrier.Wait();
 			
-			while (this.CanRun && this.Simulation.Running) {
-				foreach (Core core in this.Cores) {
+			while (this.CanRun && this.Simulation.IsRunning) {
+				foreach (var core in this.Cores) {
 					core.AdvanceOneCycle ();
 				}
 				
@@ -1938,12 +1929,12 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			this.Simulation.Stat.CyclesPerSecond = (double)this.Simulation.Stat.TotalCycles / this.Simulation.Stat.Duration;
 		}
 
-		public List<Core> Cores { get; set; }
-		public MemorySystem MemorySystem { get; set; }
+		public List<Core> Cores { get; private set; }
+		public MemorySystem MemorySystem { get; private set; }
 
-		public Simulation Simulation { get; set; }
+		public Simulation Simulation { get; private set; }
 
-		public ulong CurrentCycle { get; set; }
+		public ulong CurrentCycle { get; private set; }
 
 		public int ActiveThreadCount { get; set; }
 
@@ -1953,7 +1944,7 @@ namespace MinCai.Simulators.Flexim.Pipelines
 		}
 
 		public static string WorkDirectory { get; set; }
-		
+
 		public static string DEFAULT_WORK_DIRECTORY = "../../../";
 	}
 }

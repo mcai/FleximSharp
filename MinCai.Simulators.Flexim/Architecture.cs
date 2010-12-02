@@ -27,11 +27,11 @@ using System.Text;
 using MinCai.Simulators.Flexim.Architecture;
 using MinCai.Simulators.Flexim.Common;
 using MinCai.Simulators.Flexim.MemoryHierarchy;
-using MinCai.Simulators.Flexim.Pipelines;
+using MinCai.Simulators.Flexim.Microarchitecture;
 
 namespace MinCai.Simulators.Flexim.Architecture
 {
-	public class BitField
+	public sealed class BitField
 	{
 		public BitField (string name, uint hi, uint lo)
 		{
@@ -140,7 +140,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 		F
 	}
 
-	public class MachInst
+	public sealed class MachInst
 	{
 		public MachInst (uint data)
 		{
@@ -153,7 +153,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 
 		public uint this[BitField field] {
-			get { return BitUtils.Bits (this.Data, (int)(field.Hi), (int)(field.Lo)); }
+			get { return BitHelper.Bits (this.Data, (int)(field.Hi), (int)(field.Lo)); }
 		}
 
 		public bool IsRMt {
@@ -191,63 +191,63 @@ namespace MinCai.Simulators.Flexim.Architecture
 			}
 		}
 
-		public bool isFPLoadStore {
+		public bool IsFloatLoadStore {
 			get {
 				uint opcode = this[BitField.OPCODE];
 				return (opcode == 0x31 || opcode == 0x39);
 			}
 		}
 
-		public bool isOneOpBranch {
+		public bool IsOneOpBranch {
 			get {
 				uint opcode = this[BitField.OPCODE];
 				return ((opcode == 0x00) || (opcode == 0x01) || (opcode == 0x06) || (opcode == 0x07));
 			}
 		}
 
-		public bool isShift {
+		public bool IsShift {
 			get {
 				uint func = this[BitField.FUNC];
 				return (func == 0x00 || func == 0x01 || func == 0x03);
 			}
 		}
 
-		public bool isCVT {
+		public bool IsConvert {
 			get {
 				uint func = this[BitField.FUNC];
 				return (func == 32 || func == 33 || func == 36);
 			}
 		}
 
-		public bool isCompare {
+		public bool IsCompare {
 			get {
 				uint func = this[BitField.FUNC];
 				return (func >= 48);
 			}
 		}
 
-		public bool isGPRFPMove {
+		public bool IsGPRFloatMove {
 			get {
 				uint rs = this[BitField.RS];
 				return (rs == 0 || rs == 4);
 			}
 		}
 
-		public bool isGPRFCRMove {
+		public bool IsGPRFCRMove {
 			get {
 				uint rs = this[BitField.RS];
 				return (rs == 2 || rs == 6);
 			}
 		}
 
-		public bool isFPBranch {
+		public bool IsFloatBranch {
 			get {
 				uint rs = this[BitField.RS];
 				return (rs == 8);
 			}
 		}
 
-		public bool isSyscall {
+		public bool IsSyscall {
 			get { return (this[BitField.OPCODE_LO] == 0x0 && this[BitField.FUNC_HI] == 0x1 && this[BitField.FUNC_LO] == 0x4); }
 		}
 
@@ -264,138 +264,61 @@ namespace MinCai.Simulators.Flexim.Architecture
 			}
 		}
 
-		public uint Data { get; set; }
+		public uint Data { get; private set; }
 	}
 
-	/* instruction flags */
 	public enum StaticInstFlag : uint
 	{
-		NONE = 0x00000000,
-
-		/// <summary>
-		/// integer computation
-		/// </summary>
-		ICOMP = 0x00000001,
-
-		/// <summary>
-		/// floating-point computation
-		/// </summary>
-		FCOMP = 0x00000002,
-
-		/// <summary>
-		/// control inst
-		/// </summary>
-		CTRL = 0x00000004,
-
-		/// <summary>
-		/// unconditional change
-		/// </summary>
-		UNCOND = 0x00000008,
-
-		/// <summary>
-		/// conditional change
-		/// </summary>
-		COND = 0x00000010,
-
-		/// <summary>
-		/// memory access inst
-		/// </summary>
-		MEM = 0x00000020,
-
-		/// <summary>
-		/// load inst
-		/// </summary>
-		LOAD = 0x00000040,
-
-		/// <summary>
-		/// store inst
-		/// </summary>
-		STORE = 0x00000080,
-
-		/// <summary>
-		/// displaced (R+C) addr mode
-		/// </summary>
-		DISP = 0x00000100,
-
-		/// <summary>
-		/// R+R addr mode
-		/// </summary>
-		RR = 0x00000200,
-
-		/// <summary>
-		/// direct addressing mode
-		/// </summary>
-		DIRECT = 0x00000400,
-
-		/// <summary>
-		/// traping inst
-		/// </summary>
-		TRAP = 0x00000800,
-
-		/// <summary>
-		/// long latency inst (for sched)
-		/// </summary>
-		LONGLAT = 0x00001000,
-
-		/// <summary>
-		/// direct jump
-		/// </summary>
-		DIRJMP = 0x00002000,
-
-		/// <summary>
-		/// indirect jump
-		/// </summary>
-		INDIRJMP = 0x00004000,
-
-		/// <summary>
-		/// function call
-		/// </summary>
-		CALL = 0x00008000,
-
-		/// <summary>
-		/// floating point conditional branch
-		/// </summary>
-		FPCOND = 0x00010000,
-
-		/// <summary>
-		/// instruction has immediate operand
-		/// </summary>
-		IMM = 0x00020000,
-
-		/// <summary>
-		/// function return
-		/// </summary>
-		RET = 0x00040000
+		None = 0x00000000,
+		IntegerComputation = 0x00000001,
+		FloatComputation = 0x00000002,
+		Control = 0x00000004,
+		Unconditional = 0x00000008,
+		Conditional = 0x00000010,
+		Memory = 0x00000020,
+		Load = 0x00000040,
+		Store = 0x00000080,
+		DisplacedAddressing = 0x00000100,
+		RRAddressing = 0x00000200,
+		DirectAddressing = 0x00000400,
+		Trap = 0x00000800,
+		LongLatency = 0x00001000,
+		DirectJump = 0x00002000,
+		IndirectJump = 0x00004000,
+		Call = 0x00008000,
+		FloatConditional = 0x00010000,
+		Immediate = 0x00020000,
+		FunctionReturn = 0x00040000
 	}
 
 	public static class RegisterConstants
 	{
-		public static uint NumIntRegs = 32;
-		public static uint NumFloatRegs = 32;
-		public static uint NumMiscRegs = 4;
+		public static uint NUM_INT_REGS = 32;
+		public static uint NUM_FLOAT_REGS = 32;
+		public static uint NUM_MISC_REGS = 4;
 
-		public static uint ZeroReg = 0;
-		public static uint AssemblerReg = 1;
-		public static uint SyscallSuccessReg = 7;
-		public static uint FirstArgumentReg = 4;
-		public static uint ReturnValueReg = 2;
+		public static uint ZERO_REG = 0;
+		public static uint ASSEMBLER_REG = 1;
+		public static uint SYSCALL_SUCCESS_REG = 7;
+		public static uint FIRST_ARGUMENT_REG = 4;
+		public static uint RETURN_VALUE_REG = 2;
 
-		public static uint KernelReg0 = 26;
-		public static uint KernelReg1 = 27;
-		public static uint GlobalPointerReg = 28;
-		public static uint StackPointerReg = 29;
-		public static uint FramePointerReg = 30;
-		public static uint ReturnAddressReg = 31;
+		public static uint KERNEL_REG0 = 26;
+		public static uint KERNEL_REG1 = 27;
+		public static uint GLOBAL_POINTER_REG = 28;
+		public static uint STACK_POINTER_REG = 29;
+		public static uint FRAME_POINTER_REG = 30;
+		public static uint RETURN_ADDRESS_REG = 31;
 
-		public static uint SyscallPseudoReturnReg = 3;
+		public static uint SYSCALL_PSEUDO_RETURN_REG = 3;
 	}
 
 	public enum MiscRegNums : int
 	{
-		LO = 0,
-		HI = 1,
-		EA = 2,
-		FCSR = 3
+		Lo = 0,
+		Hi = 1,
+		Ea = 2,
+		Fcsr = 3
 	}
 
 	public abstract class RegisterFile
@@ -403,11 +326,11 @@ namespace MinCai.Simulators.Flexim.Architecture
 		public abstract void Clear ();
 	}
 
-	public class IntRegisterFile : RegisterFile
+	public sealed class IntRegisterFile : RegisterFile
 	{
 		public IntRegisterFile ()
 		{
-			this.Regs = new uint[RegisterConstants.NumIntRegs];
+			this.Regs = new uint[RegisterConstants.NUM_INT_REGS];
 			this.Clear ();
 		}
 
@@ -432,14 +355,14 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 		public uint this[uint index] {
 			get {
-				Debug.Assert (index < RegisterConstants.NumIntRegs);
+				Debug.Assert (index < RegisterConstants.NUM_INT_REGS);
 				
 				uint val = this.Regs[index];
 //				Logger.Infof(LogCategory.THREAD, "    Reading int reg {0:d} as 0x{1:x8}.", index, val);
 				return val;
 			}
 			set {
-				Debug.Assert (index < RegisterConstants.NumIntRegs);
+				Debug.Assert (index < RegisterConstants.NUM_INT_REGS);
 //				Logger.Infof(LogCategory.THREAD, "    Setting int reg {0:d} to 0x{1:x8}.", index, value);
 				this.Regs[index] = value;
 			}
@@ -448,7 +371,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 		public uint[] Regs { get; private set; }
 	}
 
-	public class FloatRegisterFile : RegisterFile
+	public sealed class FloatRegisterFile : RegisterFile
 	{
 		public FloatRegisterFile ()
 		{
@@ -462,15 +385,15 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 		public override void Clear ()
 		{
-			this.Regs.f = new float[RegisterConstants.NumFloatRegs];
-			this.Regs.i = new int[RegisterConstants.NumFloatRegs];
-			this.Regs.d = new double[RegisterConstants.NumFloatRegs / 2];
-			this.Regs.l = new long[RegisterConstants.NumFloatRegs / 2];
+			this.Regs.f = new float[RegisterConstants.NUM_FLOAT_REGS];
+			this.Regs.i = new int[RegisterConstants.NUM_FLOAT_REGS];
+			this.Regs.d = new double[RegisterConstants.NUM_FLOAT_REGS / 2];
+			this.Regs.l = new long[RegisterConstants.NUM_FLOAT_REGS / 2];
 		}
 
 		public float GetFloat (uint index)
 		{
-			Debug.Assert (index < RegisterConstants.NumFloatRegs);
+			Debug.Assert (index < RegisterConstants.NUM_FLOAT_REGS);
 			
 			float val = this.Regs.f[index];
 //			Logger.Infof(LogCategory.REGISTER, "    Reading float reg {0:d} as {1:f}.", index, val);
@@ -479,7 +402,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 		public void SetFloat (float val, uint index)
 		{
-			Debug.Assert (index < RegisterConstants.NumFloatRegs);
+			Debug.Assert (index < RegisterConstants.NUM_FLOAT_REGS);
 			
 			this.Regs.f[index] = val;
 //			Logger.Infof(LogCategory.REGISTER, "    Setting float reg {0:d} to {1:f}.", index, val);
@@ -487,7 +410,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 		public double GetDouble (uint index)
 		{
-			Debug.Assert (index < RegisterConstants.NumFloatRegs);
+			Debug.Assert (index < RegisterConstants.NUM_FLOAT_REGS);
 			
 			double val = this.Regs.d[index / 2];
 //			Logger.Infof(LogCategory.REGISTER, "    Reading double reg {0:d} as {1:f}.", index, val);
@@ -496,7 +419,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 		public void SetDouble (double val, uint index)
 		{
-			Debug.Assert (index < RegisterConstants.NumFloatRegs);
+			Debug.Assert (index < RegisterConstants.NUM_FLOAT_REGS);
 			
 			this.Regs.d[index / 2] = val;
 //			Logger.Infof(LogCategory.REGISTER, "    Setting double reg {0:d} to {1:f}.", index, val);
@@ -504,7 +427,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 		public uint GetUint (uint index)
 		{
-			Debug.Assert (index < RegisterConstants.NumFloatRegs);
+			Debug.Assert (index < RegisterConstants.NUM_FLOAT_REGS);
 			
 			uint val = (uint)(this.Regs.i[index]);
 //			Logger.Infof(LogCategory.REGISTER, "    Reading float reg {0:d} bits as 0x{1:x8}.", index, val);
@@ -513,7 +436,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 		public void SetUint (uint val, uint index)
 		{
-			Debug.Assert (index < RegisterConstants.NumFloatRegs);
+			Debug.Assert (index < RegisterConstants.NUM_FLOAT_REGS);
 			
 			this.Regs.i[index] = (int)val;
 //			Logger.Infof(LogCategory.REGISTER, "    Setting float reg (0:d} bits to 0x{1:x8}.", index, val);
@@ -521,7 +444,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 		public ulong GetUlong (uint index)
 		{
-			Debug.Assert (index < RegisterConstants.NumFloatRegs);
+			Debug.Assert (index < RegisterConstants.NUM_FLOAT_REGS);
 			
 			ulong val = (ulong)(this.Regs.l[index / 2]);
 //			Logger.Infof(LogCategory.REGISTER, "    Reading double reg {0:d} bits as 0x{1:x8}.", index, val);
@@ -530,7 +453,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 		public void SetUlong (ulong val, uint index)
 		{
-			Debug.Assert (index < RegisterConstants.NumFloatRegs);
+			Debug.Assert (index < RegisterConstants.NUM_FLOAT_REGS);
 			
 			this.Regs.l[index / 2] = (long)val;
 //			Logger.Infof(LogCategory.REGISTER, "    Setting double reg {0:d} bits to 0x{1:x8}.", index, val);
@@ -560,7 +483,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 		public Cop1Reg Regs;
 	}
 
-	public class MiscRegisterFile : RegisterFile
+	public sealed class MiscRegisterFile : RegisterFile
 	{
 		public MiscRegisterFile ()
 		{
@@ -589,11 +512,11 @@ namespace MinCai.Simulators.Flexim.Architecture
 		public uint Fcsr { get; set; }
 	}
 
-	public class CombinedRegisterFile : RegisterFile
+	public sealed class CombinedRegisterFile : RegisterFile
 	{
 		public CombinedRegisterFile ()
 		{
-			this.speculative = false;
+			this.isSpeculative = false;
 			
 			this.IntRegs = new IntRegisterFile ();
 			this.FloatRegs = new FloatRegisterFile ();
@@ -636,10 +559,10 @@ namespace MinCai.Simulators.Flexim.Architecture
 		public uint RecNpc { get; set; }
 		public uint RecNnpc { get; set; }
 
-		public bool Speculative {
-			get { return this.speculative; }
+		public bool IsSpeculative {
+			get { return this.isSpeculative; }
 			set {
-				if (this.speculative != value) {
+				if (this.isSpeculative != value) {
 					if (value) {
 						this.IntRegs.CopyTo (this.RecIntRegs);
 						this.FloatRegs.CopyTo (this.RecFloatRegs);
@@ -658,17 +581,17 @@ namespace MinCai.Simulators.Flexim.Architecture
 						this.Nnpc = this.RecNnpc;
 					}
 					
-					this.speculative = value;
+					this.isSpeculative = value;
 				}
 			}
 		}
 
-		private bool speculative;
+		private bool isSpeculative;
 	}
 
-	public abstract class ISA
+	public abstract class InstructionSetArchitecture
 	{
-		public ISA ()
+		public InstructionSetArchitecture ()
 		{
 			this.DecodedInsts = new Dictionary<uint, StaticInst> ();
 		}
@@ -693,17 +616,17 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 		public abstract StaticInst DecodeMachInst (MachInst machInst);
 
-		public Dictionary<uint, StaticInst> DecodedInsts { get; set; }
+		private Dictionary<uint, StaticInst> DecodedInsts { get; set; }
 	}
 
 	public enum RegisterDependencyType
 	{
-		INT,
-		FP,
-		MISC
+		Integer,
+		Float,
+		Misc
 	}
 
-	public class RegisterDependency
+	public sealed class RegisterDependency
 	{
 		public RegisterDependency (RegisterDependencyType type, uint num)
 		{
@@ -716,8 +639,8 @@ namespace MinCai.Simulators.Flexim.Architecture
 			return string.Format ("[RegisterDependency: Type={0}, Num={1}]", this.Type, this.Num);
 		}
 
-		public RegisterDependencyType Type { get; set; }
-		public uint Num { get; set; }
+		public RegisterDependencyType Type { get; private set; }
+		public uint Num { get; private set; }
 	}
 
 	public abstract class StaticInst
@@ -735,12 +658,12 @@ namespace MinCai.Simulators.Flexim.Architecture
 			this.SetupDeps ();
 		}
 
-		public virtual uint TargetPc (Thread thread)
+		public virtual uint GetTargetPc (Thread thread)
 		{
-			return 0;
+			throw new NotImplementedException();
 		}
 
-		public abstract void SetupDeps ();
+		protected abstract void SetupDeps ();
 
 		public abstract void Execute (Thread thread);
 
@@ -753,64 +676,64 @@ namespace MinCai.Simulators.Flexim.Architecture
 			get { return this.MachInst[field]; }
 		}
 
-		public bool IsLongLat {
-			get { return (this.Flags & StaticInstFlag.LONGLAT) == StaticInstFlag.LONGLAT; }
+		public bool IsLongLatency {
+			get { return (this.Flags & StaticInstFlag.LongLatency) == StaticInstFlag.LongLatency; }
 		}
 
 		public bool IsTrap {
-			get { return (this.Flags & StaticInstFlag.TRAP) == StaticInstFlag.TRAP; }
+			get { return (this.Flags & StaticInstFlag.Trap) == StaticInstFlag.Trap; }
 		}
 
-		public bool IsMem {
-			get { return (this.Flags & StaticInstFlag.MEM) == StaticInstFlag.MEM; }
+		public bool IsMemory {
+			get { return (this.Flags & StaticInstFlag.Memory) == StaticInstFlag.Memory; }
 		}
 
 		public bool IsLoad {
-			get { return this.IsMem && (this.Flags & StaticInstFlag.LOAD) == StaticInstFlag.LOAD; }
+			get { return this.IsMemory && (this.Flags & StaticInstFlag.Load) == StaticInstFlag.Load; }
 		}
 
 		public bool IsStore {
-			get { return this.IsMem && (this.Flags & StaticInstFlag.STORE) == StaticInstFlag.STORE; }
+			get { return this.IsMemory && (this.Flags & StaticInstFlag.Store) == StaticInstFlag.Store; }
 		}
 
 		public bool IsConditional {
-			get { return (this.Flags & StaticInstFlag.COND) == StaticInstFlag.COND; }
+			get { return (this.Flags & StaticInstFlag.Conditional) == StaticInstFlag.Conditional; }
 		}
 
 		public bool IsUnconditional {
-			get { return (this.Flags & StaticInstFlag.UNCOND) == StaticInstFlag.UNCOND; }
+			get { return (this.Flags & StaticInstFlag.Unconditional) == StaticInstFlag.Unconditional; }
 		}
 
 		public bool IsDirectJump {
-			get { return (this.Flags & StaticInstFlag.DIRJMP) != StaticInstFlag.DIRJMP; }
+			get { return (this.Flags & StaticInstFlag.DirectJump) != StaticInstFlag.DirectJump; }
 		}
 
 		public bool IsControl {
-			get { return (this.Flags & StaticInstFlag.CTRL) == StaticInstFlag.CTRL; }
+			get { return (this.Flags & StaticInstFlag.Control) == StaticInstFlag.Control; }
 		}
 
 		public bool IsCall {
-			get { return (this.Flags & StaticInstFlag.CALL) == StaticInstFlag.CALL; }
+			get { return (this.Flags & StaticInstFlag.Call) == StaticInstFlag.Call; }
 		}
 
-		public bool IsReturn {
-			get { return (this.Flags & StaticInstFlag.RET) == StaticInstFlag.RET; }
+		public bool IsFunctionReturn {
+			get { return (this.Flags & StaticInstFlag.FunctionReturn) == StaticInstFlag.FunctionReturn; }
 		}
 
 		public bool IsNop {
 			get { return (this as Nop) != null; }
 		}
 
-		public List<RegisterDependency> IDeps { get; set; }
-		public List<RegisterDependency> ODeps { get; set; }
-
-		public MachInst MachInst { get; set; }
-		public string Mnemonic { get; set; }
-		public StaticInstFlag Flags { get; set; }
-		public FunctionalUnitType FuType { get; set; }
+		public List<RegisterDependency> IDeps { get; protected set; }
+		public List<RegisterDependency> ODeps { get; protected set; }
+		
+		public string Mnemonic { get; private set; }
+		public MachInst MachInst { get; private set; }
+		public StaticInstFlag Flags { get; private set; }
+		public FunctionalUnitType FuType { get; private set; }
 	}
 
-	public class DynamicInst
+	public sealed class DynamicInst
 	{
 		public DynamicInst (Thread thread, uint pc, StaticInst staticInst)
 		{
@@ -821,7 +744,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 		public void Execute ()
 		{
-			this.Thread.Regs.IntRegs[RegisterConstants.ZeroReg] = 0;
+			this.Thread.Regs.IntRegs[RegisterConstants.ZERO_REG] = 0;
 			this.StaticInst.Execute (this.Thread);
 		}
 
@@ -831,7 +754,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 
 		public uint PhysPc {
-			get { return this.Thread.Core.MMU.Translate (this.Pc); }
+			get { return this.Thread.Core.MMU.GetPhysicalAddress (this.Pc); }
 		}
 
 		public uint Pc { get; set; }
@@ -858,34 +781,34 @@ namespace MinCai.Simulators.Flexim.Architecture
 				buf.AppendFormat ("0x{0:x8}", machInst[BitField.JMPTARG]);
 				break;
 			case MachInstType.I:
-				if (machInst.isOneOpBranch) {
+				if (machInst.IsOneOpBranch) {
 					buf.AppendFormat ("${0}, {1:d}", MIPS_GPR_NAMES[machInst[BitField.RS]], (short)machInst[BitField.INTIMM]);
 				} else if (machInst.IsLoadStore) {
 					buf.AppendFormat ("${0}, {1:d}(${2})", MIPS_GPR_NAMES[machInst[BitField.RT]], (short)machInst[BitField.INTIMM], MIPS_GPR_NAMES[machInst[BitField.RS]]);
-				} else if (machInst.isFPLoadStore) {
+				} else if (machInst.IsFloatLoadStore) {
 					buf.AppendFormat ("$f{0}, {1:d}(${2})", machInst[BitField.FT], (short)machInst[BitField.INTIMM], MIPS_GPR_NAMES[machInst[BitField.RS]]);
 				} else {
 					buf.AppendFormat ("${0}, ${1}, {2:d}", MIPS_GPR_NAMES[machInst[BitField.RT]], MIPS_GPR_NAMES[machInst[BitField.RS]], (short)machInst[BitField.INTIMM]);
 				}
 				break;
 			case MachInstType.F:
-				if (machInst.isCVT) {
+				if (machInst.IsConvert) {
 					buf.AppendFormat ("$f{0:d}, $f{1:d}", machInst[BitField.FD], machInst[BitField.FS]);
-				} else if (machInst.isCompare) {
+				} else if (machInst.IsCompare) {
 					buf.AppendFormat ("{0:d}, $f{1:d}, $f{2:d}", machInst[BitField.FD] >> 2, machInst[BitField.FS], machInst[BitField.FT]);
-				} else if (machInst.isFPBranch) {
+				} else if (machInst.IsFloatBranch) {
 					buf.AppendFormat ("{0:d}, {1:d}", machInst[BitField.FD] >> 2, (short)machInst[BitField.INTIMM]);
-				} else if (machInst.isGPRFPMove) {
+				} else if (machInst.IsGPRFloatMove) {
 					buf.AppendFormat ("${0}, $f{1:d}", MIPS_GPR_NAMES[machInst[BitField.RT]], machInst[BitField.FS]);
-				} else if (machInst.isGPRFCRMove) {
+				} else if (machInst.IsGPRFCRMove) {
 					buf.AppendFormat ("${0}, ${1:d}", MIPS_GPR_NAMES[machInst[BitField.RT]], machInst[BitField.FS]);
 				} else {
 					buf.AppendFormat ("$f{0:d}, $f{1:d}, $f{2:d}", machInst[BitField.FD], machInst[BitField.FS], machInst[BitField.FT]);
 				}
 				break;
 			case MachInstType.R:
-				if (machInst.isSyscall) {
-				} else if (machInst.isShift) {
+				if (machInst.IsSyscall) {
+				} else if (machInst.IsShift) {
 					buf.AppendFormat ("${0}, ${1}, {2:d}", MIPS_GPR_NAMES[machInst[BitField.RD]], MIPS_GPR_NAMES[machInst[BitField.RT]], machInst[BitField.SA]);
 				} else if (machInst.IsROneOp) {
 					buf.AppendFormat ("${0}", MIPS_GPR_NAMES[machInst[BitField.RS]]);
@@ -900,7 +823,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 				}
 				break;
 			default:
-				Logger.Fatal (LogCategory.INSTRUCTION, "you can not reach here");
+				Logger.Fatal (LogCategory.Instruction, "you can not reach here");
 				break;
 			}
 			
@@ -908,9 +831,9 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class MipsISA : ISA
+	public sealed class Mips32InstructionSetArchitecture : InstructionSetArchitecture
 	{
-		public MipsISA ()
+		public Mips32InstructionSetArchitecture ()
 		{
 		}
 
@@ -2695,15 +2618,15 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class SyscallInst : StaticInst
+	public sealed class SyscallInst : StaticInst
 	{
-		public SyscallInst (MachInst machInst) : base("syscall", machInst, StaticInstFlag.NONE, FunctionalUnitType.NONE)
+		public SyscallInst (MachInst machInst) : base("syscall", machInst, StaticInstFlag.None, FunctionalUnitType.None)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, 2));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, 2));
 		}
 
 		public override void Execute (Thread thread)
@@ -2712,16 +2635,16 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Sll : StaticInst
+	public sealed class Sll : StaticInst
 	{
-		public Sll (MachInst machInst) : base("sll", machInst, StaticInstFlag.ICOMP, FunctionalUnitType.IntALU)
+		public Sll (MachInst machInst) : base("sll", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
 		}
 
 		public override void Execute (Thread thread)
@@ -2730,35 +2653,35 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Sllv : StaticInst
+	public sealed class Sllv : StaticInst
 	{
-		public Sllv (MachInst machInst) : base("sllv", machInst, StaticInstFlag.ICOMP, FunctionalUnitType.IntALU)
+		public Sllv (MachInst machInst) : base("sllv", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
 		}
 
 		public override void Execute (Thread thread)
 		{
-			thread.Regs.IntRegs[this[BitField.RD]] = thread.Regs.IntRegs[this[BitField.RT]] << (int)BitUtils.Bits (thread.Regs.IntRegs[this[BitField.RS]], 4, 0);
+			thread.Regs.IntRegs[this[BitField.RD]] = thread.Regs.IntRegs[this[BitField.RT]] << (int)BitHelper.Bits (thread.Regs.IntRegs[this[BitField.RS]], 4, 0);
 		}
 	}
 
-	public class Sra : StaticInst
+	public sealed class Sra : StaticInst
 	{
-		public Sra (MachInst machInst) : base("sra", machInst, StaticInstFlag.ICOMP, FunctionalUnitType.IntALU)
+		public Sra (MachInst machInst) : base("sra", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
 		}
 
 		public override void Execute (Thread thread)
@@ -2767,35 +2690,35 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Srav : StaticInst
+	public sealed class Srav : StaticInst
 	{
-		public Srav (MachInst machInst) : base("srav", machInst, StaticInstFlag.ICOMP, FunctionalUnitType.IntALU)
+		public Srav (MachInst machInst) : base("srav", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
 		}
 
 		public override void Execute (Thread thread)
 		{
-			thread.Regs.IntRegs[this[BitField.RD]] = (uint)((int)thread.Regs.IntRegs[this[BitField.RT]] >> (int)BitUtils.Bits (thread.Regs.IntRegs[this[BitField.RS]], 4, 0));
+			thread.Regs.IntRegs[this[BitField.RD]] = (uint)((int)thread.Regs.IntRegs[this[BitField.RT]] >> (int)BitHelper.Bits (thread.Regs.IntRegs[this[BitField.RS]], 4, 0));
 		}
 	}
 
-	public class Srl : StaticInst
+	public sealed class Srl : StaticInst
 	{
-		public Srl (MachInst machInst) : base("srl", machInst, StaticInstFlag.ICOMP, FunctionalUnitType.IntALU)
+		public Srl (MachInst machInst) : base("srl", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
 		}
 
 		public override void Execute (Thread thread)
@@ -2804,22 +2727,22 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Srlv : StaticInst
+	public sealed class Srlv : StaticInst
 	{
-		public Srlv (MachInst machInst) : base("srlv", machInst, StaticInstFlag.ICOMP, FunctionalUnitType.IntALU)
+		public Srlv (MachInst machInst) : base("srlv", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
 		}
 
 		public override void Execute (Thread thread)
 		{
-			thread.Regs.IntRegs[this[BitField.RD]] = (uint)thread.Regs.IntRegs[this[BitField.RT]] >> (int)BitUtils.Bits (thread.Regs.IntRegs[this[BitField.RS]], 4, 0);
+			thread.Regs.IntRegs[this[BitField.RD]] = (uint)thread.Regs.IntRegs[this[BitField.RT]] >> (int)BitHelper.Bits (thread.Regs.IntRegs[this[BitField.RS]], 4, 0);
 		}
 	}
 
@@ -2827,314 +2750,314 @@ namespace MinCai.Simulators.Flexim.Architecture
 	{
 		public Branch (string mnemonic, MachInst machInst, StaticInstFlag flags, FunctionalUnitType fuType) : base(mnemonic, machInst, flags, fuType)
 		{
-			this.displacement = BitUtils.Sext (this[BitField.OFFSET] << 2, 16);
+			this.Displacement = BitHelper.Sext (this[BitField.OFFSET] << 2, 16);
 		}
 
-		public override uint TargetPc (Thread thread)
+		public override uint GetTargetPc (Thread thread)
 		{
-			return (uint)(thread.Regs.Npc + this.displacement);
+			return (uint)(thread.Regs.Npc + this.Displacement);
 		}
 
-		public void branch (Thread thread)
+		public void DoBranch (Thread thread)
 		{
-			thread.Regs.Nnpc = this.TargetPc (thread);
+			thread.Regs.Nnpc = this.GetTargetPc (thread);
 		}
 
-		private int displacement;
+		public int Displacement {get; private set;}
 	}
 
-	public class B : Branch
+	public sealed class B : Branch
 	{
-		public B (MachInst machInst) : base("b", machInst, StaticInstFlag.ICOMP | StaticInstFlag.CTRL | StaticInstFlag.UNCOND | StaticInstFlag.DIRJMP, FunctionalUnitType.IntALU)
+		public B (MachInst machInst) : base("b", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Control | StaticInstFlag.Unconditional | StaticInstFlag.DirectJump, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
 		}
 
 		public override void Execute (Thread thread)
 		{
-			this.branch (thread);
+			this.DoBranch (thread);
 		}
 	}
 
-	public class Bal : Branch
+	public sealed class Bal : Branch
 	{
-		public Bal (MachInst machInst) : base("bal", machInst, StaticInstFlag.ICOMP | StaticInstFlag.CTRL | StaticInstFlag.UNCOND | StaticInstFlag.DIRJMP, FunctionalUnitType.IntALU)
+		public Bal (MachInst machInst) : base("bal", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Control | StaticInstFlag.Unconditional | StaticInstFlag.DirectJump, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, RegisterConstants.ReturnAddressReg));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, RegisterConstants.RETURN_ADDRESS_REG));
 		}
 
 		public override void Execute (Thread thread)
 		{
-			thread.Regs.IntRegs[RegisterConstants.ReturnAddressReg] = thread.Regs.Nnpc;
-			this.branch (thread);
+			thread.Regs.IntRegs[RegisterConstants.RETURN_ADDRESS_REG] = thread.Regs.Nnpc;
+			this.DoBranch (thread);
 		}
 	}
 
-	public class Beq : Branch
+	public sealed class Beq : Branch
 	{
-		public Beq (MachInst machInst) : base("beq", machInst, StaticInstFlag.ICOMP | StaticInstFlag.CTRL | StaticInstFlag.COND | StaticInstFlag.DIRJMP, FunctionalUnitType.IntALU)
+		public Beq (MachInst machInst) : base("beq", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Control | StaticInstFlag.Conditional | StaticInstFlag.DirectJump, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
 		}
 
 		public override void Execute (Thread thread)
 		{
 			if ((int)thread.Regs.IntRegs[this[BitField.RS]] == (int)thread.Regs.IntRegs[this[BitField.RT]]) {
-				this.branch (thread);
+				this.DoBranch (thread);
 			}
 		}
 	}
 
-	public class Beqz : Branch
+	public sealed class Beqz : Branch
 	{
-		public Beqz (MachInst machInst) : base("beqz", machInst, StaticInstFlag.ICOMP | StaticInstFlag.CTRL | StaticInstFlag.COND | StaticInstFlag.DIRJMP, FunctionalUnitType.IntALU)
+		public Beqz (MachInst machInst) : base("beqz", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Control | StaticInstFlag.Conditional | StaticInstFlag.DirectJump, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
 		}
 
 		public override void Execute (Thread thread)
 		{
 			if ((int)thread.Regs.IntRegs[this[BitField.RS]] == 0) {
-				this.branch (thread);
+				this.DoBranch (thread);
 			}
 		}
 	}
 
-	public class Bgez : Branch
+	public sealed class Bgez : Branch
 	{
-		public Bgez (MachInst machInst) : base("bgez", machInst, StaticInstFlag.ICOMP | StaticInstFlag.CTRL | StaticInstFlag.COND | StaticInstFlag.DIRJMP, FunctionalUnitType.IntALU)
+		public Bgez (MachInst machInst) : base("bgez", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Control | StaticInstFlag.Conditional | StaticInstFlag.DirectJump, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
 		}
 
 		public override void Execute (Thread thread)
 		{
 			if ((int)thread.Regs.IntRegs[this[BitField.RS]] >= 0) {
-				this.branch (thread);
+				this.DoBranch (thread);
 			}
 		}
 	}
 
-	public class Bgezal : Branch
+	public sealed class Bgezal : Branch
 	{
-		public Bgezal (MachInst machInst) : base("bgezal", machInst, StaticInstFlag.ICOMP | StaticInstFlag.CTRL | StaticInstFlag.COND | StaticInstFlag.CALL | StaticInstFlag.DIRJMP, FunctionalUnitType.IntALU)
+		public Bgezal (MachInst machInst) : base("bgezal", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Control | StaticInstFlag.Conditional | StaticInstFlag.Call | StaticInstFlag.DirectJump, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, RegisterConstants.ReturnAddressReg));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, RegisterConstants.RETURN_ADDRESS_REG));
 		}
 
 		public override void Execute (Thread thread)
 		{
-			thread.Regs.IntRegs[RegisterConstants.ReturnAddressReg] = thread.Regs.Nnpc;
+			thread.Regs.IntRegs[RegisterConstants.RETURN_ADDRESS_REG] = thread.Regs.Nnpc;
 			if ((int)thread.Regs.IntRegs[this[BitField.RS]] >= 0) {
-				this.branch (thread);
+				this.DoBranch (thread);
 			}
 		}
 	}
 
-	public class Bgtz : Branch
+	public sealed class Bgtz : Branch
 	{
-		public Bgtz (MachInst machInst) : base("bgtz", machInst, StaticInstFlag.ICOMP | StaticInstFlag.CTRL | StaticInstFlag.COND | StaticInstFlag.DIRJMP, FunctionalUnitType.IntALU)
+		public Bgtz (MachInst machInst) : base("bgtz", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Control | StaticInstFlag.Conditional | StaticInstFlag.DirectJump, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
 		}
 
 		public override void Execute (Thread thread)
 		{
 			if ((int)thread.Regs.IntRegs[this[BitField.RS]] > 0) {
-				this.branch (thread);
+				this.DoBranch (thread);
 			}
 		}
 	}
 
-	public class Blez : Branch
+	public sealed class Blez : Branch
 	{
-		public Blez (MachInst machInst) : base("blez", machInst, StaticInstFlag.ICOMP | StaticInstFlag.CTRL | StaticInstFlag.COND | StaticInstFlag.DIRJMP, FunctionalUnitType.IntALU)
+		public Blez (MachInst machInst) : base("blez", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Control | StaticInstFlag.Conditional | StaticInstFlag.DirectJump, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
 		}
 
 		public override void Execute (Thread thread)
 		{
 			if ((int)thread.Regs.IntRegs[this[BitField.RS]] <= 0) {
-				this.branch (thread);
+				this.DoBranch (thread);
 			}
 		}
 	}
 
-	public class Bltz : Branch
+	public sealed class Bltz : Branch
 	{
-		public Bltz (MachInst machInst) : base("bltz", machInst, StaticInstFlag.ICOMP | StaticInstFlag.CTRL | StaticInstFlag.COND | StaticInstFlag.DIRJMP, FunctionalUnitType.IntALU)
+		public Bltz (MachInst machInst) : base("bltz", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Control | StaticInstFlag.Conditional | StaticInstFlag.DirectJump, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
 		}
 
 		public override void Execute (Thread thread)
 		{
 			if ((int)thread.Regs.IntRegs[this[BitField.RS]] < 0) {
-				this.branch (thread);
+				this.DoBranch (thread);
 			}
 		}
 	}
 
-	public class Bltzal : Branch
+	public sealed class Bltzal : Branch
 	{
-		public Bltzal (MachInst machInst) : base("bltzal", machInst, StaticInstFlag.ICOMP | StaticInstFlag.CTRL | StaticInstFlag.COND | StaticInstFlag.CALL | StaticInstFlag.DIRJMP, FunctionalUnitType.IntALU)
+		public Bltzal (MachInst machInst) : base("bltzal", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Control | StaticInstFlag.Conditional | StaticInstFlag.Call | StaticInstFlag.DirectJump, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, RegisterConstants.ReturnAddressReg));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, RegisterConstants.RETURN_ADDRESS_REG));
 		}
 
 		public override void Execute (Thread thread)
 		{
-			thread.Regs.IntRegs[RegisterConstants.ReturnAddressReg] = thread.Regs.Nnpc;
+			thread.Regs.IntRegs[RegisterConstants.RETURN_ADDRESS_REG] = thread.Regs.Nnpc;
 			if ((int)thread.Regs.IntRegs[this[BitField.RS]] < 0) {
-				this.branch (thread);
+				this.DoBranch (thread);
 			}
 		}
 	}
 
-	public class Bne : Branch
+	public sealed class Bne : Branch
 	{
-		public Bne (MachInst machInst) : base("bne", machInst, StaticInstFlag.ICOMP | StaticInstFlag.CTRL | StaticInstFlag.COND | StaticInstFlag.DIRJMP, FunctionalUnitType.IntALU)
+		public Bne (MachInst machInst) : base("bne", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Control | StaticInstFlag.Conditional | StaticInstFlag.DirectJump, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
 		}
 
 		public override void Execute (Thread thread)
 		{
 			if ((int)thread.Regs.IntRegs[this[BitField.RS]] != (int)thread.Regs.IntRegs[this[BitField.RT]]) {
-				this.branch (thread);
+				this.DoBranch (thread);
 			}
 		}
 	}
 
-	public class Bnez : Branch
+	public sealed class Bnez : Branch
 	{
-		public Bnez (MachInst machInst) : base("bnez", machInst, StaticInstFlag.ICOMP | StaticInstFlag.CTRL | StaticInstFlag.COND | StaticInstFlag.DIRJMP, FunctionalUnitType.IntALU)
+		public Bnez (MachInst machInst) : base("bnez", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Control | StaticInstFlag.Conditional | StaticInstFlag.DirectJump, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
 		}
 
 		public override void Execute (Thread thread)
 		{
 			if ((int)thread.Regs.IntRegs[this[BitField.RS]] != 0) {
-				this.branch (thread);
+				this.DoBranch (thread);
 			}
 		}
 	}
 
-	public class Bc1f : Branch
+	public sealed class Bc1f : Branch
 	{
-		public Bc1f (MachInst machInst) : base("bc1f", machInst, StaticInstFlag.CTRL | StaticInstFlag.COND, FunctionalUnitType.NONE)
+		public Bc1f (MachInst machInst) : base("bc1f", machInst, StaticInstFlag.Control | StaticInstFlag.Conditional, FunctionalUnitType.None)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.MISC, (uint)MiscRegNums.FCSR));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Fcsr));
 		}
 
 		public override void Execute (Thread thread)
 		{
 			uint fcsr = thread.Regs.MiscRegs.Fcsr;
-			bool cond = !BitUtils.GetFCC (fcsr, (int)this[BitField.BRANCH_CC]);
+			bool cond = !BitHelper.GetFCC (fcsr, (int)this[BitField.BRANCH_CC]);
 			
 			if (cond) {
-				this.branch (thread);
+				this.DoBranch (thread);
 			}
 		}
 	}
 
-	public class Bc1t : Branch
+	public sealed class Bc1t : Branch
 	{
-		public Bc1t (MachInst machInst) : base("bc1t", machInst, StaticInstFlag.CTRL | StaticInstFlag.COND, FunctionalUnitType.NONE)
+		public Bc1t (MachInst machInst) : base("bc1t", machInst, StaticInstFlag.Control | StaticInstFlag.Conditional, FunctionalUnitType.None)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.MISC, (uint)MiscRegNums.FCSR));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Fcsr));
 		}
 
 		public override void Execute (Thread thread)
 		{
 			uint fcsr = thread.Regs.MiscRegs.Fcsr;
-			bool cond = BitUtils.GetFCC (fcsr, (int)this[BitField.BRANCH_CC]);
+			bool cond = BitHelper.GetFCC (fcsr, (int)this[BitField.BRANCH_CC]);
 			
 			if (cond) {
-				this.branch (thread);
+				this.DoBranch (thread);
 			}
 		}
 	}
 
-	public class Bc1fl : Branch
+	public sealed class Bc1fl : Branch
 	{
-		public Bc1fl (MachInst machInst) : base("bc1fl", machInst, StaticInstFlag.CTRL | StaticInstFlag.COND, FunctionalUnitType.NONE)
+		public Bc1fl (MachInst machInst) : base("bc1fl", machInst, StaticInstFlag.Control | StaticInstFlag.Conditional, FunctionalUnitType.None)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.MISC, (uint)MiscRegNums.FCSR));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Fcsr));
 		}
 
 		public override void Execute (Thread thread)
 		{
 			uint fcsr = thread.Regs.MiscRegs.Fcsr;
-			bool cond = !BitUtils.GetFCC (fcsr, (int)this[BitField.BRANCH_CC]);
+			bool cond = !BitHelper.GetFCC (fcsr, (int)this[BitField.BRANCH_CC]);
 			
 			if (cond) {
-				this.branch (thread);
+				this.DoBranch (thread);
 			} else {
 				thread.Regs.Npc = thread.Regs.Nnpc;
 				thread.Regs.Nnpc = (uint)(thread.Regs.Nnpc + Marshal.SizeOf (typeof(uint)));
@@ -3142,24 +3065,24 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Bc1tl : Branch
+	public sealed class Bc1tl : Branch
 	{
-		public Bc1tl (MachInst machInst) : base("bc1tl", machInst, StaticInstFlag.CTRL | StaticInstFlag.COND, FunctionalUnitType.NONE)
+		public Bc1tl (MachInst machInst) : base("bc1tl", machInst, StaticInstFlag.Control | StaticInstFlag.Conditional, FunctionalUnitType.None)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.MISC, (uint)MiscRegNums.FCSR));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Fcsr));
 		}
 
 		public override void Execute (Thread thread)
 		{
 			uint fcsr = thread.Regs.MiscRegs.Fcsr;
-			bool cond = BitUtils.GetFCC (fcsr, (int)this[BitField.BRANCH_CC]);
+			bool cond = BitHelper.GetFCC (fcsr, (int)this[BitField.BRANCH_CC]);
 			
 			if (cond) {
-				this.branch (thread);
+				this.DoBranch (thread);
 			} else {
 				thread.Regs.Npc = thread.Regs.Nnpc;
 				thread.Regs.Nnpc = (uint)(thread.Regs.Nnpc + Marshal.SizeOf (typeof(uint)));
@@ -3171,74 +3094,74 @@ namespace MinCai.Simulators.Flexim.Architecture
 	{
 		public Jump (string mnemonic, MachInst machInst, StaticInstFlag flags, FunctionalUnitType fuType) : base(mnemonic, machInst, flags, fuType)
 		{
-			this.target = this[BitField.JMPTARG] << 2;
+			this.Target = this[BitField.JMPTARG] << 2;
 		}
 
-		public void jump (Thread thread)
+		public void DoJump (Thread thread)
 		{
-			thread.Regs.Nnpc = this.TargetPc (thread);
+			thread.Regs.Nnpc = this.GetTargetPc (thread);
 		}
 
-		public uint target;
+		public uint Target {get; private set;}
 	}
 
-	public class J : Jump
+	public sealed class J : Jump
 	{
-		public J (MachInst machInst) : base("j", machInst, StaticInstFlag.CTRL | StaticInstFlag.UNCOND | StaticInstFlag.DIRJMP, FunctionalUnitType.IntALU)
+		public J (MachInst machInst) : base("j", machInst, StaticInstFlag.Control | StaticInstFlag.Unconditional | StaticInstFlag.DirectJump, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
 		}
 
-		public override uint TargetPc (Thread thread)
+		public override uint GetTargetPc (Thread thread)
 		{
-			return BitUtils.Mbits (thread.Regs.Npc, 32, 28) | this.target;
+			return BitHelper.Mbits (thread.Regs.Npc, 32, 28) | this.Target;
 		}
 
 		public override void Execute (Thread thread)
 		{
-			this.jump (thread);
+			this.DoJump (thread);
 		}
 	}
 
-	public class Jal : Jump
+	public sealed class Jal : Jump
 	{
-		public Jal (MachInst machInst) : base("jal", machInst, StaticInstFlag.CTRL | StaticInstFlag.UNCOND | StaticInstFlag.CALL | StaticInstFlag.DIRJMP, FunctionalUnitType.IntALU)
+		public Jal (MachInst machInst) : base("jal", machInst, StaticInstFlag.Control | StaticInstFlag.Unconditional | StaticInstFlag.Call | StaticInstFlag.DirectJump, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, RegisterConstants.ReturnAddressReg));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, RegisterConstants.RETURN_ADDRESS_REG));
 		}
 
-		public override uint TargetPc (Thread thread)
+		public override uint GetTargetPc (Thread thread)
 		{
-			return BitUtils.Mbits (thread.Regs.Npc, 32, 28) | this.target;
+			return BitHelper.Mbits (thread.Regs.Npc, 32, 28) | this.Target;
 		}
 
 		public override void Execute (Thread thread)
 		{
-			thread.Regs.IntRegs[RegisterConstants.ReturnAddressReg] = thread.Regs.Nnpc;
-			this.jump (thread);
+			thread.Regs.IntRegs[RegisterConstants.RETURN_ADDRESS_REG] = thread.Regs.Nnpc;
+			this.DoJump (thread);
 		}
 	}
 
-	public class Jalr : Jump
+	public sealed class Jalr : Jump
 	{
-		public Jalr (MachInst machInst) : base("jalr", machInst, StaticInstFlag.CTRL | StaticInstFlag.UNCOND | StaticInstFlag.CALL | StaticInstFlag.INDIRJMP, FunctionalUnitType.IntALU)
+		public Jalr (MachInst machInst) : base("jalr", machInst, StaticInstFlag.Control | StaticInstFlag.Unconditional | StaticInstFlag.Call | StaticInstFlag.IndirectJump, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
 		}
 
-		public override uint TargetPc (Thread thread)
+		public override uint GetTargetPc (Thread thread)
 		{
 			return thread.Regs.IntRegs[this[BitField.RS]];
 		}
@@ -3246,29 +3169,29 @@ namespace MinCai.Simulators.Flexim.Architecture
 		public override void Execute (Thread thread)
 		{
 			thread.Regs.IntRegs[this[BitField.RD]] = thread.Regs.Nnpc;
-			this.jump (thread);
+			this.DoJump (thread);
 		}
 	}
 
-	public class Jr : Jump
+	public sealed class Jr : Jump
 	{
-		public Jr (MachInst machInst) : base("jr", machInst, StaticInstFlag.CTRL | StaticInstFlag.UNCOND | StaticInstFlag.RET | StaticInstFlag.INDIRJMP, FunctionalUnitType.NONE)
+		public Jr (MachInst machInst) : base("jr", machInst, StaticInstFlag.Control | StaticInstFlag.Unconditional | StaticInstFlag.FunctionReturn | StaticInstFlag.IndirectJump, FunctionalUnitType.None)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
 		}
 
-		public override uint TargetPc (Thread thread)
+		public override uint GetTargetPc (Thread thread)
 		{
 			return thread.Regs.IntRegs[this[BitField.RS]];
 		}
 
 		public override void Execute (Thread thread)
 		{
-			this.jump (thread);
+			this.DoJump (thread);
 		}
 	}
 
@@ -3283,86 +3206,86 @@ namespace MinCai.Simulators.Flexim.Architecture
 	{
 		public IntImmOp (string mnemonic, MachInst machInst, StaticInstFlag flags, FunctionalUnitType fuType) : base(mnemonic, machInst, flags, fuType)
 		{
-			this.imm = (short)machInst[BitField.INTIMM];
+			this.Imm = (short)machInst[BitField.INTIMM];
 			
-			this.zextImm = 0x0000FFFF & machInst[BitField.INTIMM];
+			this.ZextImm = 0x0000FFFF & machInst[BitField.INTIMM];
 			
-			this.sextImm = BitUtils.Sext (machInst[BitField.INTIMM], 16);
+			this.SextImm = BitHelper.Sext (machInst[BitField.INTIMM], 16);
 		}
 
-		public short imm;
-		public int sextImm;
-		public uint zextImm;
+		public short Imm {get; private set;}
+		public int SextImm {get; private set;}
+		public uint ZextImm {get; private set;}
 	}
 
-	public class Add : IntOp
+	public sealed class Add : IntOp
 	{
-		public Add (MachInst machInst) : base("add", machInst, StaticInstFlag.ICOMP, FunctionalUnitType.IntALU)
+		public Add (MachInst machInst) : base("add", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
 		}
 
 		public override void Execute (Thread thread)
 		{
 			thread.Regs.IntRegs[this[BitField.RD]] = (uint)((int)thread.Regs.IntRegs[this[BitField.RS]] + (int)thread.Regs.IntRegs[this[BitField.RT]]);
-			Logger.Warn (LogCategory.INSTRUCTION, "Add: overflow trap not implemented.");
+			Logger.Warn (LogCategory.Instruction, "Add: overflow trap not implemented.");
 		}
 	}
 
-	public class Addi : IntImmOp
+	public sealed class Addi : IntImmOp
 	{
-		public Addi (MachInst machInst) : base("addi", machInst, StaticInstFlag.ICOMP | StaticInstFlag.IMM, FunctionalUnitType.IntALU)
+		public Addi (MachInst machInst) : base("addi", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Immediate, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
 		}
 
 		public override void Execute (Thread thread)
 		{
-			thread.Regs.IntRegs[this[BitField.RT]] = (uint)((int)thread.Regs.IntRegs[this[BitField.RS]] + this.sextImm);
-			Logger.Warn (LogCategory.INSTRUCTION, "Addi: overflow trap not implemented.");
+			thread.Regs.IntRegs[this[BitField.RT]] = (uint)((int)thread.Regs.IntRegs[this[BitField.RS]] + this.SextImm);
+			Logger.Warn (LogCategory.Instruction, "Addi: overflow trap not implemented.");
 		}
 	}
 
-	public class Addiu : IntImmOp
+	public sealed class Addiu : IntImmOp
 	{
-		public Addiu (MachInst machInst) : base("addiu", machInst, StaticInstFlag.ICOMP | StaticInstFlag.IMM, FunctionalUnitType.IntALU)
+		public Addiu (MachInst machInst) : base("addiu", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Immediate, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
 		}
 
 		public override void Execute (Thread thread)
 		{
-			thread.Regs.IntRegs[this[BitField.RT]] = (uint)((int)thread.Regs.IntRegs[this[BitField.RS]] + this.sextImm);
+			thread.Regs.IntRegs[this[BitField.RT]] = (uint)((int)thread.Regs.IntRegs[this[BitField.RS]] + this.SextImm);
 		}
 	}
 
-	public class Addu : IntOp
+	public sealed class Addu : IntOp
 	{
-		public Addu (MachInst machInst) : base("addu", machInst, StaticInstFlag.ICOMP, FunctionalUnitType.IntALU)
+		public Addu (MachInst machInst) : base("addu", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
 		}
 
 		public override void Execute (Thread thread)
@@ -3371,37 +3294,37 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Sub : IntOp
+	public sealed class Sub : IntOp
 	{
-		public Sub (MachInst machInst) : base("sub", machInst, StaticInstFlag.ICOMP, FunctionalUnitType.IntALU)
+		public Sub (MachInst machInst) : base("sub", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
 		}
 
 		public override void Execute (Thread thread)
 		{
 			thread.Regs.IntRegs[this[BitField.RD]] = (uint)((int)thread.Regs.IntRegs[this[BitField.RS]] - (int)thread.Regs.IntRegs[this[BitField.RT]]);
-			Logger.Warn (LogCategory.INSTRUCTION, "Sub: overflow trap not implemented.");
+			Logger.Warn (LogCategory.Instruction, "Sub: overflow trap not implemented.");
 		}
 	}
 
-	public class Subu : IntOp
+	public sealed class Subu : IntOp
 	{
-		public Subu (MachInst machInst) : base("subu", machInst, StaticInstFlag.ICOMP, FunctionalUnitType.IntALU)
+		public Subu (MachInst machInst) : base("subu", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
 		}
 
 		public override void Execute (Thread thread)
@@ -3410,17 +3333,17 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class And : IntOp
+	public sealed class And : IntOp
 	{
-		public And (MachInst machInst) : base("and", machInst, StaticInstFlag.ICOMP, FunctionalUnitType.IntALU)
+		public And (MachInst machInst) : base("and", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
 		}
 
 		public override void Execute (Thread thread)
@@ -3429,35 +3352,35 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Andi : IntImmOp
+	public sealed class Andi : IntImmOp
 	{
-		public Andi (MachInst machInst) : base("andi", machInst, StaticInstFlag.ICOMP | StaticInstFlag.IMM, FunctionalUnitType.IntALU)
+		public Andi (MachInst machInst) : base("andi", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Immediate, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
 		}
 
 		public override void Execute (Thread thread)
 		{
-			thread.Regs.IntRegs[this[BitField.RT]] = thread.Regs.IntRegs[this[BitField.RS]] & this.zextImm;
+			thread.Regs.IntRegs[this[BitField.RT]] = thread.Regs.IntRegs[this[BitField.RS]] & this.ZextImm;
 		}
 	}
 
-	public class Nor : IntOp
+	public sealed class Nor : IntOp
 	{
-		public Nor (MachInst machInst) : base("nor", machInst, StaticInstFlag.ICOMP, FunctionalUnitType.IntALU)
+		public Nor (MachInst machInst) : base("nor", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
 		}
 
 		public override void Execute (Thread thread)
@@ -3466,17 +3389,17 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Or : IntOp
+	public sealed class Or : IntOp
 	{
-		public Or (MachInst machInst) : base("or", machInst, StaticInstFlag.ICOMP, FunctionalUnitType.IntALU)
+		public Or (MachInst machInst) : base("or", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
 		}
 
 		public override void Execute (Thread thread)
@@ -3485,35 +3408,35 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Ori : IntImmOp
+	public sealed class Ori : IntImmOp
 	{
-		public Ori (MachInst machInst) : base("ori", machInst, StaticInstFlag.ICOMP | StaticInstFlag.IMM, FunctionalUnitType.IntALU)
+		public Ori (MachInst machInst) : base("ori", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Immediate, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
 		}
 
 		public override void Execute (Thread thread)
 		{
-			thread.Regs.IntRegs[this[BitField.RT]] = thread.Regs.IntRegs[this[BitField.RS]] | this.zextImm;
+			thread.Regs.IntRegs[this[BitField.RT]] = thread.Regs.IntRegs[this[BitField.RS]] | this.ZextImm;
 		}
 	}
 
-	public class Xor : IntOp
+	public sealed class Xor : IntOp
 	{
-		public Xor (MachInst machInst) : base("xor", machInst, StaticInstFlag.ICOMP, FunctionalUnitType.IntALU)
+		public Xor (MachInst machInst) : base("xor", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
 		}
 
 		public override void Execute (Thread thread)
@@ -3522,35 +3445,35 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Xori : IntImmOp
+	public sealed class Xori : IntImmOp
 	{
-		public Xori (MachInst machInst) : base("xori", machInst, StaticInstFlag.ICOMP | StaticInstFlag.IMM, FunctionalUnitType.IntALU)
+		public Xori (MachInst machInst) : base("xori", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Immediate, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
 		}
 
 		public override void Execute (Thread thread)
 		{
-			thread.Regs.IntRegs[this[BitField.RT]] = thread.Regs.IntRegs[this[BitField.RS]] ^ this.zextImm;
+			thread.Regs.IntRegs[this[BitField.RT]] = thread.Regs.IntRegs[this[BitField.RS]] ^ this.ZextImm;
 		}
 	}
 
-	public class Slt : IntOp
+	public sealed class Slt : IntOp
 	{
-		public Slt (MachInst machInst) : base("slt", machInst, StaticInstFlag.ICOMP, FunctionalUnitType.IntALU)
+		public Slt (MachInst machInst) : base("slt", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
 		}
 
 		public override void Execute (Thread thread)
@@ -3559,53 +3482,53 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Slti : IntImmOp
+	public sealed class Slti : IntImmOp
 	{
-		public Slti (MachInst machInst) : base("slti", machInst, StaticInstFlag.ICOMP | StaticInstFlag.IMM, FunctionalUnitType.IntALU)
+		public Slti (MachInst machInst) : base("slti", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Immediate, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
 		}
 
 		public override void Execute (Thread thread)
 		{
-			thread.Regs.IntRegs[this[BitField.RT]] = (int)thread.Regs.IntRegs[this[BitField.RS]] < this.sextImm ? 1u : 0;
+			thread.Regs.IntRegs[this[BitField.RT]] = (int)thread.Regs.IntRegs[this[BitField.RS]] < this.SextImm ? 1u : 0;
 		}
 	}
 
-	public class Sltiu : IntImmOp
+	public sealed class Sltiu : IntImmOp
 	{
-		public Sltiu (MachInst machInst) : base("sltiu", machInst, StaticInstFlag.ICOMP | StaticInstFlag.IMM, FunctionalUnitType.IntALU)
+		public Sltiu (MachInst machInst) : base("sltiu", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Immediate, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
 		}
 
 		public override void Execute (Thread thread)
 		{
-			thread.Regs.IntRegs[this[BitField.RT]] = (uint)thread.Regs.IntRegs[this[BitField.RS]] < this.zextImm ? 1u : 0;
+			thread.Regs.IntRegs[this[BitField.RT]] = (uint)thread.Regs.IntRegs[this[BitField.RS]] < this.ZextImm ? 1u : 0;
 		}
 	}
 
-	public class Sltu : IntOp
+	public sealed class Sltu : IntOp
 	{
-		public Sltu (MachInst machInst) : base("sltu", machInst, StaticInstFlag.ICOMP, FunctionalUnitType.IntALU)
+		public Sltu (MachInst machInst) : base("sltu", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
 		}
 
 		public override void Execute (Thread thread)
@@ -3614,35 +3537,35 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Lui : IntImmOp
+	public sealed class Lui : IntImmOp
 	{
-		public Lui (MachInst machInst) : base("lui", machInst, StaticInstFlag.ICOMP, FunctionalUnitType.IntALU)
+		public Lui (MachInst machInst) : base("lui", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
 		}
 
 		public override void Execute (Thread thread)
 		{
-			thread.Regs.IntRegs[this[BitField.RT]] = (uint)(this.imm << 16);
+			thread.Regs.IntRegs[this[BitField.RT]] = (uint)(this.Imm << 16);
 		}
 	}
 
-	public class Divu : StaticInst
+	public sealed class Divu : StaticInst
 	{
-		public Divu (MachInst machInst) : base("divu", machInst, StaticInstFlag.ICOMP, FunctionalUnitType.IntDIV)
+		public Divu (MachInst machInst) : base("divu", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntDivide)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.MISC, (uint)MiscRegNums.LO));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.MISC, (uint)MiscRegNums.HI));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Lo));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Hi));
 		}
 
 		public override void Execute (Thread thread)
@@ -3666,18 +3589,18 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Div : StaticInst
+	public sealed class Div : StaticInst
 	{
-		public Div (MachInst machInst) : base("div", machInst, StaticInstFlag.ICOMP, FunctionalUnitType.IntDIV)
+		public Div (MachInst machInst) : base("div", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntDivide)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.MISC, (uint)MiscRegNums.LO));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.MISC, (uint)MiscRegNums.HI));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Lo));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Hi));
 		}
 
 		public override void Execute (Thread thread)
@@ -3688,8 +3611,8 @@ namespace MinCai.Simulators.Flexim.Architecture
 			uint lo = 0;
 			uint hi = 0;
 			
-			rs = BitUtils.Sext (thread.Regs.IntRegs[this[BitField.RS]], 32);
-			rt = BitUtils.Sext (thread.Regs.IntRegs[this[BitField.RT]], 32);
+			rs = BitHelper.Sext (thread.Regs.IntRegs[this[BitField.RS]], 32);
+			rt = BitHelper.Sext (thread.Regs.IntRegs[this[BitField.RT]], 32);
 			
 			if (rt != 0) {
 				lo = (uint)(rs / rt);
@@ -3701,16 +3624,16 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Mflo : StaticInst
+	public sealed class Mflo : StaticInst
 	{
-		public Mflo (MachInst machInst) : base("mflo", machInst, StaticInstFlag.ICOMP, FunctionalUnitType.IntALU)
+		public Mflo (MachInst machInst) : base("mflo", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.MISC, (uint)MiscRegNums.LO));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Lo));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
 		}
 
 		public override void Execute (Thread thread)
@@ -3719,16 +3642,16 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Mfhi : StaticInst
+	public sealed class Mfhi : StaticInst
 	{
-		public Mfhi (MachInst machInst) : base("mfhi", machInst, StaticInstFlag.ICOMP, FunctionalUnitType.IntALU)
+		public Mfhi (MachInst machInst) : base("mfhi", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.MISC, (uint)MiscRegNums.HI));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Hi));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
 		}
 
 		public override void Execute (Thread thread)
@@ -3737,16 +3660,16 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Mtlo : StaticInst
+	public sealed class Mtlo : StaticInst
 	{
-		public Mtlo (MachInst machInst) : base("mtlo", machInst, StaticInstFlag.ICOMP, FunctionalUnitType.IntALU)
+		public Mtlo (MachInst machInst) : base("mtlo", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RD]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.MISC, (uint)MiscRegNums.LO));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Lo));
 		}
 
 		public override void Execute (Thread thread)
@@ -3755,16 +3678,16 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Mthi : StaticInst
+	public sealed class Mthi : StaticInst
 	{
-		public Mthi (MachInst machInst) : base("mthi", machInst, StaticInstFlag.ICOMP, FunctionalUnitType.IntALU)
+		public Mthi (MachInst machInst) : base("mthi", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RD]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.MISC, (uint)MiscRegNums.HI));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Hi));
 		}
 
 		public override void Execute (Thread thread)
@@ -3773,18 +3696,18 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Mult : StaticInst
+	public sealed class Mult : StaticInst
 	{
-		public Mult (MachInst machInst) : base("mult", machInst, StaticInstFlag.ICOMP, FunctionalUnitType.IntALU)
+		public Mult (MachInst machInst) : base("mult", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.MISC, (uint)MiscRegNums.LO));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.MISC, (uint)MiscRegNums.HI));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Lo));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Hi));
 		}
 
 		public override void Execute (Thread thread)
@@ -3792,13 +3715,13 @@ namespace MinCai.Simulators.Flexim.Architecture
 			long rs = 0;
 			long rt = 0;
 			
-			rs = BitUtils.Sext (thread.Regs.IntRegs[this[BitField.RS]], 32);
-			rt = BitUtils.Sext (thread.Regs.IntRegs[this[BitField.RT]], 32);
+			rs = BitHelper.Sext (thread.Regs.IntRegs[this[BitField.RS]], 32);
+			rt = BitHelper.Sext (thread.Regs.IntRegs[this[BitField.RT]], 32);
 			
 			long val = rs * rt;
 			
-			uint lo = (uint)BitUtils.Bits64 ((ulong)val, 31, 0);
-			uint hi = (uint)BitUtils.Bits64 ((ulong)val, 63, 32);
+			uint lo = (uint)BitHelper.Bits64 ((ulong)val, 31, 0);
+			uint hi = (uint)BitHelper.Bits64 ((ulong)val, 63, 32);
 			
 			thread.Regs.MiscRegs.Lo = lo;
 			thread.Regs.MiscRegs.Hi = hi;
@@ -3807,16 +3730,16 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public class Multu : StaticInst
 	{
-		public Multu (MachInst machInst) : base("multu", machInst, StaticInstFlag.ICOMP, FunctionalUnitType.IntALU)
+		public Multu (MachInst machInst) : base("multu", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.MISC, (uint)MiscRegNums.LO));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.MISC, (uint)MiscRegNums.HI));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Lo));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Hi));
 		}
 
 		public override void Execute (Thread thread)
@@ -3829,8 +3752,8 @@ namespace MinCai.Simulators.Flexim.Architecture
 			
 			ulong val = rs * rt;
 			
-			uint lo = (uint)BitUtils.Bits64 (val, 31, 0);
-			uint hi = (uint)BitUtils.Bits64 (val, 63, 32);
+			uint lo = (uint)BitHelper.Bits64 (val, 31, 0);
+			uint hi = (uint)BitHelper.Bits64 (val, 63, 32);
 			
 			thread.Regs.MiscRegs.Lo = lo;
 			thread.Regs.MiscRegs.Hi = hi;
@@ -3850,11 +3773,11 @@ namespace MinCai.Simulators.Flexim.Architecture
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.FP, this[BitField.FS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.FP, this[BitField.FT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.FP, this[BitField.FD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Float, this[BitField.FS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Float, this[BitField.FT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Float, this[BitField.FD]));
 		}
 	}
 
@@ -3864,16 +3787,16 @@ namespace MinCai.Simulators.Flexim.Architecture
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.FP, this[BitField.FS]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.FP, this[BitField.FD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Float, this[BitField.FS]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Float, this[BitField.FD]));
 		}
 	}
 
-	public class Add_d : FloatBinaryOp
+	public sealed class Add_d : FloatBinaryOp
 	{
-		public Add_d (MachInst machInst) : base("add_d", machInst, StaticInstFlag.FCOMP, FunctionalUnitType.FloatADD)
+		public Add_d (MachInst machInst) : base("add_d", machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatAdd)
 		{
 		}
 
@@ -3888,9 +3811,9 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Sub_d : FloatBinaryOp
+	public sealed class Sub_d : FloatBinaryOp
 	{
-		public Sub_d (MachInst machInst) : base("sub_d", machInst, StaticInstFlag.FCOMP, FunctionalUnitType.FloatADD)
+		public Sub_d (MachInst machInst) : base("sub_d", machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatAdd)
 		{
 		}
 
@@ -3905,9 +3828,9 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Mul_d : FloatBinaryOp
+	public sealed class Mul_d : FloatBinaryOp
 	{
-		public Mul_d (MachInst machInst) : base("mul_d", machInst, StaticInstFlag.FCOMP, FunctionalUnitType.FloatMULT)
+		public Mul_d (MachInst machInst) : base("mul_d", machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatMultiply)
 		{
 		}
 
@@ -3922,9 +3845,9 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Div_d : FloatBinaryOp
+	public sealed class Div_d : FloatBinaryOp
 	{
-		public Div_d (MachInst machInst) : base("div_d", machInst, StaticInstFlag.FCOMP, FunctionalUnitType.FloatDIV)
+		public Div_d (MachInst machInst) : base("div_d", machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatDivide)
 		{
 		}
 
@@ -3939,9 +3862,9 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Sqrt_d : FloatUnaryOp
+	public sealed class Sqrt_d : FloatUnaryOp
 	{
-		public Sqrt_d (MachInst machInst) : base("sqrt_d", machInst, StaticInstFlag.FCOMP, FunctionalUnitType.FloatSQRT)
+		public Sqrt_d (MachInst machInst) : base("sqrt_d", machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatSquareRoot)
 		{
 		}
 
@@ -3955,9 +3878,9 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Abs_d : FloatUnaryOp
+	public sealed class Abs_d : FloatUnaryOp
 	{
-		public Abs_d (MachInst machInst) : base("abs_d", machInst, StaticInstFlag.FCOMP, FunctionalUnitType.FloatCMP)
+		public Abs_d (MachInst machInst) : base("abs_d", machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatCompare)
 		{
 		}
 
@@ -3971,9 +3894,9 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Neg_d : FloatUnaryOp
+	public sealed class Neg_d : FloatUnaryOp
 	{
-		public Neg_d (MachInst machInst) : base("neg_d", machInst, StaticInstFlag.FCOMP, FunctionalUnitType.FloatCMP)
+		public Neg_d (MachInst machInst) : base("neg_d", machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatCompare)
 		{
 		}
 
@@ -3987,9 +3910,9 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Mov_d : FloatUnaryOp
+	public sealed class Mov_d : FloatUnaryOp
 	{
-		public Mov_d (MachInst machInst) : base("mov_d", machInst, StaticInstFlag.NONE, FunctionalUnitType.NONE)
+		public Mov_d (MachInst machInst) : base("mov_d", machInst, StaticInstFlag.None, FunctionalUnitType.None)
 		{
 		}
 
@@ -4002,9 +3925,9 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Add_s : FloatBinaryOp
+	public sealed class Add_s : FloatBinaryOp
 	{
-		public Add_s (MachInst machInst) : base("add_s", machInst, StaticInstFlag.FCOMP, FunctionalUnitType.FloatADD)
+		public Add_s (MachInst machInst) : base("add_s", machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatAdd)
 		{
 		}
 
@@ -4019,9 +3942,9 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Sub_s : FloatBinaryOp
+	public sealed class Sub_s : FloatBinaryOp
 	{
-		public Sub_s (MachInst machInst) : base("sub_s", machInst, StaticInstFlag.FCOMP, FunctionalUnitType.FloatADD)
+		public Sub_s (MachInst machInst) : base("sub_s", machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatAdd)
 		{
 		}
 
@@ -4036,9 +3959,9 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Mul_s : FloatBinaryOp
+	public sealed class Mul_s : FloatBinaryOp
 	{
-		public Mul_s (MachInst machInst) : base("mul_s", machInst, StaticInstFlag.FCOMP, FunctionalUnitType.FloatMULT)
+		public Mul_s (MachInst machInst) : base("mul_s", machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatMultiply)
 		{
 		}
 
@@ -4053,9 +3976,9 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Div_s : FloatBinaryOp
+	public sealed class Div_s : FloatBinaryOp
 	{
-		public Div_s (MachInst machInst) : base("div_s", machInst, StaticInstFlag.FCOMP, FunctionalUnitType.FloatDIV)
+		public Div_s (MachInst machInst) : base("div_s", machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatDivide)
 		{
 		}
 
@@ -4070,9 +3993,9 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Sqrt_s : FloatUnaryOp
+	public sealed class Sqrt_s : FloatUnaryOp
 	{
-		public Sqrt_s (MachInst machInst) : base("sqrt_s", machInst, StaticInstFlag.FCOMP, FunctionalUnitType.FloatSQRT)
+		public Sqrt_s (MachInst machInst) : base("sqrt_s", machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatSquareRoot)
 		{
 		}
 
@@ -4086,9 +4009,9 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Abs_s : FloatUnaryOp
+	public sealed class Abs_s : FloatUnaryOp
 	{
-		public Abs_s (MachInst machInst) : base("abs_s", machInst, StaticInstFlag.FCOMP, FunctionalUnitType.FloatCMP)
+		public Abs_s (MachInst machInst) : base("abs_s", machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatCompare)
 		{
 		}
 
@@ -4102,9 +4025,9 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Neg_s : FloatUnaryOp
+	public sealed class Neg_s : FloatUnaryOp
 	{
-		public Neg_s (MachInst machInst) : base("neg_s", machInst, StaticInstFlag.FCOMP, FunctionalUnitType.FloatCMP)
+		public Neg_s (MachInst machInst) : base("neg_s", machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatCompare)
 		{
 		}
 
@@ -4118,9 +4041,9 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Mov_s : FloatUnaryOp
+	public sealed class Mov_s : FloatUnaryOp
 	{
-		public Mov_s (MachInst machInst) : base("mov_s", machInst, StaticInstFlag.NONE, FunctionalUnitType.NONE)
+		public Mov_s (MachInst machInst) : base("mov_s", machInst, StaticInstFlag.None, FunctionalUnitType.None)
 		{
 		}
 
@@ -4135,18 +4058,18 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public abstract class FloatConvertOp : FloatOp
 	{
-		public FloatConvertOp (string mnemonic, MachInst machInst) : base(mnemonic, machInst, StaticInstFlag.FCOMP, FunctionalUnitType.FloatCVT)
+		public FloatConvertOp (string mnemonic, MachInst machInst) : base(mnemonic, machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatConvert)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.FP, this[BitField.FS]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.FP, this[BitField.FD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Float, this[BitField.FS]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Float, this[BitField.FD]));
 		}
 	}
 
-	public class Cvt_d_s : FloatConvertOp
+	public sealed class Cvt_d_s : FloatConvertOp
 	{
 		public Cvt_d_s (MachInst machInst) : base("cvt_d_s", machInst)
 		{
@@ -4161,7 +4084,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Cvt_w_s : FloatConvertOp
+	public sealed class Cvt_w_s : FloatConvertOp
 	{
 		public Cvt_w_s (MachInst machInst) : base("cvt_w_s", machInst)
 		{
@@ -4176,7 +4099,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Cvt_l_s : FloatConvertOp
+	public sealed class Cvt_l_s : FloatConvertOp
 	{
 		public Cvt_l_s (MachInst machInst) : base("cvt_l_s", machInst)
 		{
@@ -4191,7 +4114,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Cvt_s_d : FloatConvertOp
+	public sealed class Cvt_s_d : FloatConvertOp
 	{
 		public Cvt_s_d (MachInst machInst) : base("cvt_s_d", machInst)
 		{
@@ -4206,7 +4129,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Cvt_w_d : FloatConvertOp
+	public sealed class Cvt_w_d : FloatConvertOp
 	{
 		public Cvt_w_d (MachInst machInst) : base("cvt_w_d", machInst)
 		{
@@ -4221,7 +4144,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Cvt_l_d : FloatConvertOp
+	public sealed class Cvt_l_d : FloatConvertOp
 	{
 		public Cvt_l_d (MachInst machInst) : base("cvt_l_d", machInst)
 		{
@@ -4236,7 +4159,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Cvt_s_w : FloatConvertOp
+	public sealed class Cvt_s_w : FloatConvertOp
 	{
 		public Cvt_s_w (MachInst machInst) : base("cvt_s_w", machInst)
 		{
@@ -4251,7 +4174,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Cvt_d_w : FloatConvertOp
+	public sealed class Cvt_d_w : FloatConvertOp
 	{
 		public Cvt_d_w (MachInst machInst) : base("cvt_d_w", machInst)
 		{
@@ -4266,7 +4189,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Cvt_s_l : FloatConvertOp
+	public sealed class Cvt_s_l : FloatConvertOp
 	{
 		public Cvt_s_l (MachInst machInst) : base("cvt_s_l", machInst)
 		{
@@ -4281,7 +4204,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Cvt_d_l : FloatConvertOp
+	public sealed class Cvt_d_l : FloatConvertOp
 	{
 		public Cvt_d_l (MachInst machInst) : base("cvt_d_l", machInst)
 		{
@@ -4302,18 +4225,18 @@ namespace MinCai.Simulators.Flexim.Architecture
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.FP, this[BitField.FS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.FP, this[BitField.FT]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.MISC, (uint)MiscRegNums.FCSR));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.MISC, (uint)MiscRegNums.FCSR));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Float, this[BitField.FS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Float, this[BitField.FT]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Fcsr));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Fcsr));
 		}
 	}
 
 	public abstract class C_cond_d : FloatCompareOp
 	{
-		public C_cond_d (string mnemonic, MachInst machInst) : base(mnemonic, machInst, StaticInstFlag.FCOMP, FunctionalUnitType.FloatCMP)
+		public C_cond_d (string mnemonic, MachInst machInst) : base(mnemonic, machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatCompare)
 		{
 		}
 
@@ -4338,18 +4261,18 @@ namespace MinCai.Simulators.Flexim.Architecture
 			uint cond = this[BitField.COND];
 			
 			if ((((cond & 0x4) != 0) && less) || (((cond & 0x2) != 0) && equal) || (((cond & 0x1) != 0) && unordered)) {
-				BitUtils.SetFCC (ref fcsr, (int)this[BitField.CC]);
+				BitHelper.SetFCC (ref fcsr, (int)this[BitField.CC]);
 			} else {
-				BitUtils.ClearFCC (ref fcsr, (int)this[BitField.CC]);
+				BitHelper.ClearFCC (ref fcsr, (int)this[BitField.CC]);
 			}
 			
 			thread.Regs.MiscRegs.Fcsr = fcsr;
 		}
 	}
 
-	public class C_cond_s : FloatCompareOp
+	public abstract class C_cond_s : FloatCompareOp
 	{
-		public C_cond_s (string mnemonic, MachInst machInst) : base(mnemonic, machInst, StaticInstFlag.FCOMP, FunctionalUnitType.FloatCMP)
+		public C_cond_s (string mnemonic, MachInst machInst) : base(mnemonic, machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatCompare)
 		{
 		}
 
@@ -4374,233 +4297,233 @@ namespace MinCai.Simulators.Flexim.Architecture
 			uint cond = this[BitField.COND];
 			
 			if ((((cond & 0x4) != 0) && less) || (((cond & 0x2) != 0) && equal) || (((cond & 0x1) != 0) && unordered)) {
-				BitUtils.SetFCC (ref fcsr, (int)this[BitField.CC]);
+				BitHelper.SetFCC (ref fcsr, (int)this[BitField.CC]);
 			} else {
-				BitUtils.ClearFCC (ref fcsr, (int)this[BitField.CC]);
+				BitHelper.ClearFCC (ref fcsr, (int)this[BitField.CC]);
 			}
 			
 			thread.Regs.MiscRegs.Fcsr = fcsr;
 		}
 	}
 
-	public class C_f_d : C_cond_d
+	public sealed class C_f_d : C_cond_d
 	{
 		public C_f_d (MachInst machInst) : base("c_f_d", machInst)
 		{
 		}
 	}
 
-	public class C_un_d : C_cond_d
+	public sealed class C_un_d : C_cond_d
 	{
 		public C_un_d (MachInst machInst) : base("c_un_d", machInst)
 		{
 		}
 	}
 
-	public class C_eq_d : C_cond_d
+	public sealed class C_eq_d : C_cond_d
 	{
 		public C_eq_d (MachInst machInst) : base("c_eq_d", machInst)
 		{
 		}
 	}
 
-	public class C_ueq_d : C_cond_d
+	public sealed class C_ueq_d : C_cond_d
 	{
 		public C_ueq_d (MachInst machInst) : base("c_ueq_d", machInst)
 		{
 		}
 	}
 
-	public class C_olt_d : C_cond_d
+	public sealed class C_olt_d : C_cond_d
 	{
 		public C_olt_d (MachInst machInst) : base("c_olt_d", machInst)
 		{
 		}
 	}
 
-	public class C_ult_d : C_cond_d
+	public sealed class C_ult_d : C_cond_d
 	{
 		public C_ult_d (MachInst machInst) : base("c_ult_d", machInst)
 		{
 		}
 	}
 
-	public class C_ole_d : C_cond_d
+	public sealed class C_ole_d : C_cond_d
 	{
 		public C_ole_d (MachInst machInst) : base("c_ole_d", machInst)
 		{
 		}
 	}
 
-	public class C_ule_d : C_cond_d
+	public sealed class C_ule_d : C_cond_d
 	{
 		public C_ule_d (MachInst machInst) : base("c_ule_d", machInst)
 		{
 		}
 	}
 
-	public class C_sf_d : C_cond_d
+	public sealed class C_sf_d : C_cond_d
 	{
 		public C_sf_d (MachInst machInst) : base("c_sf_d", machInst)
 		{
 		}
 	}
 
-	public class C_ngle_d : C_cond_d
+	public sealed class C_ngle_d : C_cond_d
 	{
 		public C_ngle_d (MachInst machInst) : base("c_ngle_d", machInst)
 		{
 		}
 	}
 
-	public class C_seq_d : C_cond_d
+	public sealed class C_seq_d : C_cond_d
 	{
 		public C_seq_d (MachInst machInst) : base("c_seq_d", machInst)
 		{
 		}
 	}
 
-	public class C_ngl_d : C_cond_d
+	public sealed class C_ngl_d : C_cond_d
 	{
 		public C_ngl_d (MachInst machInst) : base("c_ngl_d", machInst)
 		{
 		}
 	}
 
-	public class C_lt_d : C_cond_d
+	public sealed class C_lt_d : C_cond_d
 	{
 		public C_lt_d (MachInst machInst) : base("c_lt_d", machInst)
 		{
 		}
 	}
 
-	public class C_nge_d : C_cond_d
+	public sealed class C_nge_d : C_cond_d
 	{
 		public C_nge_d (MachInst machInst) : base("c_nge_d", machInst)
 		{
 		}
 	}
 
-	public class C_le_d : C_cond_d
+	public sealed class C_le_d : C_cond_d
 	{
 		public C_le_d (MachInst machInst) : base("c_le_d", machInst)
 		{
 		}
 	}
 
-	public class C_ngt_d : C_cond_d
+	public sealed class C_ngt_d : C_cond_d
 	{
 		public C_ngt_d (MachInst machInst) : base("c_ngt_d", machInst)
 		{
 		}
 	}
 
-	public class C_f_s : C_cond_s
+	public sealed class C_f_s : C_cond_s
 	{
 		public C_f_s (MachInst machInst) : base("c_f_s", machInst)
 		{
 		}
 	}
 
-	public class C_un_s : C_cond_s
+	public sealed class C_un_s : C_cond_s
 	{
 		public C_un_s (MachInst machInst) : base("c_un_s", machInst)
 		{
 		}
 	}
 
-	public class C_eq_s : C_cond_s
+	public sealed class C_eq_s : C_cond_s
 	{
 		public C_eq_s (MachInst machInst) : base("c_eq_s", machInst)
 		{
 		}
 	}
 
-	public class C_ueq_s : C_cond_s
+	public sealed class C_ueq_s : C_cond_s
 	{
 		public C_ueq_s (MachInst machInst) : base("c_ueq_s", machInst)
 		{
 		}
 	}
 
-	public class C_olt_s : C_cond_s
+	public sealed class C_olt_s : C_cond_s
 	{
 		public C_olt_s (MachInst machInst) : base("c_olt_s", machInst)
 		{
 		}
 	}
 
-	public class C_ult_s : C_cond_s
+	public sealed class C_ult_s : C_cond_s
 	{
 		public C_ult_s (MachInst machInst) : base("c_ult_s", machInst)
 		{
 		}
 	}
 
-	public class C_ole_s : C_cond_s
+	public sealed class C_ole_s : C_cond_s
 	{
 		public C_ole_s (MachInst machInst) : base("c_ole_s", machInst)
 		{
 		}
 	}
 
-	public class C_ule_s : C_cond_s
+	public sealed class C_ule_s : C_cond_s
 	{
 		public C_ule_s (MachInst machInst) : base("c_ule_s", machInst)
 		{
 		}
 	}
 
-	public class C_sf_s : C_cond_s
+	public sealed class C_sf_s : C_cond_s
 	{
 		public C_sf_s (MachInst machInst) : base("c_sf_s", machInst)
 		{
 		}
 	}
 
-	public class C_ngle_s : C_cond_s
+	public sealed class C_ngle_s : C_cond_s
 	{
 		public C_ngle_s (MachInst machInst) : base("c_ngle_s", machInst)
 		{
 		}
 	}
 
-	public class C_seq_s : C_cond_s
+	public sealed class C_seq_s : C_cond_s
 	{
 		public C_seq_s (MachInst machInst) : base("c_seq_s", machInst)
 		{
 		}
 	}
 
-	public class C_ngl_s : C_cond_s
+	public sealed class C_ngl_s : C_cond_s
 	{
 		public C_ngl_s (MachInst machInst) : base("c_ngl_s", machInst)
 		{
 		}
 	}
 
-	public class C_lt_s : C_cond_s
+	public sealed class C_lt_s : C_cond_s
 	{
 		public C_lt_s (MachInst machInst) : base("c_lt_s", machInst)
 		{
 		}
 	}
 
-	public class C_nge_s : C_cond_s
+	public sealed class C_nge_s : C_cond_s
 	{
 		public C_nge_s (MachInst machInst) : base("c_nge_s", machInst)
 		{
 		}
 	}
 
-	public class C_le_s : C_cond_s
+	public sealed class C_le_s : C_cond_s
 	{
 		public C_le_s (MachInst machInst) : base("c_le_s", machInst)
 		{
 		}
 	}
 
-	public class C_ngt_s : C_cond_s
+	public sealed class C_ngt_s : C_cond_s
 	{
 		public C_ngt_s (MachInst machInst) : base("c_ngt_s", machInst)
 		{
@@ -4611,61 +4534,61 @@ namespace MinCai.Simulators.Flexim.Architecture
 	{
 		public MemoryOp (string mnemonic, MachInst machInst, StaticInstFlag flags, FunctionalUnitType fuType) : base(mnemonic, machInst, flags, fuType)
 		{
-			this.displacement = BitUtils.Sext (machInst[BitField.OFFSET], 16);
+			this.Displacement = BitHelper.Sext (machInst[BitField.OFFSET], 16);
 		}
 
 		public virtual uint Ea (Thread thread)
 		{
-			uint ea = (uint)(thread.Regs.IntRegs[this[BitField.RS]] + this.displacement);
+			uint ea = (uint)(thread.Regs.IntRegs[this[BitField.RS]] + this.Displacement);
 			return ea;
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
 			this.MemIDeps = new List<RegisterDependency> ();
 			this.MemODeps = new List<RegisterDependency> ();
 			
-			this.setupEaDeps ();
+			this.SetupEaDeps ();
 			
-			this.eaODeps.Add (new RegisterDependency (RegisterDependencyType.MISC, (uint)MiscRegNums.EA));
-			this.MemIDeps.Add (new RegisterDependency (RegisterDependencyType.MISC, (uint)MiscRegNums.EA));
+			this.EaODeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Ea));
+			this.MemIDeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Ea));
 			
-			this.setupMemDeps ();
+			this.SetupMemDeps ();
 		}
 
-		public abstract void setupEaDeps ();
-		public abstract void setupMemDeps ();
+		protected abstract void SetupEaDeps ();
+		protected abstract void SetupMemDeps ();
 
 		public List<RegisterDependency> EaIdeps {
 			get { return this.IDeps; }
-			set { this.IDeps = value; }
+			protected set { this.IDeps = value; }
 		}
 
-		public List<RegisterDependency> eaODeps {
+		public List<RegisterDependency> EaODeps {
 			get { return this.ODeps; }
-			set { this.ODeps = value; }
+			protected set { this.ODeps = value; }
 		}
 
-		public List<RegisterDependency> MemIDeps;
-		public List<RegisterDependency> MemODeps;
+		public List<RegisterDependency> MemIDeps {get; protected set;}
+		public List<RegisterDependency> MemODeps {get; protected set;}
 
-		public int displacement { get; private set; }
+		public int Displacement { get; private set; }
 	}
 
-	public class Lb : MemoryOp
+	public sealed class Lb : MemoryOp
 	{
-		public Lb (MachInst machInst) : base("lb", machInst, StaticInstFlag.MEM | StaticInstFlag.LOAD | StaticInstFlag.DISP, FunctionalUnitType.RdPort)
+		public Lb (MachInst machInst) : base("lb", machInst, StaticInstFlag.Memory | StaticInstFlag.Load | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.ReadPort)
 		{
 		}
 
-		public override void setupEaDeps ()
+		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
 		}
 
-		public override void setupMemDeps ()
+		protected override void SetupMemDeps ()
 		{
-			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
+			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
 		}
 
 		unsafe public override void Execute (Thread thread)
@@ -4676,20 +4599,20 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Lbu : MemoryOp
+	public sealed class Lbu : MemoryOp
 	{
-		public Lbu (MachInst machInst) : base("lbu", machInst, StaticInstFlag.MEM | StaticInstFlag.LOAD | StaticInstFlag.DISP, FunctionalUnitType.RdPort)
+		public Lbu (MachInst machInst) : base("lbu", machInst, StaticInstFlag.Memory | StaticInstFlag.Load | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.ReadPort)
 		{
 		}
 
-		public override void setupEaDeps ()
+		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
 		}
 
-		public override void setupMemDeps ()
+		protected override void SetupMemDeps ()
 		{
-			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
+			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
 		}
 
 		unsafe public override void Execute (Thread thread)
@@ -4700,20 +4623,20 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Lh : MemoryOp
+	public sealed class Lh : MemoryOp
 	{
-		public Lh (MachInst machInst) : base("lh", machInst, StaticInstFlag.MEM | StaticInstFlag.LOAD | StaticInstFlag.DISP, FunctionalUnitType.RdPort)
+		public Lh (MachInst machInst) : base("lh", machInst, StaticInstFlag.Memory | StaticInstFlag.Load | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.ReadPort)
 		{
 		}
 
-		public override void setupEaDeps ()
+		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
 		}
 
-		public override void setupMemDeps ()
+		protected override void SetupMemDeps ()
 		{
-			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
+			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
 		}
 
 		unsafe public override void Execute (Thread thread)
@@ -4724,20 +4647,20 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Lhu : MemoryOp
+	public sealed class Lhu : MemoryOp
 	{
-		public Lhu (MachInst machInst) : base("lhu", machInst, StaticInstFlag.MEM | StaticInstFlag.LOAD | StaticInstFlag.DISP, FunctionalUnitType.RdPort)
+		public Lhu (MachInst machInst) : base("lhu", machInst, StaticInstFlag.Memory | StaticInstFlag.Load | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.ReadPort)
 		{
 		}
 
-		public override void setupEaDeps ()
+		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
 		}
 
-		public override void setupMemDeps ()
+		protected override void SetupMemDeps ()
 		{
-			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
+			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
 		}
 
 		unsafe public override void Execute (Thread thread)
@@ -4748,20 +4671,20 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Lw : MemoryOp
+	public sealed class Lw : MemoryOp
 	{
-		public Lw (MachInst machInst) : base("lw", machInst, StaticInstFlag.MEM | StaticInstFlag.LOAD | StaticInstFlag.DISP, FunctionalUnitType.RdPort)
+		public Lw (MachInst machInst) : base("lw", machInst, StaticInstFlag.Memory | StaticInstFlag.Load | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.ReadPort)
 		{
 		}
 
-		public override void setupEaDeps ()
+		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
 		}
 
-		public override void setupMemDeps ()
+		protected override void SetupMemDeps ()
 		{
-			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
+			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
 		}
 
 		unsafe public override void Execute (Thread thread)
@@ -4772,33 +4695,33 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Lwl : MemoryOp
+	public sealed class Lwl : MemoryOp
 	{
-		public Lwl (MachInst machInst) : base("lwl", machInst, StaticInstFlag.MEM | StaticInstFlag.LOAD | StaticInstFlag.DISP, FunctionalUnitType.RdPort)
+		public Lwl (MachInst machInst) : base("lwl", machInst, StaticInstFlag.Memory | StaticInstFlag.Load | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.ReadPort)
 		{
 		}
 
-		public override void setupEaDeps ()
+		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
 		}
 
-		public override void setupMemDeps ()
+		protected override void SetupMemDeps ()
 		{
-			this.MemIDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
-			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
+			this.MemIDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
 		}
 
 		public override uint Ea (Thread thread)
 		{
-			uint addr = (uint)(thread.Regs.IntRegs[this[BitField.RS]] + this.displacement);
+			uint addr = (uint)(thread.Regs.IntRegs[this[BitField.RS]] + this.Displacement);
 			uint ea = addr & ~3u;
 			return ea;
 		}
 
 		unsafe public override void Execute (Thread thread)
 		{
-			uint addr = (uint)(thread.Regs.IntRegs[this[BitField.RS]] + this.displacement);
+			uint addr = (uint)(thread.Regs.IntRegs[this[BitField.RS]] + this.Displacement);
 			
 			uint ea = addr & ~3u;
 			uint byte_offset = addr & 3;
@@ -4809,39 +4732,39 @@ namespace MinCai.Simulators.Flexim.Architecture
 			
 			uint mem_shift = 24 - 8 * byte_offset;
 			
-			uint rt = (mem << (int)mem_shift) | (thread.Regs.IntRegs[this[BitField.RT]] & BitUtils.Mask ((int)mem_shift));
+			uint rt = (mem << (int)mem_shift) | (thread.Regs.IntRegs[this[BitField.RT]] & BitHelper.Mask ((int)mem_shift));
 			
 			thread.Regs.IntRegs[this[BitField.RT]] = rt;
 		}
 	}
 
-	public class Lwr : MemoryOp
+	public sealed class Lwr : MemoryOp
 	{
-		public Lwr (MachInst machInst) : base("lwr", machInst, StaticInstFlag.MEM | StaticInstFlag.LOAD | StaticInstFlag.DISP, FunctionalUnitType.RdPort)
+		public Lwr (MachInst machInst) : base("lwr", machInst, StaticInstFlag.Memory | StaticInstFlag.Load | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.ReadPort)
 		{
 		}
 
-		public override void setupEaDeps ()
+		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
 		}
 
-		public override void setupMemDeps ()
+		protected override void SetupMemDeps ()
 		{
-			this.MemIDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
-			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
+			this.MemIDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
 		}
 
 		public override uint Ea (Thread thread)
 		{
-			uint addr = (uint)(thread.Regs.IntRegs[this[BitField.RS]] + this.displacement);
+			uint addr = (uint)(thread.Regs.IntRegs[this[BitField.RS]] + this.Displacement);
 			uint ea = addr & ~3u;
 			return ea;
 		}
 
 		unsafe public override void Execute (Thread thread)
 		{
-			uint addr = (uint)(thread.Regs.IntRegs[this[BitField.RS]] + this.displacement);
+			uint addr = (uint)(thread.Regs.IntRegs[this[BitField.RS]] + this.Displacement);
 			
 			uint ea = addr & ~3u;
 			uint byte_offset = addr & 3;
@@ -4852,26 +4775,26 @@ namespace MinCai.Simulators.Flexim.Architecture
 			
 			uint mem_shift = 8 * byte_offset;
 			
-			uint rt = (thread.Regs.IntRegs[this[BitField.RT]] & (BitUtils.Mask ((int)mem_shift) << (int)(32 - mem_shift))) | (mem >> (int)mem_shift);
+			uint rt = (thread.Regs.IntRegs[this[BitField.RT]] & (BitHelper.Mask ((int)mem_shift) << (int)(32 - mem_shift))) | (mem >> (int)mem_shift);
 			
 			thread.Regs.IntRegs[this[BitField.RT]] = rt;
 		}
 	}
 
-	public class Ll : MemoryOp
+	public sealed class Ll : MemoryOp
 	{
-		public Ll (MachInst machInst) : base("ll", machInst, StaticInstFlag.MEM | StaticInstFlag.LOAD | StaticInstFlag.DISP, FunctionalUnitType.RdPort)
+		public Ll (MachInst machInst) : base("ll", machInst, StaticInstFlag.Memory | StaticInstFlag.Load | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.ReadPort)
 		{
 		}
 
-		public override void setupEaDeps ()
+		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
 		}
 
-		public override void setupMemDeps ()
+		protected override void SetupMemDeps ()
 		{
-			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
+			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
 		}
 
 		unsafe public override void Execute (Thread thread)
@@ -4882,20 +4805,20 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Lwc1 : MemoryOp
+	public sealed class Lwc1 : MemoryOp
 	{
-		public Lwc1 (MachInst machInst) : base("lwc1", machInst, StaticInstFlag.MEM | StaticInstFlag.LOAD | StaticInstFlag.DISP, FunctionalUnitType.RdPort)
+		public Lwc1 (MachInst machInst) : base("lwc1", machInst, StaticInstFlag.Memory | StaticInstFlag.Load | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.ReadPort)
 		{
 		}
 
-		public override void setupEaDeps ()
+		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
 		}
 
-		public override void setupMemDeps ()
+		protected override void SetupMemDeps ()
 		{
-			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.FP, this[BitField.FT]));
+			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.Float, this[BitField.FT]));
 		}
 
 		unsafe public override void Execute (Thread thread)
@@ -4906,20 +4829,20 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Ldc1 : MemoryOp
+	public sealed class Ldc1 : MemoryOp
 	{
-		public Ldc1 (MachInst machInst) : base("ldc1", machInst, StaticInstFlag.MEM | StaticInstFlag.LOAD | StaticInstFlag.DISP, FunctionalUnitType.RdPort)
+		public Ldc1 (MachInst machInst) : base("ldc1", machInst, StaticInstFlag.Memory | StaticInstFlag.Load | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.ReadPort)
 		{
 		}
 
-		public override void setupEaDeps ()
+		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
 		}
 
-		public override void setupMemDeps ()
+		protected override void SetupMemDeps ()
 		{
-			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.FP, this[BitField.FT]));
+			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.Float, this[BitField.FT]));
 		}
 
 		unsafe public override void Execute (Thread thread)
@@ -4930,66 +4853,66 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Sb : MemoryOp
+	public sealed class Sb : MemoryOp
 	{
-		public Sb (MachInst machInst) : base("sb", machInst, StaticInstFlag.MEM | StaticInstFlag.STORE | StaticInstFlag.DISP, FunctionalUnitType.WrPort)
+		public Sb (MachInst machInst) : base("sb", machInst, StaticInstFlag.Memory | StaticInstFlag.Store | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.WritePort)
 		{
 		}
 
-		public override void setupEaDeps ()
+		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
 		}
 
-		public override void setupMemDeps ()
+		protected override void SetupMemDeps ()
 		{
-			this.MemIDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
+			this.MemIDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
 		}
 
 		public override void Execute (Thread thread)
 		{
-			byte mem = (byte)BitUtils.Bits (thread.Regs.IntRegs[this[BitField.RT]], 7, 0);
+			byte mem = (byte)BitHelper.Bits (thread.Regs.IntRegs[this[BitField.RT]], 7, 0);
 			thread.Mem.WriteByte (this.Ea (thread), mem);
 		}
 	}
 
-	public class Sh : MemoryOp
+	public sealed class Sh : MemoryOp
 	{
-		public Sh (MachInst machInst) : base("sh", machInst, StaticInstFlag.MEM | StaticInstFlag.STORE | StaticInstFlag.DISP, FunctionalUnitType.WrPort)
+		public Sh (MachInst machInst) : base("sh", machInst, StaticInstFlag.Memory | StaticInstFlag.Store | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.WritePort)
 		{
 		}
 
-		public override void setupEaDeps ()
+		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
 		}
 
-		public override void setupMemDeps ()
+		protected override void SetupMemDeps ()
 		{
-			this.MemIDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
+			this.MemIDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
 		}
 
 		public override void Execute (Thread thread)
 		{
-			ushort mem = (ushort)BitUtils.Bits (thread.Regs.IntRegs[this[BitField.RT]], 15, 0);
+			ushort mem = (ushort)BitHelper.Bits (thread.Regs.IntRegs[this[BitField.RT]], 15, 0);
 			thread.Mem.WriteHalfWord (this.Ea (thread), mem);
 		}
 	}
 
-	public class Sw : MemoryOp
+	public sealed class Sw : MemoryOp
 	{
-		public Sw (MachInst machInst) : base("sw", machInst, StaticInstFlag.MEM | StaticInstFlag.STORE | StaticInstFlag.DISP, FunctionalUnitType.WrPort)
+		public Sw (MachInst machInst) : base("sw", machInst, StaticInstFlag.Memory | StaticInstFlag.Store | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.WritePort)
 		{
 		}
 
-		public override void setupEaDeps ()
+		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
 		}
 
-		public override void setupMemDeps ()
+		protected override void SetupMemDeps ()
 		{
-			this.MemIDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
+			this.MemIDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
 		}
 
 		public override void Execute (Thread thread)
@@ -4999,32 +4922,32 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Swl : MemoryOp
+	public sealed class Swl : MemoryOp
 	{
-		public Swl (MachInst machInst) : base("swl", machInst, StaticInstFlag.MEM | StaticInstFlag.STORE | StaticInstFlag.DISP, FunctionalUnitType.WrPort)
+		public Swl (MachInst machInst) : base("swl", machInst, StaticInstFlag.Memory | StaticInstFlag.Store | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.WritePort)
 		{
 		}
 
-		public override void setupEaDeps ()
+		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
 		}
 
-		public override void setupMemDeps ()
+		protected override void SetupMemDeps ()
 		{
-			this.MemIDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
+			this.MemIDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
 		}
 
 		public override uint Ea (Thread thread)
 		{
-			uint addr = (uint)(thread.Regs.IntRegs[this[BitField.RS]] + this.displacement);
+			uint addr = (uint)(thread.Regs.IntRegs[this[BitField.RS]] + this.Displacement);
 			uint ea = addr & ~3u;
 			return ea;
 		}
 
 		unsafe public override void Execute (Thread thread)
 		{
-			uint addr = (uint)(thread.Regs.IntRegs[this[BitField.RS]] + this.displacement);
+			uint addr = (uint)(thread.Regs.IntRegs[this[BitField.RS]] + this.Displacement);
 			
 			uint ea = addr & ~3u;
 			uint byte_offset = addr & 3;
@@ -5036,38 +4959,38 @@ namespace MinCai.Simulators.Flexim.Architecture
 			uint reg_shift = 24 - 8 * byte_offset;
 			uint mem_shift = 32 - reg_shift;
 			
-			mem = (mem & (BitUtils.Mask ((int)reg_shift) << (int)mem_shift)) | (thread.Regs.IntRegs[this[BitField.RT]] >> (int)reg_shift);
+			mem = (mem & (BitHelper.Mask ((int)reg_shift) << (int)mem_shift)) | (thread.Regs.IntRegs[this[BitField.RT]] >> (int)reg_shift);
 			
 			thread.Mem.WriteWord (ea, mem);
 		}
 	}
 
-	public class Swr : MemoryOp
+	public sealed class Swr : MemoryOp
 	{
-		public Swr (MachInst machInst) : base("swr", machInst, StaticInstFlag.MEM | StaticInstFlag.STORE | StaticInstFlag.DISP, FunctionalUnitType.WrPort)
+		public Swr (MachInst machInst) : base("swr", machInst, StaticInstFlag.Memory | StaticInstFlag.Store | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.WritePort)
 		{
 		}
 
-		public override void setupEaDeps ()
+		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
 		}
 
-		public override void setupMemDeps ()
+		protected override void SetupMemDeps ()
 		{
-			this.MemIDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
+			this.MemIDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
 		}
 
 		public override uint Ea (Thread thread)
 		{
-			uint addr = (uint)(thread.Regs.IntRegs[this[BitField.RS]] + this.displacement);
+			uint addr = (uint)(thread.Regs.IntRegs[this[BitField.RS]] + this.Displacement);
 			uint ea = addr & ~3u;
 			return ea;
 		}
 
 		unsafe public override void Execute (Thread thread)
 		{
-			uint addr = (uint)(thread.Regs.IntRegs[this[BitField.RS]] + this.displacement);
+			uint addr = (uint)(thread.Regs.IntRegs[this[BitField.RS]] + this.Displacement);
 			
 			uint ea = addr & ~3u;
 			uint byte_offset = addr & 3;
@@ -5078,27 +5001,27 @@ namespace MinCai.Simulators.Flexim.Architecture
 			
 			uint reg_shift = 8 * byte_offset;
 			
-			mem = thread.Regs.IntRegs[this[BitField.RT]] << (int)reg_shift | (mem & (BitUtils.Mask ((int)reg_shift)));
+			mem = thread.Regs.IntRegs[this[BitField.RT]] << (int)reg_shift | (mem & (BitHelper.Mask ((int)reg_shift)));
 			
 			thread.Mem.WriteWord (ea, mem);
 		}
 	}
 
-	public class Sc : MemoryOp
+	public sealed class Sc : MemoryOp
 	{
-		public Sc (MachInst machInst) : base("sc", machInst, StaticInstFlag.MEM | StaticInstFlag.STORE | StaticInstFlag.DISP, FunctionalUnitType.WrPort)
+		public Sc (MachInst machInst) : base("sc", machInst, StaticInstFlag.Memory | StaticInstFlag.Store | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.WritePort)
 		{
 		}
 
-		public override void setupEaDeps ()
+		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
 		}
 
-		public override void setupMemDeps ()
+		protected override void SetupMemDeps ()
 		{
-			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
+			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
 		}
 
 		public override void Execute (Thread thread)
@@ -5109,20 +5032,20 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Swc1 : MemoryOp
+	public sealed class Swc1 : MemoryOp
 	{
-		public Swc1 (MachInst machInst) : base("swc1", machInst, StaticInstFlag.MEM | StaticInstFlag.STORE | StaticInstFlag.DISP, FunctionalUnitType.WrPort)
+		public Swc1 (MachInst machInst) : base("swc1", machInst, StaticInstFlag.Memory | StaticInstFlag.Store | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.WritePort)
 		{
 		}
 
-		public override void setupEaDeps ()
+		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
 		}
 
-		public override void setupMemDeps ()
+		protected override void SetupMemDeps ()
 		{
-			this.MemIDeps.Add (new RegisterDependency (RegisterDependencyType.FP, this[BitField.FT]));
+			this.MemIDeps.Add (new RegisterDependency (RegisterDependencyType.Float, this[BitField.FT]));
 		}
 
 		public override void Execute (Thread thread)
@@ -5132,20 +5055,20 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Sdc1 : MemoryOp
+	public sealed class Sdc1 : MemoryOp
 	{
-		public Sdc1 (MachInst machInst) : base("sdc1", machInst, StaticInstFlag.MEM | StaticInstFlag.STORE | StaticInstFlag.DISP, FunctionalUnitType.WrPort)
+		public Sdc1 (MachInst machInst) : base("sdc1", machInst, StaticInstFlag.Memory | StaticInstFlag.Store | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.WritePort)
 		{
 		}
 
-		public override void setupEaDeps ()
+		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
 		}
 
-		public override void setupMemDeps ()
+		protected override void SetupMemDeps ()
 		{
-			this.MemIDeps.Add (new RegisterDependency (RegisterDependencyType.FP, this[BitField.FT]));
+			this.MemIDeps.Add (new RegisterDependency (RegisterDependencyType.Float, this[BitField.FT]));
 		}
 
 		public override void Execute (Thread thread)
@@ -5162,16 +5085,16 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Mfc1 : CP1Control
+	public sealed class Mfc1 : CP1Control
 	{
-		public Mfc1 (MachInst machInst) : base("mfc1", machInst, StaticInstFlag.NONE, FunctionalUnitType.NONE)
+		public Mfc1 (MachInst machInst) : base("mfc1", machInst, StaticInstFlag.None, FunctionalUnitType.None)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.FP, this[BitField.FS]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Float, this[BitField.FS]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
 		}
 
 		public override void Execute (Thread thread)
@@ -5181,16 +5104,16 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Cfc1 : CP1Control
+	public sealed class Cfc1 : CP1Control
 	{
-		public Cfc1 (MachInst machInst) : base("cfc1", machInst, StaticInstFlag.NONE, FunctionalUnitType.NONE)
+		public Cfc1 (MachInst machInst) : base("cfc1", machInst, StaticInstFlag.None, FunctionalUnitType.None)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.MISC, (uint)MiscRegNums.FCSR));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Fcsr));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
 		}
 
 		public override void Execute (Thread thread)
@@ -5206,16 +5129,16 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Mtc1 : CP1Control
+	public sealed class Mtc1 : CP1Control
 	{
-		public Mtc1 (MachInst machInst) : base("mtc1", machInst, StaticInstFlag.NONE, FunctionalUnitType.NONE)
+		public Mtc1 (MachInst machInst) : base("mtc1", machInst, StaticInstFlag.None, FunctionalUnitType.None)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.FP, this[BitField.FS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Float, this[BitField.FS]));
 		}
 
 		public override void Execute (Thread thread)
@@ -5225,16 +5148,16 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Ctc1 : CP1Control
+	public sealed class Ctc1 : CP1Control
 	{
-		public Ctc1 (MachInst machInst) : base("ctc1", machInst, StaticInstFlag.NONE, FunctionalUnitType.NONE)
+		public Ctc1 (MachInst machInst) : base("ctc1", machInst, StaticInstFlag.None, FunctionalUnitType.None)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.INT, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.MISC, (uint)MiscRegNums.FCSR));
+			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Fcsr));
 		}
 
 		public override void Execute (Thread thread)
@@ -5247,13 +5170,13 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Nop : StaticInst
+	public sealed class Nop : StaticInst
 	{
-		public Nop (MachInst machInst) : base("nop", machInst, StaticInstFlag.NONE, FunctionalUnitType.NONE)
+		public Nop (MachInst machInst) : base("nop", machInst, StaticInstFlag.None, FunctionalUnitType.None)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
 		}
 
@@ -5262,130 +5185,131 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class FailUnimplemented : StaticInst
+	public sealed class FailUnimplemented : StaticInst
 	{
-		public FailUnimplemented (string mnemonic, MachInst machInst) : base(mnemonic, machInst, StaticInstFlag.NONE, FunctionalUnitType.NONE)
+		public FailUnimplemented (string mnemonic, MachInst machInst) : base(mnemonic, machInst, StaticInstFlag.None, FunctionalUnitType.None)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
 		}
 
 		public override void Execute (Thread thread)
 		{
 			Fault fault = new UnimplFault (string.Format ("[{0:s}] machInst: 0x{1:x8}, mnemonic: \"{2:s}\"", this, this.MachInst.Data, this.Mnemonic));
-			fault.invoke (thread);
+			fault.Invoke (thread);
 		}
 	}
 
-	public class CP0Unimplemented : StaticInst
+	public sealed class CP0Unimplemented : StaticInst
 	{
-		public CP0Unimplemented (string mnemonic, MachInst machInst) : base(mnemonic, machInst, StaticInstFlag.NONE, FunctionalUnitType.NONE)
+		public CP0Unimplemented (string mnemonic, MachInst machInst) : base(mnemonic, machInst, StaticInstFlag.None, FunctionalUnitType.None)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
 		}
 
 		public override void Execute (Thread thread)
 		{
 			Fault fault = new UnimplFault (string.Format ("[{0:s}] machInst: 0x{1:x8}, mnemonic: \"{2:s}\"", this, this.MachInst.Data, this.Mnemonic));
-			fault.invoke (thread);
+			fault.Invoke (thread);
 		}
 	}
 
-	public class CP1Unimplemented : StaticInst
+	public sealed class CP1Unimplemented : StaticInst
 	{
-		public CP1Unimplemented (string mnemonic, MachInst machInst) : base(mnemonic, machInst, StaticInstFlag.NONE, FunctionalUnitType.NONE)
+		public CP1Unimplemented (string mnemonic, MachInst machInst) : base(mnemonic, machInst, StaticInstFlag.None, FunctionalUnitType.None)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
 		}
 
 		public override void Execute (Thread thread)
 		{
 			Fault fault = new UnimplFault (string.Format ("[{0:s}] machInst: 0x{1:x8}, mnemonic: \"{2:s}\"", this, this.MachInst.Data, this.Mnemonic));
-			fault.invoke (thread);
+			fault.Invoke (thread);
 		}
 	}
 
-	public class CP2Unimplemented : StaticInst
+	public sealed class CP2Unimplemented : StaticInst
 	{
-		public CP2Unimplemented (string mnemonic, MachInst machInst) : base(mnemonic, machInst, StaticInstFlag.NONE, FunctionalUnitType.NONE)
+		public CP2Unimplemented (string mnemonic, MachInst machInst) : base(mnemonic, machInst, StaticInstFlag.None, FunctionalUnitType.None)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
 		}
 
 		public override void Execute (Thread thread)
 		{
 			Fault fault = new UnimplFault (string.Format ("[{0:s}] machInst: 0x{1:x8}, mnemonic: \"{2:s}\"", this, this.MachInst.Data, this.Mnemonic));
-			fault.invoke (thread);
+			fault.Invoke (thread);
 		}
 	}
 
-	public class WarnUnimplemented : StaticInst
+	public sealed class WarnUnimplemented : StaticInst
 	{
-		public WarnUnimplemented (string mnemonic, MachInst machInst) : base(mnemonic, machInst, StaticInstFlag.NONE, FunctionalUnitType.NONE)
+		public WarnUnimplemented (string mnemonic, MachInst machInst) : base(mnemonic, machInst, StaticInstFlag.None, FunctionalUnitType.None)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
 		}
 
 		public override void Execute (Thread thread)
 		{
 			Fault fault = new UnimplFault (string.Format ("[{0:s}] machInst: 0x{1:x8}, mnemonic: \"{2:s}\"", this, this.MachInst.Data, this.Mnemonic));
-			fault.invoke (thread);
+			fault.Invoke (thread);
 		}
 	}
 
-	public class Unknown : StaticInst
+	public sealed class Unknown : StaticInst
 	{
-		public Unknown (MachInst machInst) : base("unknown", machInst, StaticInstFlag.NONE, FunctionalUnitType.NONE)
+		public Unknown (MachInst machInst) : base("unknown", machInst, StaticInstFlag.None, FunctionalUnitType.None)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
 		}
 
 		public override void Execute (Thread thread)
 		{
-			new ReservedInstructionFault ();
+			Fault fault = new ReservedInstructionFault ();
+			fault.Invoke(thread);
 		}
 	}
 
 	public abstract class Trap : StaticInst
 	{
-		public Trap (string mnemonic, MachInst machInst) : base(mnemonic, machInst, StaticInstFlag.NONE, FunctionalUnitType.NONE)
+		public Trap (string mnemonic, MachInst machInst) : base(mnemonic, machInst, StaticInstFlag.None, FunctionalUnitType.None)
 		{
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
 		}
 	}
 
 	public abstract class TrapImm : StaticInst
 	{
-		public TrapImm (string mnemonic, MachInst machInst) : base(mnemonic, machInst, StaticInstFlag.NONE, FunctionalUnitType.NONE)
+		public TrapImm (string mnemonic, MachInst machInst) : base(mnemonic, machInst, StaticInstFlag.None, FunctionalUnitType.None)
 		{
-			this.imm = (short)machInst[BitField.INTIMM];
+			this.Imm = (short)machInst[BitField.INTIMM];
 		}
 
-		public override void SetupDeps ()
+		protected override void SetupDeps ()
 		{
 		}
 
-		protected short imm;
+		protected short Imm {get; set;}
 	}
 
 	public abstract class Fault
@@ -5394,48 +5318,44 @@ namespace MinCai.Simulators.Flexim.Architecture
 		{
 		}
 
-		public abstract string getName ();
+		protected abstract string Name {get;}
 
-		public virtual void invoke (Thread thread)
+		public void Invoke (Thread thread)
 		{
-			Logger.Panicf (LogCategory.INSTRUCTION, "fault ({0:s}) detected @ PC 0x{1:x8}", this.getName (), thread.Regs.Pc);
+			Logger.Panicf (LogCategory.Instruction, "{0:s} detected @ PC 0x{1:x8}", this.Name, thread.Regs.Pc);
 		}
 	}
 
-	public class UnimplFault : Fault
+	public sealed class UnimplFault : Fault
 	{
 		public UnimplFault (string text)
 		{
-			this.text = text;
+			this.Text = text;
 		}
 
-		public override string getName ()
+		protected override string Name
 		{
-			return "Unimplemented simulator feature";
+			get
+			{
+				return string.Format("UnimplFault ({0:s})\n", this.Text);
+			}
 		}
 
-		public override void invoke (Thread thread)
-		{
-			Logger.Panicf (LogCategory.INSTRUCTION, "UnimplFault ({0:s})\n", this.text);
-		}
-
-		private string text;
+		public string Text {get;private set;}
 	}
 
-	public class ReservedInstructionFault : Fault
+	public sealed class ReservedInstructionFault : Fault
 	{
 		public ReservedInstructionFault ()
 		{
 		}
 
-		public override string getName ()
+		protected override string Name
 		{
-			return "Reserved Instruction Fault";
-		}
-
-		public override void invoke (Thread thread)
-		{
-			Logger.Panicf (LogCategory.INSTRUCTION, "ReservedInstructionFault ({0:s})\n", this.getName ());
+			get
+			{
+				return "ReservedInstructionFault";
+			}
 		}
 	}
 }

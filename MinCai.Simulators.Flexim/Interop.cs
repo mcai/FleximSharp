@@ -26,12 +26,50 @@ using System.IO;
 using MinCai.Simulators.Flexim.Common;
 using MinCai.Simulators.Flexim.Interop;
 using MinCai.Simulators.Flexim.MemoryHierarchy;
-using MinCai.Simulators.Flexim.Pipelines;
+using MinCai.Simulators.Flexim.Microarchitecture;
 
 namespace MinCai.Simulators.Flexim.Interop
 {
-	public class Workload
+	public sealed class Workload
 	{
+		public sealed class Serializer : XmlConfigSerializer<Workload>
+		{
+			public Serializer ()
+			{
+			}
+
+			public override XmlConfig Save (Workload workload)
+			{
+				XmlConfig xmlConfig = new XmlConfig ("Workload");
+				xmlConfig["title"] = workload.Title;
+				xmlConfig["cwd"] = workload.Cwd;
+				xmlConfig["exe"] = workload.Exe;
+				xmlConfig["args"] = workload.Args;
+				xmlConfig["stdin"] = workload.Stdin;
+				xmlConfig["stdout"] = workload.Stdout;
+				xmlConfig["numThreadsNeeded"] = workload.NumThreadsNeeded + "";
+				
+				return xmlConfig;
+			}
+
+			public override Workload Load (XmlConfig xmlConfig)
+			{
+				string title = xmlConfig["title"];
+				string cwd = xmlConfig["cwd"];
+				string exe = xmlConfig["exe"];
+				string args = xmlConfig["args"];
+				string stdin = xmlConfig["stdin"];
+				string stdout = xmlConfig["stdout"];
+				uint numThreadsNeeded = uint.Parse (xmlConfig["numThreadsNeeded"]);
+				
+				Workload workload = new Workload (title, cwd, exe, args, stdin, stdout, numThreadsNeeded);
+				
+				return workload;
+			}
+
+			public static Serializer SingleInstance = new Serializer ();
+		}
+
 		public Workload (string title, string cwd, string exe, string args, string stdin, string stdout, uint numThreadsNeeded)
 		{
 			this.Title = title;
@@ -45,7 +83,7 @@ namespace MinCai.Simulators.Flexim.Interop
 
 		public override string ToString ()
 		{
-			return string.Format ("[Workload: Title={0}, Parent.Title={1}, Cwd={2}, Exe={3}, Args={4}, Stdin={5}, Stdout={6}, NumThreadsNeeded={7}]", this.Title, this.Parent.Title, this.Cwd, this.Exe, this.Args, this.Stdin, this.Stdout, this.NumThreadsNeeded);
+			return string.Format ("[Workload: Title={0}, WorkloadSet.Title={1}, Cwd={2}, Exe={3}, Args={4}, Stdin={5}, Stdout={6}, NumThreadsNeeded={7}]", this.Title, this.WorkloadSet.Title, this.Cwd, this.Exe, this.Args, this.Stdin, this.Stdout, this.NumThreadsNeeded);
 		}
 
 		public string Title { get; set; }
@@ -54,14 +92,14 @@ namespace MinCai.Simulators.Flexim.Interop
 		public string Args { get; set; }
 		public string Stdin { get; set; }
 		public string Stdout { get; set; }
-
 		public uint NumThreadsNeeded { get; set; }
-		public WorkloadSet Parent { get; set; }
+
+		public WorkloadSet WorkloadSet { get; set; }
 	}
 
-	public class WorkloadSet
+	public sealed class WorkloadSet
 	{
-		public class Serializer : XmlConfigFileSerializer<WorkloadSet>
+		public sealed class Serializer : XmlConfigFileSerializer<WorkloadSet>
 		{
 			public Serializer ()
 			{
@@ -73,19 +111,10 @@ namespace MinCai.Simulators.Flexim.Interop
 				
 				xmlConfigFile["title"] = workloadSet.Title;
 				
-				foreach (KeyValuePair<string, Workload> pair in workloadSet.Workloads) {
+				foreach (var pair in workloadSet.Workloads) {
 					Workload workload = pair.Value;
 					
-					XmlConfig xmlConfig = new XmlConfig ("Workload");
-					xmlConfig["title"] = workload.Title;
-					xmlConfig["cwd"] = workload.Cwd;
-					xmlConfig["exe"] = workload.Exe;
-					xmlConfig["args"] = workload.Args;
-					xmlConfig["stdin"] = workload.Stdin;
-					xmlConfig["stdout"] = workload.Stdout;
-					xmlConfig["numThreadsNeeded"] = workload.NumThreadsNeeded + "";
-					
-					xmlConfigFile.Entries.Add (xmlConfig);
+					xmlConfigFile.Entries.Add (Workload.Serializer.SingleInstance.Save(workload));
 				}
 				
 				return xmlConfigFile;
@@ -97,17 +126,8 @@ namespace MinCai.Simulators.Flexim.Interop
 				
 				WorkloadSet workloadSet = new WorkloadSet (workloadSetTitle);
 				
-				foreach (XmlConfig entry in xmlConfigFile.Entries) {
-					string title = entry["title"];
-					string cwd = entry["cwd"];
-					string exe = entry["exe"];
-					string args = entry["args"];
-					string stdin = entry["stdin"];
-					string stdout = entry["stdout"];
-					uint numThreadsNeeded = uint.Parse (entry["numThreadsNeeded"]);
-					
-					Workload workload = new Workload (title, cwd, exe, args, stdin, stdout, numThreadsNeeded);
-					workloadSet.Register (workload);
+				foreach (var entry in xmlConfigFile.Entries) {
+					workloadSet.Register (Workload.Serializer.SingleInstance.Load(entry));
 				}
 				
 				return workloadSet;
@@ -126,7 +146,7 @@ namespace MinCai.Simulators.Flexim.Interop
 		{
 			Debug.Assert (!this.Workloads.ContainsKey (workload.Title));
 			
-			workload.Parent = this;
+			workload.WorkloadSet = this;
 			this.Workloads[workload.Title] = workload;
 		}
 
@@ -162,9 +182,9 @@ namespace MinCai.Simulators.Flexim.Interop
 	{
 	}
 
-	public class CacheConfig : Config
+	public sealed class CacheConfig : Config
 	{
-		public class Serializer : XmlConfigSerializer<CacheConfig>
+		public sealed class Serializer : XmlConfigSerializer<CacheConfig>
 		{
 			public Serializer ()
 			{
@@ -231,9 +251,9 @@ namespace MinCai.Simulators.Flexim.Interop
 		public CacheReplacementPolicy Policy { get; set; }
 	}
 
-	public class MainMemoryConfig : Config
+	public sealed class MainMemoryConfig : Config
 	{
-		public class Serializer : XmlConfigSerializer<MainMemoryConfig>
+		public sealed class Serializer : XmlConfigSerializer<MainMemoryConfig>
 		{
 			public Serializer ()
 			{
@@ -273,9 +293,9 @@ namespace MinCai.Simulators.Flexim.Interop
 		public uint Latency { get; set; }
 	}
 
-	public class ContextConfig : Config
+	public sealed class ContextConfig : Config
 	{
-		public class Serializer : XmlConfigSerializer<ContextConfig>
+		public sealed class Serializer : XmlConfigSerializer<ContextConfig>
 		{
 			public Serializer ()
 			{
@@ -285,7 +305,7 @@ namespace MinCai.Simulators.Flexim.Interop
 			{
 				XmlConfig xmlConfig = new XmlConfig ("ContextConfig");
 				
-				xmlConfig["workloadSetTitle"] = contextConfig.Workload.Parent.Title;
+				xmlConfig["workloadSetTitle"] = contextConfig.Workload.WorkloadSet.Title;
 				xmlConfig["workloadTitle"] = contextConfig.Workload.Title;
 				
 				return xmlConfig;
@@ -319,9 +339,9 @@ namespace MinCai.Simulators.Flexim.Interop
 		public Workload Workload { get; set; }
 	}
 
-	public class CoreConfig : Config
+	public sealed class CoreConfig : Config
 	{
-		public class Serializer : XmlConfigSerializer<CoreConfig>
+		public sealed class Serializer : XmlConfigSerializer<CoreConfig>
 		{
 			public Serializer ()
 			{
@@ -365,9 +385,9 @@ namespace MinCai.Simulators.Flexim.Interop
 		public CacheConfig DCache { get; set; }
 	}
 
-	public class ProcessorConfig : Config
+	public sealed class ProcessorConfig : Config
 	{
-		public class Serializer : XmlConfigSerializer<ProcessorConfig>
+		public sealed class Serializer : XmlConfigSerializer<ProcessorConfig>
 		{
 			public Serializer ()
 			{
@@ -390,7 +410,7 @@ namespace MinCai.Simulators.Flexim.Interop
 				xmlConfig["reorderBufferCapacity"] = processorConfig.ReorderBufferCapacity + "";
 				xmlConfig["loadStoreQueueCapacity"] = processorConfig.LoadStoreQueueCapacity + "";
 				
-				foreach (CoreConfig core in processorConfig.Cores) {
+				foreach (var core in processorConfig.Cores) {
 					xmlConfig.Entries.Add (CoreConfig.Serializer.SingleInstance.Save (core));
 				}
 				
@@ -415,7 +435,7 @@ namespace MinCai.Simulators.Flexim.Interop
 				ProcessorConfig processorConfig = new ProcessorConfig (maxCycle, maxInsts, maxTime, numThreadsPerCore, physicalRegisterFileCapacity, decodeWidth, issueWidth, commitWidth, decodeBufferCapacity, reorderBufferCapacity,
 				loadStoreQueueCapacity);
 				
-				foreach (XmlConfig entry in xmlConfig.Entries) {
+				foreach (var entry in xmlConfig.Entries) {
 					processorConfig.Cores.Add (CoreConfig.Serializer.SingleInstance.Load (entry));
 				}
 				
@@ -464,9 +484,9 @@ namespace MinCai.Simulators.Flexim.Interop
 		public uint LoadStoreQueueCapacity { get; set; }
 	}
 
-	public class ArchitectureConfig : Config
+	public sealed class ArchitectureConfig : Config
 	{
-		public class Serializer : XmlConfigFileSerializer<ArchitectureConfig>
+		public sealed class Serializer : XmlConfigFileSerializer<ArchitectureConfig>
 		{
 			public Serializer ()
 			{
@@ -514,23 +534,6 @@ namespace MinCai.Simulators.Flexim.Interop
 			return string.Format ("[ArchitectureConfig: Title={0}, Processor={1}, L2Cache={2}, MainMemory={3}]", this.Title, this.Processor, this.L2Cache, this.MainMemory);
 		}
 
-		public Dictionary<string, CacheConfig> Caches {
-			get {
-				Dictionary<string, CacheConfig> caches = new Dictionary<string, CacheConfig> ();
-				
-				for (int i = 0; i < this.Processor.Cores.Count; i++) {
-					CoreConfig core = this.Processor.Cores[i];
-					
-					caches["l1I-" + i] = core.ICache;
-					caches["l1D-" + i] = core.DCache;
-				}
-				
-				caches["l2"] = this.L2Cache;
-				
-				return caches;
-			}
-		}
-
 		public string Title { get; set; }
 		public ProcessorConfig Processor { get; set; }
 		public CacheConfig L2Cache { get; set; }
@@ -543,7 +546,7 @@ namespace MinCai.Simulators.Flexim.Interop
 
 		public static void SaveXML (ArchitectureConfig architectureConfig)
 		{
-			SaveXML (architectureConfig, MinCai.Simulators.Flexim.Pipelines.Processor.WorkDirectory + Path.DirectorySeparatorChar + "configs/architectures", architectureConfig.Title + ".xml");
+			SaveXML (architectureConfig, MinCai.Simulators.Flexim.Microarchitecture.Processor.WorkDirectory + Path.DirectorySeparatorChar + "configs/architectures", architectureConfig.Title + ".xml");
 		}
 
 		public static void SaveXML (ArchitectureConfig architectureConfig, string cwd, string fileName)
@@ -552,9 +555,9 @@ namespace MinCai.Simulators.Flexim.Interop
 		}
 	}
 
-	public class SimulationConfig : Config
+	public sealed class SimulationConfig : Config
 	{
-		public class Serializer : XmlConfigSerializer<SimulationConfig>
+		public sealed class Serializer : XmlConfigSerializer<SimulationConfig>
 		{
 			public Serializer ()
 			{
@@ -566,7 +569,7 @@ namespace MinCai.Simulators.Flexim.Interop
 				
 				xmlConfig["architectureConfigTitle"] = simulationConfig.Architecture.Title;
 				
-				foreach (ContextConfig context in simulationConfig.Contexts) {
+				foreach (var context in simulationConfig.Contexts) {
 					xmlConfig.Entries.Add (ContextConfig.Serializer.SingleInstance.Save (context));
 				}
 				
@@ -581,7 +584,7 @@ namespace MinCai.Simulators.Flexim.Interop
 				
 				SimulationConfig simulationConfig = new SimulationConfig (architecture);
 				
-				foreach (XmlConfig entry in xmlConfig.Entries) {
+				foreach (var entry in xmlConfig.Entries) {
 					simulationConfig.Contexts.Add (ContextConfig.Serializer.SingleInstance.Load (entry));
 				}
 				
@@ -611,9 +614,9 @@ namespace MinCai.Simulators.Flexim.Interop
 		public abstract void Reset ();
 	}
 
-	public class CacheStat : Stat
+	public sealed class CacheStat : Stat
 	{
-		public class Serializer : XmlConfigSerializer<CacheStat>
+		public sealed class Serializer : XmlConfigSerializer<CacheStat>
 		{
 			public Serializer ()
 			{
@@ -761,9 +764,9 @@ namespace MinCai.Simulators.Flexim.Interop
 		public ulong NoRetryWriteHits { get; set; }
 	}
 
-	public class MainMemoryStat : Stat
+	public sealed class MainMemoryStat : Stat
 	{
-		public class Serializer : XmlConfigSerializer<MainMemoryStat>
+		public sealed class Serializer : XmlConfigSerializer<MainMemoryStat>
 		{
 			public Serializer ()
 			{
@@ -819,9 +822,9 @@ namespace MinCai.Simulators.Flexim.Interop
 		public ulong Writes { get; set; }
 	}
 
-	public class ContextStat : Stat
+	public sealed class ContextStat : Stat
 	{
-		public class Serializer : XmlConfigSerializer<ContextStat>
+		public sealed class Serializer : XmlConfigSerializer<ContextStat>
 		{
 			public Serializer ()
 			{
@@ -867,9 +870,9 @@ namespace MinCai.Simulators.Flexim.Interop
 		public ulong TotalInsts { get; set; }
 	}
 
-	public class CoreStat : Stat
+	public sealed class CoreStat : Stat
 	{
-		public class Serializer : XmlConfigSerializer<CoreStat>
+		public sealed class Serializer : XmlConfigSerializer<CoreStat>
 		{
 			public Serializer ()
 			{
@@ -923,9 +926,9 @@ namespace MinCai.Simulators.Flexim.Interop
 		public CacheStat DCache { get; set; }
 	}
 
-	public class ProcessorStat : Stat
+	public sealed class ProcessorStat : Stat
 	{
-		public class Serializer : XmlConfigSerializer<ProcessorStat>
+		public sealed class Serializer : XmlConfigSerializer<ProcessorStat>
 		{
 			public Serializer ()
 			{
@@ -935,11 +938,11 @@ namespace MinCai.Simulators.Flexim.Interop
 			{
 				XmlConfig xmlConfig = new XmlConfig ("ProcessorStat");
 				
-				foreach (CoreStat core in processorStat.Cores) {
+				foreach (var core in processorStat.Cores) {
 					xmlConfig.Entries.Add (CoreStat.Serializer.SingleInstance.Save (core));
 				}
 				
-				foreach (ContextStat context in processorStat.Contexts) {
+				foreach (var context in processorStat.Contexts) {
 					xmlConfig.Entries.Add (ContextStat.Serializer.SingleInstance.Save (context));
 				}
 				
@@ -950,7 +953,7 @@ namespace MinCai.Simulators.Flexim.Interop
 			{
 				ProcessorStat processorStat = new ProcessorStat ();
 				
-				foreach (XmlConfig entry in xmlConfig.Entries) {
+				foreach (var entry in xmlConfig.Entries) {
 					if (entry.TypeName.Equals ("CoreStat")) {
 						processorStat.Cores.Add (CoreStat.Serializer.SingleInstance.Load (entry));
 					} else if (entry.TypeName.Equals ("ContextStat")) {
@@ -976,11 +979,11 @@ namespace MinCai.Simulators.Flexim.Interop
 
 		public override void Reset ()
 		{
-			foreach (CoreStat core in this.Cores) {
+			foreach (var core in this.Cores) {
 				core.Reset ();
 			}
 			
-			foreach (ContextStat context in this.Contexts) {
+			foreach (var context in this.Contexts) {
 				context.Reset ();
 			}
 		}
@@ -994,9 +997,9 @@ namespace MinCai.Simulators.Flexim.Interop
 		public List<ContextStat> Contexts { get; private set; }
 	}
 
-	public class SimulationStat : Stat
+	public sealed class SimulationStat : Stat
 	{
-		public class Serializer : XmlConfigSerializer<SimulationStat>
+		public sealed class Serializer : XmlConfigSerializer<SimulationStat>
 		{
 			public Serializer ()
 			{
@@ -1105,12 +1108,12 @@ namespace MinCai.Simulators.Flexim.Interop
 		public ulong Duration { get; set; }
 		public ulong TotalInsts { get; set; }
 		public double InstsPerCycle { get; set; }
-		public double CyclesPerSecond {get;set;}
+		public double CyclesPerSecond { get; set; }
 	}
 
-	public class Simulation
+	public sealed class Simulation
 	{
-		public class Serializer : XmlConfigFileSerializer<Simulation>
+		public sealed class Serializer : XmlConfigFileSerializer<Simulation>
 		{
 			public Serializer ()
 			{
@@ -1136,7 +1139,7 @@ namespace MinCai.Simulators.Flexim.Interop
 				
 				SimulationConfig config = SimulationConfig.Serializer.SingleInstance.Load (xmlConfigFile.Entries[0]);
 //				TODO: SimulationStat stat = SimulationStat.Serializer.SingleInstance.Load (xmlConfigFile.Entries[1]);
-				SimulationStat stat = new SimulationStat(config.Architecture.Processor.Cores.Count, config.Architecture.Processor.NumThreadsPerCore);
+				SimulationStat stat = new SimulationStat (config.Architecture.Processor.Cores.Count, config.Architecture.Processor.NumThreadsPerCore);
 				
 				Simulation simulation = new Simulation (title, cwd, config, stat);
 				
@@ -1162,56 +1165,49 @@ namespace MinCai.Simulators.Flexim.Interop
 			this.Stat = new SimulationStat (architectureConfig.Processor.Cores.Count, architectureConfig.Processor.NumThreadsPerCore);
 		}
 
-		public delegate void SimulatorInitDelegate (Processor simulator);
-
-		public void Execute (SimulatorInitDelegate del)
+		public void Execute (Action<Processor> simulatorInitAction)
 		{
-			this.BeforeRun (del);
-			this.Run ();
+			this.BeforeRun ();
+			this.Run (simulatorInitAction);
 			this.AfterRun ();
 		}
 
-		public void BeforeRun (SimulatorInitDelegate del)
+		private void BeforeRun ()
 		{
-			this.SimulatorInitDel = del;
-			this.Running = true;
+			this.IsRunning = true;
 			this.Stat.Reset ();
 		}
 
-		public void Run ()
+		private void Run (Action<Processor> simulatorInitAction)
 		{
 			Processor simulator = new Processor (this);
 			
-			if (this.SimulatorInitDel != null) {
-				this.SimulatorInitDel (simulator);
-			}
+			simulatorInitAction (simulator);
 			
 			simulator.Run ();
 		}
 
 		public void Abort ()
 		{
-			this.Running = false;
+			this.IsRunning = false;
 		}
 
-		public void AfterRun ()
+		private void AfterRun ()
 		{
-			this.Running = false;
+			this.IsRunning = false;
 		}
 
 		public override string ToString ()
 		{
-			return string.Format ("[Simulation: Title={0}, Cwd={1}, Config={2}, Stat={3}, Running={4}]", this.Title, this.Cwd, this.Config, this.Stat, this.Running);
+			return string.Format ("[Simulation: Title={0}, Cwd={1}, Config={2}, Stat={3}, IsRunning={4}]", this.Title, this.Cwd, this.Config, this.Stat, this.IsRunning);
 		}
 
 		public string Title { get; set; }
 		public string Cwd { get; set; }
-		public SimulationConfig Config { get; set; }
-		public SimulationStat Stat { get; set; }
+		public SimulationConfig Config { get; private set; }
+		public SimulationStat Stat { get; private set; }
 
-		public bool Running { get; set; }
-
-		public SimulatorInitDelegate SimulatorInitDel { get; set; }
+		public bool IsRunning { get; set; }
 
 		public static Simulation LoadXML (string cwd, string fileName)
 		{

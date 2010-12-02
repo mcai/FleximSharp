@@ -27,15 +27,14 @@ using System.Runtime.InteropServices;
 using System.Text;
 using MinCai.Simulators.Flexim.Architecture;
 using MinCai.Simulators.Flexim.Common;
-using MinCai.Simulators.Flexim.Interop;
 using MinCai.Simulators.Flexim.MemoryHierarchy;
 using MinCai.Simulators.Flexim.OperatingSystem;
-using MinCai.Simulators.Flexim.Pipelines;
+using MinCai.Simulators.Flexim.Microarchitecture;
 using Mono.Unix.Native;
 
 namespace MinCai.Simulators.Flexim.OperatingSystem
 {
-	public class ElfReaderException : Exception
+	public sealed class ElfReaderException : Exception
 	{
 		public ElfReaderException (string message) : base(message)
 		{
@@ -118,7 +117,7 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 		}
 	}
 
-	public class ElfHeader : ElfFormatEntity
+	public sealed class ElfHeader : ElfFormatEntity
 	{
 		public enum E_Type : ushort
 		{
@@ -194,7 +193,7 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 		public ushort E_shstrndx { get; private set; }
 	}
 
-	public class ElfIdentification
+	public sealed class ElfIdentification
 	{
 		public enum Ei_Class : uint
 		{
@@ -236,7 +235,7 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 		public int Ei_version { get; private set; }
 	}
 
-	public class ElfProgramHeader : ElfFormatEntity
+	public sealed class ElfProgramHeader : ElfFormatEntity
 	{
 		public enum P_Type : uint
 		{
@@ -291,7 +290,7 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 		public byte[] Content { get; private set; }
 	}
 
-	public class ElfSectionHeader : ElfFormatEntity
+	public sealed class ElfSectionHeader : ElfFormatEntity
 	{
 		public enum Sh_Type : uint
 		{
@@ -372,7 +371,7 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 		public byte[] Content { get; private set; }
 	}
 
-	public class ElfStringTable : ElfFormatEntity
+	public sealed class ElfStringTable : ElfFormatEntity
 	{
 		public ElfStringTable (ElfSectionHeader section) : base(section.ElfFile)
 		{
@@ -403,10 +402,10 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 		}
 
 		private ElfSectionHeader SectionHeader { get; set; }
-		public byte[] RawData { get; private set; }
+		private byte[] RawData { get; set; }
 	}
 
-	public class ElfSymbolTable : ElfFormatEntity
+	public sealed class ElfSymbolTable : ElfFormatEntity
 	{
 		public ElfSymbolTable (ElfSectionHeader section) : base(section.ElfFile)
 		{
@@ -437,7 +436,7 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 		public List<ElfSymbolTableEntry> Entries { get; private set; }
 	}
 
-	public class ElfSymbolTableEntry : ElfFormatEntity
+	public sealed class ElfSymbolTableEntry : ElfFormatEntity
 	{
 		public enum SymbolBinding : uint
 		{
@@ -472,11 +471,10 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			this.St_other = this.ReadByte (this.ElfFile.Reader);
 			this.St_shndx = this.ReadElf32Half (this.ElfFile.Reader);
 		}
-		
+
 		public override string ToString ()
 		{
-			return string.Format ("[ElfSymbolTableEntry: Name={0}, Binding={1}, Type={2}, St_value={3}, St_size={4}, St_info={5}, St_other={6}, St_shndx={7}]",
-				this.Name, this.Binding, this.Type, this.St_value, this.St_size, this.St_info, this.St_other, this.St_shndx);
+			return string.Format ("[ElfSymbolTableEntry: Name={0}, Binding={1}, Type={2}, St_value={3}, St_size={4}, St_info={5}, St_other={6}, St_shndx={7}]", this.Name, this.Binding, this.Type, this.St_value, this.St_size, this.St_info, this.St_other, this.St_shndx);
 		}
 
 		public string Name {
@@ -514,7 +512,7 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 		}
 	}
 
-	public class ElfFile
+	public sealed class ElfFile
 	{
 		public ElfFile (BinaryReader reader)
 		{
@@ -574,7 +572,7 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			
 			this.StringTable = this.SectionHeaders[this.Header.E_shstrndx].AssociatedEntity as ElfStringTable;
 			
-			foreach (ElfSectionHeader sectionHeader in this.SectionHeaders) {
+			foreach (var sectionHeader in this.SectionHeaders) {
 				if (sectionHeader.Name == ".strtab") {
 					this.SymbolStringTable = sectionHeader.AssociatedEntity as ElfStringTable;
 				}
@@ -595,9 +593,9 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 		public ElfHeader Header { get; private set; }
 		public List<ElfSectionHeader> SectionHeaders { get; private set; }
 		public List<ElfProgramHeader> ProgramHeaders { get; private set; }
-		public ElfStringTable StringTable { get; set; }
-		public ElfStringTable SymbolStringTable { get; set; }
-		public ElfSymbolTable SymbolTable { get; set; }
+		public ElfStringTable StringTable { get; private set; }
+		public ElfStringTable SymbolStringTable { get; private set; }
+		public ElfSymbolTable SymbolTable { get; private set; }
 
 		public static ElfFile OpenAndProcessFile (string filename)
 		{
@@ -629,22 +627,15 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			return file;
 		}
 	}
-	
-	public static class LinkerConstants
-	{
-		public static uint LD_STACK_BASE = 0xc0000000;
-		public static uint LD_MAX_ENVIRON = 0x40000;
-		public static uint LD_STACK_SIZE = 0x100000;
-	}
 
-	public class Process
+	public sealed class Process
 	{
 		public Process (string cwd, List<string> args)
 		{
 			this.Cwd = cwd;
 			this.Args = args;
 			
-			this.Env = new List<string> ();
+			this.Envs = new List<string> ();
 			
 			this.Uid = 100;
 			this.Euid = 100;
@@ -655,12 +646,10 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			this.Ppid = 99;
 		}
 
-		public bool Load (Thread thread)
+		public void Load (Thread thread)
 		{
 			ElfFile file = ElfFile.OpenAndProcessFile (this.Args[0]);
 			this.LoadInternal (thread, file);
-			
-			return true;
 		}
 
 		unsafe private void LoadInternal (Thread thread, ElfFile file)
@@ -670,26 +659,26 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			uint envAddr, argAddr;
 			uint stackPtr;
 			
-			foreach (ElfProgramHeader phdr in file.ProgramHeaders) {
+			foreach (var phdr in file.ProgramHeaders) {
 				if (phdr.P_type == ElfProgramHeader.P_Type.PT_LOAD && phdr.P_vaddr > dataBase) {
 					dataBase = phdr.P_vaddr;
 					dataSize = phdr.P_memsz;
 				}
 			}
 			
-			foreach (ElfSectionHeader shdr in file.SectionHeaders) {
+			foreach (var shdr in file.SectionHeaders) {
 				if (shdr.Sh_type == ElfSectionHeader.Sh_Type.SHT_PROGBITS || shdr.Sh_type == ElfSectionHeader.Sh_Type.SHT_NOBITS) {
 					if (shdr.Sh_size > 0 && ((shdr.Sh_flags & ElfSectionHeader.Sh_Flags.SHF_ALLOC) != 0)) {
 //						Logger.Infof (LogCategory.PROCESS, "Loading {0:s} ({1:d} bytes) at address 0x{2:x8}", shdr.Name, shdr.Sh_size, shdr.Sh_addr);
 						
-						MemoryAccessType perm = MemoryAccessType.INIT | MemoryAccessType.READ;
+						MemoryAccessType perm = MemoryAccessType.Init | MemoryAccessType.Read;
 						
 						if ((shdr.Sh_flags & ElfSectionHeader.Sh_Flags.SHF_WRITE) != 0) {
-							perm |= MemoryAccessType.WRITE;
+							perm |= MemoryAccessType.Write;
 						}
 						
 						if ((shdr.Sh_flags & ElfSectionHeader.Sh_Flags.SHF_EXECINSTR) != 0) {
-							perm |= MemoryAccessType.EXEC;
+							perm |= MemoryAccessType.Execute;
 						}
 						
 						thread.Mem.Map (shdr.Sh_addr, (int)shdr.Sh_size, perm);
@@ -703,23 +692,23 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 						}
 					}
 				} else if (shdr.Sh_type == ElfSectionHeader.Sh_Type.SHT_DYNAMIC || shdr.Sh_type == ElfSectionHeader.Sh_Type.SHT_DYNSYM) {
-					Logger.Fatal (LogCategory.ELF, "dynamic linking is not supported");
+					Logger.Fatal (LogCategory.Elf, "dynamic linking is not supported");
 				}
 			}
 			
-			this.ProgEntry = file.Header.E_entry;
+			this.ProgramEntry = file.Header.E_entry;
 			
 			const uint STACK_BASE = 0xc0000000;
 			const uint MMAP_BASE = 0xd4000000;
 			const uint MAX_ENVIRON = (16 * 1024);
 			const uint STACK_SIZE = (1024 * 1024);
 			
-			thread.Mem.Map (STACK_BASE - STACK_SIZE, (int)STACK_SIZE, MemoryAccessType.READ | MemoryAccessType.WRITE);
+			thread.Mem.Map (STACK_BASE - STACK_SIZE, (int)STACK_SIZE, MemoryAccessType.Read | MemoryAccessType.Write);
 			thread.Mem.Zero (STACK_BASE - STACK_SIZE, (int)STACK_SIZE);
 			
 			stackPtr = STACK_BASE - MAX_ENVIRON;
 			
-			thread.Regs.IntRegs[RegisterConstants.StackPointerReg] = stackPtr;
+			thread.Regs.IntRegs[RegisterConstants.STACK_POINTER_REG] = stackPtr;
 			
 			thread.Mem.WriteWord (stackPtr, this.Argc);
 			thread.SetSyscallArg (0, this.Argc);
@@ -730,7 +719,7 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			stackPtr += (uint)((this.Argc + 1) * Marshal.SizeOf (typeof(uint)));
 			
 			envAddr = stackPtr;
-			stackPtr += (uint)(this.Env.Count * Marshal.SizeOf (typeof(uint)) + Marshal.SizeOf (typeof(uint)));
+			stackPtr += (uint)(this.Envs.Count * Marshal.SizeOf (typeof(uint)) + Marshal.SizeOf (typeof(uint)));
 			
 			for (int i = 0; i < this.Argc; i++) {
 				thread.Mem.WriteWord ((uint)(argAddr + i * Marshal.SizeOf (typeof(uint))), stackPtr);
@@ -739,398 +728,415 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 				thread.Mem.WriteString (stackPtr, arg);
 				Marshal.FreeHGlobal ((IntPtr)arg);
 				
-				stackPtr += (uint)(PtrUtils.Strlen (arg) + 1);
+				stackPtr += (uint)(PtrHelper.Strlen (arg) + 1);
 			}
 			
-			for (int i = 0; i < this.Env.Count; i++) {
+			for (int i = 0; i < this.Envs.Count; i++) {
 				thread.Mem.WriteWord ((uint)(envAddr + i * Marshal.SizeOf (typeof(uint))), stackPtr);
 				
-				char* e = (char*)Marshal.StringToHGlobalAnsi (this.Env[i]);
+				char* e = (char*)Marshal.StringToHGlobalAnsi (this.Envs[i]);
 				thread.Mem.WriteString (stackPtr, e);
 				Marshal.FreeHGlobal ((IntPtr)e);
 				
-				stackPtr += (uint)(PtrUtils.Strlen (e) + 1);
+				stackPtr += (uint)(PtrHelper.Strlen (e) + 1);
 			}
 			
 			if (stackPtr + Marshal.SizeOf (typeof(uint)) >= STACK_BASE) {
-				Logger.Fatal (LogCategory.PROCESS, "Environment overflow. Need to increase MAX_ENVIRON.");
+				Logger.Fatal (LogCategory.Process, "Environment overflow. Need to increase MAX_ENVIRON.");
 			}
 			
-			uint abrk = dataBase + dataSize + MemoryConstants.MEM_PAGESIZE;
-			abrk -= abrk % MemoryConstants.MEM_PAGESIZE;
+			uint abrk = dataBase + dataSize + MemoryConstants.PAGE_SIZE;
+			abrk -= abrk % MemoryConstants.PAGE_SIZE;
 			
 			this.Brk = abrk;
 			
 			this.MmapBrk = MMAP_BASE;
 			
-			thread.Regs.Npc = this.ProgEntry;
+			thread.Regs.Npc = this.ProgramEntry;
 			thread.Regs.Nnpc = (uint)(thread.Regs.Npc + Marshal.SizeOf (typeof(uint)));
 		}
 
 		public string Cwd { get; private set; }
 		public List<string> Args { get; private set; }
 
-		public uint Argc {
+		private uint Argc {
 			get { return (uint)this.Args.Count; }
 		}
 
-		unsafe public List<string> Env { get; private set; }
+		unsafe public List<string> Envs { get; private set; }
 
 		public uint Brk { get; set; }
-		public uint MmapBrk { get; set; }
-		public uint ProgEntry { get; set; }
+		public uint MmapBrk { get; private set; }
+		public uint ProgramEntry { get; private set; }
 
-		public uint Uid { get; set; }
-		public uint Euid { get; set; }
-		public uint Gid { get; set; }
-		public uint Egid { get; set; }
-		public uint Pid { get; set; }
-		public uint Ppid { get; set; }
+		public uint Uid { get; private set; }
+		public uint Euid { get; private set; }
+		public uint Gid { get; private set; }
+		public uint Egid { get; private set; }
+		public uint Pid { get; private set; }
+		public uint Ppid { get; private set; }
 	}
 
-	public delegate int SyscallAction (SyscallDesc desc, Thread thread);
-
-	public static class SyscallConstants
+	public static class SyscallEmulation
 	{
-		public static uint MAX_BUFFER_SIZE = 1024;
-
-		public static int SIM_O_RDONLY = 0;
-		public static int SIM_O_WRONLY = 1;
-		public static int SIM_O_RDWR = 2;
-		public static int SIM_O_CREAT = 0x100;
-		public static int SIM_O_EXCL = 0x400;
-		public static int SIM_O_NOCTTY = 0x800;
-		public static int SIM_O_TRUNC = 0x200;
-		public static int SIM_O_APPEND = 8;
-		public static int SIM_O_NONBLOCK = 0x80;
-		public static int SIM_O_SYNC = 0x10;
-	}
-
-	public struct OpenFlagTransTable
-	{
-		public OpenFlagTransTable (int tgtFlag, int hostFlag)
+		private enum TargetOpenFlags : int
 		{
-			this.TgtFlag = tgtFlag;
-			this.HostFlag = hostFlag;
+			O_RDONLY = 0,
+			O_WRONLY = 1,
+			O_RDWR = 2,
+			O_CREAT = 0x100,
+			O_EXCL = 0x400,
+			O_NOCTTY = 0x800,
+			O_TRUNC = 0x200,
+			O_APPEND = 8,
+			O_NONBLOCK = 0x80,
+			O_SYNC = 0x10
 		}
 
-		public int TgtFlag;
-		public int HostFlag;
-
-		static OpenFlagTransTable ()
+		private sealed class OpenFlagMapping
 		{
-			OpenFlagTable = new List<OpenFlagTransTable> ();
-			OpenFlagTable.Add (new OpenFlagTransTable (SyscallConstants.SIM_O_RDONLY, (int)OpenFlags.O_RDONLY));
-			OpenFlagTable.Add (new OpenFlagTransTable (SyscallConstants.SIM_O_WRONLY, (int)OpenFlags.O_WRONLY));
-			OpenFlagTable.Add (new OpenFlagTransTable (SyscallConstants.SIM_O_RDWR, (int)OpenFlags.O_RDWR));
-			OpenFlagTable.Add (new OpenFlagTransTable (SyscallConstants.SIM_O_APPEND, (int)OpenFlags.O_APPEND));
-			OpenFlagTable.Add (new OpenFlagTransTable (SyscallConstants.SIM_O_SYNC, (int)OpenFlags.O_SYNC));
-			OpenFlagTable.Add (new OpenFlagTransTable (SyscallConstants.SIM_O_CREAT, (int)OpenFlags.O_CREAT));
-			OpenFlagTable.Add (new OpenFlagTransTable (SyscallConstants.SIM_O_TRUNC, (int)OpenFlags.O_TRUNC));
-			OpenFlagTable.Add (new OpenFlagTransTable (SyscallConstants.SIM_O_EXCL, (int)OpenFlags.O_EXCL));
-			OpenFlagTable.Add (new OpenFlagTransTable (SyscallConstants.SIM_O_NOCTTY, (int)OpenFlags.O_NOCTTY));
-			OpenFlagTable.Add (new OpenFlagTransTable (0x2000, 0));
+			public OpenFlagMapping (int targetFlag, int hostFlag)
+			{
+				this.TargetFlag = targetFlag;
+				this.HostFlag = hostFlag;
+			}
+
+			public int TargetFlag { get; private set; }
+			public int HostFlag { get; private set; }
 		}
 
-		public static List<OpenFlagTransTable> OpenFlagTable;
-	}
-
-	[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
-	public struct utsname
-	{
-		[MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
-		public string sysname;
-
-		[MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
-		public string nodename;
-
-		[MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
-		public string release;
-
-		[MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
-		public string version;
-
-		[MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
-		public string machine;
-
-		[MarshalAs(UnmanagedType.ByValTStr, SizeConst = 1024)]
-		public string extraJustInCase;
-	}
-
-	public class SyscallEmul
-	{
-		public SyscallEmul ()
+		[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+		private struct Utsname
 		{
-			this.SyscallDescs = new Dictionary<uint, SyscallDesc> ();
+			[MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
+			public string sysname;
+
+			[MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
+			public string nodename;
+
+			[MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
+			public string release;
+
+			[MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
+			public string version;
+
+			[MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
+			public string machine;
+
+			[MarshalAs(UnmanagedType.ByValTStr, SizeConst = 1024)]
+			public string extraJustInCase;
+		}
+
+		private sealed class SyscallDesc
+		{
+			public SyscallDesc (string name, uint num) : this(name, num, null)
+			{
+			}
+
+			public SyscallDesc (string name, uint num, Func<SyscallDesc, Thread, int> action)
+			{
+				this.Name = name;
+				this.Num = num;
+				this.Action = action;
+			}
+
+			public void DoSyscall (Thread thread)
+			{
+				if (this.Action == null) {
+					Logger.Fatalf (LogCategory.Syscall, "syscall {0:s} has not been implemented yet.", this.Name);
+				}
+				
+				int retVal = this.Action (this, thread);
+				thread.SetSyscallReturn (retVal);
+			}
+
+			public string Name { get; set; }
+			public uint Num { get; set; }
+			public Func<SyscallDesc, Thread, int> Action { get; set; }
+		}
+
+		static SyscallEmulation ()
+		{
+			OpenFlagMappings = new List<OpenFlagMapping> ();
+			OpenFlagMappings.Add (new OpenFlagMapping ((int)TargetOpenFlags.O_RDONLY, (int)OpenFlags.O_RDONLY));
+			OpenFlagMappings.Add (new OpenFlagMapping ((int)TargetOpenFlags.O_WRONLY, (int)OpenFlags.O_WRONLY));
+			OpenFlagMappings.Add (new OpenFlagMapping ((int)TargetOpenFlags.O_RDWR, (int)OpenFlags.O_RDWR));
+			OpenFlagMappings.Add (new OpenFlagMapping ((int)TargetOpenFlags.O_APPEND, (int)OpenFlags.O_APPEND));
+			OpenFlagMappings.Add (new OpenFlagMapping ((int)TargetOpenFlags.O_SYNC, (int)OpenFlags.O_SYNC));
+			OpenFlagMappings.Add (new OpenFlagMapping ((int)TargetOpenFlags.O_CREAT, (int)OpenFlags.O_CREAT));
+			OpenFlagMappings.Add (new OpenFlagMapping ((int)TargetOpenFlags.O_TRUNC, (int)OpenFlags.O_TRUNC));
+			OpenFlagMappings.Add (new OpenFlagMapping ((int)TargetOpenFlags.O_EXCL, (int)OpenFlags.O_EXCL));
+			OpenFlagMappings.Add (new OpenFlagMapping ((int)TargetOpenFlags.O_NOCTTY, (int)OpenFlags.O_NOCTTY));
+			OpenFlagMappings.Add (new OpenFlagMapping (0x2000, 0));
 			
-			this.InitSyscallDescs ();
+			SyscallDescs = new Dictionary<uint, SyscallDesc> ();
+			
+			InitSyscallDescs ();
 		}
 
-		public void InitSyscallDescs ()
+		private static void InitSyscallDescs ()
 		{
 			uint index = 0;
 			
-						/* 0 */this.Register ("syscall", index++);
-			/* 1 */			this.Register ("exit", index++, ExitImpl);
-			/* 2 */			this.Register ("fork", index++, InvalidArgImpl);
-			/* 3 */			this.Register ("read", index++, ReadImpl);
-			/* 4 */			this.Register ("write", index++, WriteImpl);
-			/* 5 */			this.Register ("open", index++, OpenImpl);
-			/* 6 */			this.Register ("close", index++, CloseImpl);
-			/* 7 */			this.Register ("waitpid", index++, InvalidArgImpl);
-			/* 8 */			this.Register ("creat", index++, InvalidArgImpl);
-			/* 8 */			this.Register ("link", index++, InvalidArgImpl);
-			/* 10 */			this.Register ("unlink", index++, InvalidArgImpl);
-			/* 11 */			this.Register ("execve", index++, InvalidArgImpl);
-			/* 12 */			this.Register ("chdir", index++, InvalidArgImpl);
-			/* 13 */			this.Register ("time", index++, InvalidArgImpl);
-			/* 14 */			this.Register ("mknod", index++, InvalidArgImpl);
-			/* 15 */			this.Register ("chmod", index++, InvalidArgImpl);
-			/* 16 */			this.Register ("lchown", index++, InvalidArgImpl);
-			/* 17 */			this.Register ("break", index++, InvalidArgImpl);
-			/* 18 */			this.Register ("oldstat", index++, InvalidArgImpl);
-			/* 19 */			this.Register ("lseek", index++, LseekImpl);
-			/* 20 */			this.Register ("getpid", index++, GetpidImpl);
-			/* 21 */			this.Register ("mount", index++, InvalidArgImpl);
-			/* 22 */			this.Register ("umount", index++, InvalidArgImpl);
-			/* 23 */			this.Register ("setuid", index++, InvalidArgImpl);
-			/* 24 */			this.Register ("getuid", index++, GetuidImpl);
-			/* 25 */			this.Register ("stime", index++, InvalidArgImpl);
-			/* 26 */			this.Register ("ptrace", index++, InvalidArgImpl);
-			/* 27 */			this.Register ("alarm", index++, InvalidArgImpl);
-			/* 28 */			this.Register ("oldfstat", index++, InvalidArgImpl);
-			/* 29 */			this.Register ("pause", index++, InvalidArgImpl);
-			/* 30 */			this.Register ("utime", index++, InvalidArgImpl);
-			/* 31 */			this.Register ("stty", index++, InvalidArgImpl);
-			/* 32 */			this.Register ("gtty", index++, InvalidArgImpl);
-			/* 33 */			this.Register ("access", index++, InvalidArgImpl);
-			/* 34 */			this.Register ("nice", index++, InvalidArgImpl);
-			/* 35 */			this.Register ("ftime", index++, InvalidArgImpl);
-			/* 36 */			this.Register ("sync", index++, InvalidArgImpl);
-			/* 37 */			this.Register ("kill", index++, InvalidArgImpl);
-			/* 38 */			this.Register ("rename", index++, InvalidArgImpl);
-			/* 39 */			this.Register ("mkdir", index++, InvalidArgImpl);
-			/* 40 */			this.Register ("rmdir", index++, InvalidArgImpl);
-			/* 41 */			this.Register ("dup", index++, InvalidArgImpl);
-			/* 42 */			this.Register ("pipe", index++, InvalidArgImpl);
-			/* 43 */			this.Register ("times", index++, InvalidArgImpl);
-			/* 44 */			this.Register ("prof", index++, InvalidArgImpl);
-			/* 45 */			this.Register ("brk", index++, BrkImpl);
-			/* 46 */			this.Register ("setgid", index++, InvalidArgImpl);
-			/* 47 */			this.Register ("getgid", index++, GetgidImpl);
-			/* 48 */			this.Register ("signal", index++, InvalidArgImpl);
-			/* 49 */			this.Register ("geteuid", index++, GeteuidImpl);
-			/* 50 */			this.Register ("getegid", index++, GetegidImpl);
-			/* 51 */			this.Register ("acct", index++, InvalidArgImpl);
-			/* 52 */			this.Register ("umount2", index++, InvalidArgImpl);
-			/* 53 */			this.Register ("lock", index++, InvalidArgImpl);
-			/* 54 */			this.Register ("ioctl", index++, InvalidArgImpl);
-			/* 55 */			this.Register ("fcntl", index++, InvalidArgImpl);
-			/* 56 */			this.Register ("mpx", index++, InvalidArgImpl);
-			/* 57 */			this.Register ("setpgid", index++, InvalidArgImpl);
-			/* 58 */			this.Register ("ulimit", index++, InvalidArgImpl);
-			/* 59 */			this.Register ("oldolduname", index++, InvalidArgImpl);
-			/* 60 */			this.Register ("umask", index++, InvalidArgImpl);
-			/* 61 */			this.Register ("chroot", index++, InvalidArgImpl);
-			/* 62 */			this.Register ("ustat", index++, InvalidArgImpl);
-			/* 63 */			this.Register ("dup2", index++, InvalidArgImpl);
-			/* 64 */			this.Register ("getppid", index++, InvalidArgImpl);
-			/* 65 */			this.Register ("getpgrp", index++, InvalidArgImpl);
-			/* 66 */			this.Register ("setsid", index++, InvalidArgImpl);
-			/* 67 */			this.Register ("sigaction", index++, InvalidArgImpl);
-			/* 68 */			this.Register ("sgetmask", index++, InvalidArgImpl);
-			/* 69 */			this.Register ("ssetmask", index++, InvalidArgImpl);
-			/* 70 */			this.Register ("setreuid", index++, InvalidArgImpl);
-			/* 71 */			this.Register ("setregid", index++, InvalidArgImpl);
-			/* 72 */			this.Register ("sigsuspend", index++, InvalidArgImpl);
-			/* 73 */			this.Register ("sigpending", index++, InvalidArgImpl);
-			/* 74 */			this.Register ("sethostname", index++, InvalidArgImpl);
-			/* 75 */			this.Register ("setrlimit", index++, InvalidArgImpl);
-			/* 76 */			this.Register ("getrlimit", index++, InvalidArgImpl);
-			/* 77 */			this.Register ("getrusage", index++, InvalidArgImpl);
-			/* 78 */			this.Register ("gettimeofday", index++, InvalidArgImpl);
-			/* 79 */			this.Register ("settimeofday", index++, InvalidArgImpl);
-			/* 80 */			this.Register ("getgroups", index++, InvalidArgImpl);
-			/* 81 */			this.Register ("setgroups", index++, InvalidArgImpl);
-			/* 82 */			this.Register ("select", index++, InvalidArgImpl);
-			/* 83 */			this.Register ("symlink", index++, InvalidArgImpl);
-			/* 84 */			this.Register ("oldlstat", index++, InvalidArgImpl);
-			/* 85 */			this.Register ("readlink", index++, InvalidArgImpl);
-			/* 86 */			this.Register ("uselib", index++, InvalidArgImpl);
-			/* 87 */			this.Register ("swapon", index++, InvalidArgImpl);
-			/* 88 */			this.Register ("reboot", index++, InvalidArgImpl);
-			/* 89 */			this.Register ("readdir", index++, InvalidArgImpl);
-			/* 90 */			this.Register ("mmap", index++, InvalidArgImpl);
-			/* 91 */			this.Register ("munmap", index++, InvalidArgImpl);
-			/* 92 */			this.Register ("truncate", index++, InvalidArgImpl);
-			/* 93 */			this.Register ("ftruncate", index++, InvalidArgImpl);
-			/* 94 */			this.Register ("fchmod", index++, InvalidArgImpl);
-			/* 95 */			this.Register ("fchown", index++, InvalidArgImpl);
-			/* 96 */			this.Register ("getpriority", index++, InvalidArgImpl);
-			/* 97 */			this.Register ("setpriority", index++, InvalidArgImpl);
-			/* 98 */			this.Register ("profil", index++, InvalidArgImpl);
-			/* 99 */			this.Register ("statfs", index++, InvalidArgImpl);
-			/* 100 */			this.Register ("fstatfs", index++, InvalidArgImpl);
-			/* 101 */			this.Register ("ioperm", index++, InvalidArgImpl);
-			/* 102 */			this.Register ("socketcall", index++, InvalidArgImpl);
-			/* 103 */			this.Register ("syslog", index++, InvalidArgImpl);
-			/* 104 */			this.Register ("setitimer", index++, InvalidArgImpl);
-			/* 105 */			this.Register ("getitimer", index++, InvalidArgImpl);
-			/* 106 */			this.Register ("stat", index++, InvalidArgImpl);
-			/* 107 */			this.Register ("lstat", index++, InvalidArgImpl);
-			/* 108 */			this.Register ("fstat", index++, FstatImpl);
-			/* 109 */			this.Register ("olduname", index++, InvalidArgImpl);
-			/* 110 */			this.Register ("iopl", index++, InvalidArgImpl);
-			/* 111 */			this.Register ("vhangup", index++, InvalidArgImpl);
-			/* 112 */			this.Register ("idle", index++, InvalidArgImpl);
-			/* 113 */			this.Register ("vm86old", index++, InvalidArgImpl);
-			/* 114 */			this.Register ("wait4", index++, InvalidArgImpl);
-			/* 115 */			this.Register ("swapoff", index++, InvalidArgImpl);
-			/* 116 */			this.Register ("sysinfo", index++, InvalidArgImpl);
-			/* 117 */			this.Register ("ipc", index++, InvalidArgImpl);
-			/* 118 */			this.Register ("fsync", index++, InvalidArgImpl);
-			/* 119 */			this.Register ("sigreturn", index++, InvalidArgImpl);
-			/* 120 */			this.Register ("clone", index++, InvalidArgImpl);
-			/* 121 */			this.Register ("setdomainname", index++, InvalidArgImpl);
-			/* 122 */			this.Register ("uname", index++, UnameImpl);
-			/* 123 */			this.Register ("modify_ldt", index++, InvalidArgImpl);
-			/* 124 */			this.Register ("adjtimex", index++, InvalidArgImpl);
-			/* 125 */			this.Register ("mprotect", index++, InvalidArgImpl);
-			/* 126 */			this.Register ("sigprocmask", index++, InvalidArgImpl);
-			/* 127 */			this.Register ("create_module", index++, InvalidArgImpl);
-			/* 128 */			this.Register ("init_module", index++, InvalidArgImpl);
-			/* 129 */			this.Register ("delete_module", index++, InvalidArgImpl);
-			/* 130 */			this.Register ("get_kernel_syms", index++, InvalidArgImpl);
-			/* 131 */			this.Register ("quotactl", index++, InvalidArgImpl);
-			/* 132 */			this.Register ("getpgid", index++, InvalidArgImpl);
-			/* 133 */			this.Register ("fchdir", index++, InvalidArgImpl);
-			/* 134 */			this.Register ("bdflush", index++, InvalidArgImpl);
-			/* 135 */			this.Register ("sysfs", index++, InvalidArgImpl);
-			/* 136 */			this.Register ("personality", index++, InvalidArgImpl);
-			/* 137 */			this.Register ("afs_syscall", index++, InvalidArgImpl);
-			/* 138 */			this.Register ("setfsuid", index++, InvalidArgImpl);
-			/* 139 */			this.Register ("setfsgid", index++, InvalidArgImpl);
-			/* 140 */			this.Register ("_llseek", index++, LlseekImpl);
-			/* 141 */			this.Register ("getdents", index++, InvalidArgImpl);
-			/* 142 */			this.Register ("_newselect", index++, InvalidArgImpl);
-			/* 143 */			this.Register ("flock", index++, InvalidArgImpl);
-			/* 144 */			this.Register ("msync", index++, InvalidArgImpl);
-			/* 145 */			this.Register ("readv", index++, InvalidArgImpl);
-			/* 146 */			this.Register ("writev", index++, InvalidArgImpl);
-			/* 147 */			this.Register ("getsid", index++, InvalidArgImpl);
-			/* 148 */			this.Register ("fdatasync", index++, InvalidArgImpl);
-			/* 149 */			this.Register ("_sysctl", index++, InvalidArgImpl);
-			/* 150 */			this.Register ("mlock", index++, InvalidArgImpl);
-			/* 151 */			this.Register ("munlock", index++, InvalidArgImpl);
-			/* 152 */			this.Register ("mlockall", index++, InvalidArgImpl);
-			/* 153 */			this.Register ("munlockall", index++, InvalidArgImpl);
-			/* 154 */			this.Register ("sched_setparam", index++, InvalidArgImpl);
-			/* 155 */			this.Register ("sched_getparam", index++, InvalidArgImpl);
-			/* 156 */			this.Register ("sched_setscheduler", index++, InvalidArgImpl);
-			/* 157 */			this.Register ("sched_getscheduler", index++, InvalidArgImpl);
-			/* 158 */			this.Register ("sched_yield", index++, InvalidArgImpl);
-			/* 159 */			this.Register ("sched_get_priority_max", index++, InvalidArgImpl);
-			/* 160 */			this.Register ("sched_get_priority_min", index++, InvalidArgImpl);
-			/* 161 */			this.Register ("sched_rr_get_interval", index++, InvalidArgImpl);
-			/* 162 */			this.Register ("nanosleep", index++, InvalidArgImpl);
-			/* 163 */			this.Register ("mremap", index++, InvalidArgImpl);
-			/* 164 */			this.Register ("setresuid", index++, InvalidArgImpl);
-			/* 165 */			this.Register ("getresuid", index++, InvalidArgImpl);
-			/* 166 */			this.Register ("vm86", index++, InvalidArgImpl);
-			/* 167 */			this.Register ("query_module", index++, InvalidArgImpl);
-			/* 168 */			this.Register ("poll", index++, InvalidArgImpl);
-			/* 169 */			this.Register ("nfsservctl", index++, InvalidArgImpl);
-			/* 170 */			this.Register ("setresgid", index++, InvalidArgImpl);
-			/* 171 */			this.Register ("getresgid", index++, InvalidArgImpl);
-			/* 172 */			this.Register ("prctl", index++, InvalidArgImpl);
-			/* 173 */			this.Register ("rt_sigreturn", index++, InvalidArgImpl);
-			/* 174 */			this.Register ("rt_sigaction", index++, InvalidArgImpl);
-			/* 175 */			this.Register ("rt_sigprocmask", index++, InvalidArgImpl);
-			/* 176 */			this.Register ("rt_sigpending", index++, InvalidArgImpl);
-			/* 177 */			this.Register ("rt_sigtimedwait", index++, InvalidArgImpl);
-			/* 178 */			this.Register ("rt_sigqueueinfo", index++, InvalidArgImpl);
-			/* 179 */			this.Register ("rt_sigsuspend", index++, InvalidArgImpl);
-			/* 180 */			this.Register ("pread", index++, InvalidArgImpl);
-			/* 181 */			this.Register ("pwrite", index++, InvalidArgImpl);
-			/* 182 */			this.Register ("chown", index++, InvalidArgImpl);
-			/* 183 */			this.Register ("getcwd", index++, InvalidArgImpl);
-			/* 184 */			this.Register ("capget", index++, InvalidArgImpl);
-			/* 185 */			this.Register ("capset", index++, InvalidArgImpl);
-			/* 186 */			this.Register ("sigalstack", index++, InvalidArgImpl);
-			/* 187 */			this.Register ("sendfile", index++, InvalidArgImpl);
-			/* 188 */			this.Register ("getpmsg", index++, InvalidArgImpl);
-			/* 189 */			this.Register ("putpmsg", index++, InvalidArgImpl);
-			/* 190 */			this.Register ("vfork", index++, InvalidArgImpl);
-			/* 191 */			this.Register ("ugetrlimit", index++, InvalidArgImpl);
-			/* 192 */			this.Register ("mmap2", index++, InvalidArgImpl);
-			/* 193 */			this.Register ("truncate64", index++, InvalidArgImpl);
-			/* 194 */			this.Register ("ftruncate64", index++, InvalidArgImpl);
-			/* 195 */			this.Register ("stat64", index++, InvalidArgImpl);
-			/* 196 */			this.Register ("lstat64", index++, InvalidArgImpl);
-			/* 197 */			this.Register ("fstat64", index++, InvalidArgImpl);
-			/* 198 */			this.Register ("lchown32", index++, InvalidArgImpl);
-			/* 199 */			this.Register ("getuid32", index++, InvalidArgImpl);
-			/* 200 */			this.Register ("getgid32", index++, InvalidArgImpl);
-			/* 201 */			this.Register ("geteuid32", index++, InvalidArgImpl);
-			/* 202 */			this.Register ("getegid32", index++, InvalidArgImpl);
-			/* 203 */			this.Register ("setreuid32", index++, InvalidArgImpl);
-			/* 204 */			this.Register ("setregid32", index++, InvalidArgImpl);
-			/* 205 */			this.Register ("getgroups32", index++, InvalidArgImpl);
-			/* 206 */			this.Register ("setgroups32", index++, InvalidArgImpl);
-			/* 207 */			this.Register ("fchown32", index++, InvalidArgImpl);
-			/* 208 */			this.Register ("setresuid32", index++, InvalidArgImpl);
-			/* 209 */			this.Register ("getresuid32", index++, InvalidArgImpl);
-			/* 210 */			this.Register ("setresgid32", index++, InvalidArgImpl);
-			/* 211 */			this.Register ("getresgid32", index++, InvalidArgImpl);
-			/* 212 */			this.Register ("chown32", index++, InvalidArgImpl);
-			/* 213 */			this.Register ("setuid32", index++, InvalidArgImpl);
-			/* 214 */			this.Register ("setgid32", index++, InvalidArgImpl);
-			/* 215 */			this.Register ("setfsuid32", index++, InvalidArgImpl);
-			/* 216 */			this.Register ("setfsgid32", index++, InvalidArgImpl);
-			/* 217 */			this.Register ("pivot_root", index++, InvalidArgImpl);
-			/* 218 */			this.Register ("mincore", index++, InvalidArgImpl);
-			/* 219 */			this.Register ("madvise", index++, InvalidArgImpl);
-			/* 220 */			this.Register ("getdents64", index++, InvalidArgImpl);
-			/* 221 */			this.Register ("fcntl64", index++, InvalidArgImpl);
+			Register ("syscall", index++);
+			Register ("exit", index++, ExitImpl);
+			Register ("fork", index++, InvalidArgImpl);
+			Register ("read", index++, ReadImpl);
+			Register ("write", index++, WriteImpl);
+			Register ("open", index++, OpenImpl);
+			Register ("close", index++, CloseImpl);
+			Register ("waitpid", index++, InvalidArgImpl);
+			Register ("creat", index++, InvalidArgImpl);
+			Register ("link", index++, InvalidArgImpl);
+			Register ("unlink", index++, InvalidArgImpl);
+			Register ("execve", index++, InvalidArgImpl);
+			Register ("chdir", index++, InvalidArgImpl);
+			Register ("time", index++, InvalidArgImpl);
+			Register ("mknod", index++, InvalidArgImpl);
+			Register ("chmod", index++, InvalidArgImpl);
+			Register ("lchown", index++, InvalidArgImpl);
+			Register ("break", index++, InvalidArgImpl);
+			Register ("oldstat", index++, InvalidArgImpl);
+			Register ("lseek", index++, LseekImpl);
+			Register ("getpid", index++, GetpidImpl);
+			Register ("mount", index++, InvalidArgImpl);
+			Register ("umount", index++, InvalidArgImpl);
+			Register ("setuid", index++, InvalidArgImpl);
+			Register ("getuid", index++, GetuidImpl);
+			Register ("stime", index++, InvalidArgImpl);
+			Register ("ptrace", index++, InvalidArgImpl);
+			Register ("alarm", index++, InvalidArgImpl);
+			Register ("oldfstat", index++, InvalidArgImpl);
+			Register ("pause", index++, InvalidArgImpl);
+			Register ("utime", index++, InvalidArgImpl);
+			Register ("stty", index++, InvalidArgImpl);
+			Register ("gtty", index++, InvalidArgImpl);
+			Register ("access", index++, InvalidArgImpl);
+			Register ("nice", index++, InvalidArgImpl);
+			Register ("ftime", index++, InvalidArgImpl);
+			Register ("sync", index++, InvalidArgImpl);
+			Register ("kill", index++, InvalidArgImpl);
+			Register ("rename", index++, InvalidArgImpl);
+			Register ("mkdir", index++, InvalidArgImpl);
+			Register ("rmdir", index++, InvalidArgImpl);
+			Register ("dup", index++, InvalidArgImpl);
+			Register ("pipe", index++, InvalidArgImpl);
+			Register ("times", index++, InvalidArgImpl);
+			Register ("prof", index++, InvalidArgImpl);
+			Register ("brk", index++, BrkImpl);
+			Register ("setgid", index++, InvalidArgImpl);
+			Register ("getgid", index++, GetgidImpl);
+			Register ("signal", index++, InvalidArgImpl);
+			Register ("geteuid", index++, GeteuidImpl);
+			Register ("getegid", index++, GetegidImpl);
+			Register ("acct", index++, InvalidArgImpl);
+			Register ("umount2", index++, InvalidArgImpl);
+			Register ("lock", index++, InvalidArgImpl);
+			Register ("ioctl", index++, InvalidArgImpl);
+			Register ("fcntl", index++, InvalidArgImpl);
+			Register ("mpx", index++, InvalidArgImpl);
+			Register ("setpgid", index++, InvalidArgImpl);
+			Register ("ulimit", index++, InvalidArgImpl);
+			Register ("oldolduname", index++, InvalidArgImpl);
+			Register ("umask", index++, InvalidArgImpl);
+			Register ("chroot", index++, InvalidArgImpl);
+			Register ("ustat", index++, InvalidArgImpl);
+			Register ("dup2", index++, InvalidArgImpl);
+			Register ("getppid", index++, InvalidArgImpl);
+			Register ("getpgrp", index++, InvalidArgImpl);
+			Register ("setsid", index++, InvalidArgImpl);
+			Register ("sigaction", index++, InvalidArgImpl);
+			Register ("sgetmask", index++, InvalidArgImpl);
+			Register ("ssetmask", index++, InvalidArgImpl);
+			Register ("setreuid", index++, InvalidArgImpl);
+			Register ("setregid", index++, InvalidArgImpl);
+			Register ("sigsuspend", index++, InvalidArgImpl);
+			Register ("sigpending", index++, InvalidArgImpl);
+			Register ("sethostname", index++, InvalidArgImpl);
+			Register ("setrlimit", index++, InvalidArgImpl);
+			Register ("getrlimit", index++, InvalidArgImpl);
+			Register ("getrusage", index++, InvalidArgImpl);
+			Register ("gettimeofday", index++, InvalidArgImpl);
+			Register ("settimeofday", index++, InvalidArgImpl);
+			Register ("getgroups", index++, InvalidArgImpl);
+			Register ("setgroups", index++, InvalidArgImpl);
+			Register ("select", index++, InvalidArgImpl);
+			Register ("symlink", index++, InvalidArgImpl);
+			Register ("oldlstat", index++, InvalidArgImpl);
+			Register ("readlink", index++, InvalidArgImpl);
+			Register ("uselib", index++, InvalidArgImpl);
+			Register ("swapon", index++, InvalidArgImpl);
+			Register ("reboot", index++, InvalidArgImpl);
+			Register ("readdir", index++, InvalidArgImpl);
+			Register ("mmap", index++, InvalidArgImpl);
+			Register ("munmap", index++, InvalidArgImpl);
+			Register ("truncate", index++, InvalidArgImpl);
+			Register ("ftruncate", index++, InvalidArgImpl);
+			Register ("fchmod", index++, InvalidArgImpl);
+			Register ("fchown", index++, InvalidArgImpl);
+			Register ("getpriority", index++, InvalidArgImpl);
+			Register ("setpriority", index++, InvalidArgImpl);
+			Register ("profil", index++, InvalidArgImpl);
+			Register ("statfs", index++, InvalidArgImpl);
+			Register ("fstatfs", index++, InvalidArgImpl);
+			Register ("ioperm", index++, InvalidArgImpl);
+			Register ("socketcall", index++, InvalidArgImpl);
+			Register ("syslog", index++, InvalidArgImpl);
+			Register ("setitimer", index++, InvalidArgImpl);
+			Register ("getitimer", index++, InvalidArgImpl);
+			Register ("stat", index++, InvalidArgImpl);
+			Register ("lstat", index++, InvalidArgImpl);
+			Register ("fstat", index++, FstatImpl);
+			Register ("olduname", index++, InvalidArgImpl);
+			Register ("iopl", index++, InvalidArgImpl);
+			Register ("vhangup", index++, InvalidArgImpl);
+			Register ("idle", index++, InvalidArgImpl);
+			Register ("vm86old", index++, InvalidArgImpl);
+			Register ("wait4", index++, InvalidArgImpl);
+			Register ("swapoff", index++, InvalidArgImpl);
+			Register ("sysinfo", index++, InvalidArgImpl);
+			Register ("ipc", index++, InvalidArgImpl);
+			Register ("fsync", index++, InvalidArgImpl);
+			Register ("sigreturn", index++, InvalidArgImpl);
+			Register ("clone", index++, InvalidArgImpl);
+			Register ("setdomainname", index++, InvalidArgImpl);
+			Register ("uname", index++, UnameImpl);
+			Register ("modify_ldt", index++, InvalidArgImpl);
+			Register ("adjtimex", index++, InvalidArgImpl);
+			Register ("mprotect", index++, InvalidArgImpl);
+			Register ("sigprocmask", index++, InvalidArgImpl);
+			Register ("create_module", index++, InvalidArgImpl);
+			Register ("init_module", index++, InvalidArgImpl);
+			Register ("delete_module", index++, InvalidArgImpl);
+			Register ("get_kernel_syms", index++, InvalidArgImpl);
+			Register ("quotactl", index++, InvalidArgImpl);
+			Register ("getpgid", index++, InvalidArgImpl);
+			Register ("fchdir", index++, InvalidArgImpl);
+			Register ("bdflush", index++, InvalidArgImpl);
+			Register ("sysfs", index++, InvalidArgImpl);
+			Register ("personality", index++, InvalidArgImpl);
+			Register ("afs_syscall", index++, InvalidArgImpl);
+			Register ("setfsuid", index++, InvalidArgImpl);
+			Register ("setfsgid", index++, InvalidArgImpl);
+			Register ("_llseek", index++, LlseekImpl);
+			Register ("getdents", index++, InvalidArgImpl);
+			Register ("_newselect", index++, InvalidArgImpl);
+			Register ("flock", index++, InvalidArgImpl);
+			Register ("msync", index++, InvalidArgImpl);
+			Register ("readv", index++, InvalidArgImpl);
+			Register ("writev", index++, InvalidArgImpl);
+			Register ("getsid", index++, InvalidArgImpl);
+			Register ("fdatasync", index++, InvalidArgImpl);
+			Register ("_sysctl", index++, InvalidArgImpl);
+			Register ("mlock", index++, InvalidArgImpl);
+			Register ("munlock", index++, InvalidArgImpl);
+			Register ("mlockall", index++, InvalidArgImpl);
+			Register ("munlockall", index++, InvalidArgImpl);
+			Register ("sched_setparam", index++, InvalidArgImpl);
+			Register ("sched_getparam", index++, InvalidArgImpl);
+			Register ("sched_setscheduler", index++, InvalidArgImpl);
+			Register ("sched_getscheduler", index++, InvalidArgImpl);
+			Register ("sched_yield", index++, InvalidArgImpl);
+			Register ("sched_get_priority_max", index++, InvalidArgImpl);
+			Register ("sched_get_priority_min", index++, InvalidArgImpl);
+			Register ("sched_rr_get_interval", index++, InvalidArgImpl);
+			Register ("nanosleep", index++, InvalidArgImpl);
+			Register ("mremap", index++, InvalidArgImpl);
+			Register ("setresuid", index++, InvalidArgImpl);
+			Register ("getresuid", index++, InvalidArgImpl);
+			Register ("vm86", index++, InvalidArgImpl);
+			Register ("query_module", index++, InvalidArgImpl);
+			Register ("poll", index++, InvalidArgImpl);
+			Register ("nfsservctl", index++, InvalidArgImpl);
+			Register ("setresgid", index++, InvalidArgImpl);
+			Register ("getresgid", index++, InvalidArgImpl);
+			Register ("prctl", index++, InvalidArgImpl);
+			Register ("rt_sigreturn", index++, InvalidArgImpl);
+			Register ("rt_sigaction", index++, InvalidArgImpl);
+			Register ("rt_sigprocmask", index++, InvalidArgImpl);
+			Register ("rt_sigpending", index++, InvalidArgImpl);
+			Register ("rt_sigtimedwait", index++, InvalidArgImpl);
+			Register ("rt_sigqueueinfo", index++, InvalidArgImpl);
+			Register ("rt_sigsuspend", index++, InvalidArgImpl);
+			Register ("pread", index++, InvalidArgImpl);
+			Register ("pwrite", index++, InvalidArgImpl);
+			Register ("chown", index++, InvalidArgImpl);
+			Register ("getcwd", index++, InvalidArgImpl);
+			Register ("capget", index++, InvalidArgImpl);
+			Register ("capset", index++, InvalidArgImpl);
+			Register ("sigalstack", index++, InvalidArgImpl);
+			Register ("sendfile", index++, InvalidArgImpl);
+			Register ("getpmsg", index++, InvalidArgImpl);
+			Register ("putpmsg", index++, InvalidArgImpl);
+			Register ("vfork", index++, InvalidArgImpl);
+			Register ("ugetrlimit", index++, InvalidArgImpl);
+			Register ("mmap2", index++, InvalidArgImpl);
+			Register ("truncate64", index++, InvalidArgImpl);
+			Register ("ftruncate64", index++, InvalidArgImpl);
+			Register ("stat64", index++, InvalidArgImpl);
+			Register ("lstat64", index++, InvalidArgImpl);
+			Register ("fstat64", index++, InvalidArgImpl);
+			Register ("lchown32", index++, InvalidArgImpl);
+			Register ("getuid32", index++, InvalidArgImpl);
+			Register ("getgid32", index++, InvalidArgImpl);
+			Register ("geteuid32", index++, InvalidArgImpl);
+			Register ("getegid32", index++, InvalidArgImpl);
+			Register ("setreuid32", index++, InvalidArgImpl);
+			Register ("setregid32", index++, InvalidArgImpl);
+			Register ("getgroups32", index++, InvalidArgImpl);
+			Register ("setgroups32", index++, InvalidArgImpl);
+			Register ("fchown32", index++, InvalidArgImpl);
+			Register ("setresuid32", index++, InvalidArgImpl);
+			Register ("getresuid32", index++, InvalidArgImpl);
+			Register ("setresgid32", index++, InvalidArgImpl);
+			Register ("getresgid32", index++, InvalidArgImpl);
+			Register ("chown32", index++, InvalidArgImpl);
+			Register ("setuid32", index++, InvalidArgImpl);
+			Register ("setgid32", index++, InvalidArgImpl);
+			Register ("setfsuid32", index++, InvalidArgImpl);
+			Register ("setfsgid32", index++, InvalidArgImpl);
+			Register ("pivot_root", index++, InvalidArgImpl);
+			Register ("mincore", index++, InvalidArgImpl);
+			Register ("madvise", index++, InvalidArgImpl);
+			Register ("getdents64", index++, InvalidArgImpl);
+			Register ("fcntl64", index++, InvalidArgImpl);
 		}
 
-		public void Register (string name, uint num)
+		private static void Register (string name, uint num)
 		{
-			this.Register (new SyscallDesc (name, num));
+			Register (new SyscallDesc (name, num));
 		}
 
-		public void Register (string name, uint num, SyscallAction action)
+		private static void Register (string name, uint num, Func<SyscallDesc, Thread, int> action)
 		{
-			this.Register (new SyscallDesc (name, num, action));
+			Register (new SyscallDesc (name, num, action));
 		}
 
-		public void Register (SyscallDesc desc)
+		private static void Register (SyscallDesc desc)
 		{
-			this.SyscallDescs[desc.Num] = desc;
+			SyscallDescs[desc.Num] = desc;
 		}
 
-		public void DoSyscall (uint callNum, Thread thread)
+		public static void DoSyscall (uint callNum, Thread thread)
 		{
 			int syscallIndex = (int)(callNum - 4000);
 			
-			if (syscallIndex >= 0 && syscallIndex < this.SyscallDescs.Count && this.SyscallDescs.ContainsKey ((uint)syscallIndex)) {
-				this.SyscallDescs[(uint)syscallIndex].DoSyscall (thread);
+			if (syscallIndex >= 0 && syscallIndex < SyscallDescs.Count && SyscallDescs.ContainsKey ((uint)syscallIndex)) {
+				SyscallDescs[(uint)syscallIndex].DoSyscall (thread);
 			} else {
-				Logger.Warnf (LogCategory.SYSCALL, "Syscall {0:d} ({1:d}) out of range", callNum, syscallIndex);
+				Logger.Warnf (LogCategory.Syscall, "Syscall {0:d} ({1:d}) out of range", callNum, syscallIndex);
 				thread.SetSyscallReturn ((-(int)Errno.EINVAL));
 			}
 		}
 
-		public Dictionary<uint, SyscallDesc> SyscallDescs { get; private set; }
-
-		public static int ExitImpl (SyscallDesc desc, Thread thread)
+		private static int ExitImpl (SyscallDesc desc, Thread thread)
 		{
 			Console.WriteLine ("exiting...");
 			thread.Halt ((int)(thread.GetSyscallArg (0) & 0xff));
 			return 1;
 		}
 
-		unsafe public static int ReadImpl (SyscallDesc desc, Thread thread)
+		unsafe private static int ReadImpl (SyscallDesc desc, Thread thread)
 		{
 			int fd = (int)thread.GetSyscallArg (0);
 			uint bufAddr = thread.GetSyscallArg (1);
@@ -1148,7 +1154,7 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			return ret;
 		}
 
-		unsafe public static int WriteImpl (SyscallDesc desc, Thread thread)
+		unsafe private static int WriteImpl (SyscallDesc desc, Thread thread)
 		{
 			int fd = (int)thread.GetSyscallArg (0);
 			uint bufAddr = thread.GetSyscallArg (1);
@@ -1164,28 +1170,28 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			return ret;
 		}
 
-		unsafe public static int OpenImpl (SyscallDesc desc, Thread thread)
+		unsafe private static int OpenImpl (SyscallDesc desc, Thread thread)
 		{
-			char[] path = new char[SyscallConstants.MAX_BUFFER_SIZE];
+			char[] path = new char[MAX_BUFFER_SIZE];
 			
 			uint addr = thread.GetSyscallArg (0);
 			uint tgtFlags = thread.GetSyscallArg (1);
 			uint mode = thread.GetSyscallArg (2);
 			
 			fixed (char* pathPtr = &path[0]) {
-				thread.Mem.ReadString (addr, (int)SyscallConstants.MAX_BUFFER_SIZE, pathPtr);
+				thread.Mem.ReadString (addr, (int)MAX_BUFFER_SIZE, pathPtr);
 			}
 			
 			int hostFlags = 0;
-			foreach (OpenFlagTransTable t in OpenFlagTransTable.OpenFlagTable) {
-				if ((tgtFlags & t.TgtFlag) != 0) {
-					tgtFlags &= (uint)(~t.TgtFlag);
-					hostFlags |= t.HostFlag;
+			foreach (var mapping in OpenFlagMappings) {
+				if ((tgtFlags & mapping.TargetFlag) != 0) {
+					tgtFlags &= (uint)(~mapping.TargetFlag);
+					hostFlags |= mapping.HostFlag;
 				}
 			}
 			
 			if (tgtFlags != 0) {
-				Logger.Fatalf (LogCategory.SYSCALL, "Syscall: open: cannot decode flags 0x{0:x8}", tgtFlags);
+				Logger.Fatalf (LogCategory.Syscall, "Syscall: open: cannot decode flags 0x{0:x8}", tgtFlags);
 			}
 			
 			StringBuilder sb = new StringBuilder ();
@@ -1196,14 +1202,14 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			return fd;
 		}
 
-		public static int CloseImpl (SyscallDesc desc, Thread thread)
+		private static int CloseImpl (SyscallDesc desc, Thread thread)
 		{
 			int fd = (int)thread.GetSyscallArg (0);
 			int ret = (int)Syscall.close (fd);
 			return ret;
 		}
 
-		public static int LseekImpl (SyscallDesc desc, Thread thread)
+		private static int LseekImpl (SyscallDesc desc, Thread thread)
 		{
 			int fd = (int)thread.GetSyscallArg (0);
 			int offset = (int)thread.GetSyscallArg (1);
@@ -1213,17 +1219,17 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			return ret;
 		}
 
-		public static int GetpidImpl (SyscallDesc desc, Thread thread)
+		private static int GetpidImpl (SyscallDesc desc, Thread thread)
 		{
 			return (int)thread.Process.Pid;
 		}
 
-		public static int GetuidImpl (SyscallDesc desc, Thread thread)
+		private static int GetuidImpl (SyscallDesc desc, Thread thread)
 		{
 			return (int)thread.Process.Uid;
 		}
 
-		public static int BrkImpl (SyscallDesc desc, Thread thread)
+		private static int BrkImpl (SyscallDesc desc, Thread thread)
 		{
 			uint newbrk = thread.GetSyscallArg (0);
 			uint oldbrk = thread.Process.Brk;
@@ -1232,11 +1238,11 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 				return (int)thread.Process.Brk;
 			}
 			
-			uint newbrkRnd = BitUtils.RoundUp (newbrk, MemoryConstants.MEM_PAGESIZE);
-			uint oldbrkRnd = BitUtils.RoundUp (oldbrk, MemoryConstants.MEM_PAGESIZE);
+			uint newbrkRnd = BitHelper.RoundUp (newbrk, MemoryConstants.PAGE_SIZE);
+			uint oldbrkRnd = BitHelper.RoundUp (oldbrk, MemoryConstants.PAGE_SIZE);
 			
 			if (newbrk > oldbrk) {
-				thread.Mem.Map (oldbrkRnd, (int)(newbrkRnd - oldbrkRnd), MemoryAccessType.READ | MemoryAccessType.WRITE);
+				thread.Mem.Map (oldbrkRnd, (int)(newbrkRnd - oldbrkRnd), MemoryAccessType.Read | MemoryAccessType.Write);
 			} else if (newbrk < oldbrk) {
 				thread.Mem.Unmap (newbrkRnd, (int)(oldbrkRnd - newbrkRnd));
 			}
@@ -1246,22 +1252,22 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			return (int)thread.Process.Brk;
 		}
 
-		public static int GetgidImpl (SyscallDesc desc, Thread thread)
+		private static int GetgidImpl (SyscallDesc desc, Thread thread)
 		{
 			return (int)thread.Process.Gid;
 		}
 
-		public static int GeteuidImpl (SyscallDesc desc, Thread thread)
+		private static int GeteuidImpl (SyscallDesc desc, Thread thread)
 		{
 			return (int)thread.Process.Euid;
 		}
 
-		public static int GetegidImpl (SyscallDesc desc, Thread thread)
+		private static int GetegidImpl (SyscallDesc desc, Thread thread)
 		{
 			return (int)thread.Process.Egid;
 		}
 
-		unsafe public static int FstatImpl (SyscallDesc desc, Thread thread)
+		unsafe private static int FstatImpl (SyscallDesc desc, Thread thread)
 		{
 			int fd = (int)thread.GetSyscallArg (0);
 			uint bufAddr = thread.GetSyscallArg (1);
@@ -1273,26 +1279,26 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			return ret;
 		}
 
-		unsafe public static int UnameImpl (SyscallDesc desc, Thread thread)
+		unsafe private static int UnameImpl (SyscallDesc desc, Thread thread)
 		{
-			utsname un = new utsname ();
+			Utsname un = new Utsname ();
 			un.sysname = "Linux";
 			un.nodename = "sim";
 			un.release = "2.6";
 			un.version = "Tue Apr 5 12:21:57 UTC 2005";
 			un.machine = "mips";
 			
-			IntPtr unPtr = Marshal.AllocHGlobal (Marshal.SizeOf (typeof(utsname)));
+			IntPtr unPtr = Marshal.AllocHGlobal (Marshal.SizeOf (typeof(Utsname)));
 			Marshal.StructureToPtr (un, unPtr, false);
 			
-			thread.Mem.WriteBlock (thread.GetSyscallArg (0), (uint)Marshal.SizeOf (typeof(utsname)), (byte*)unPtr);
+			thread.Mem.WriteBlock (thread.GetSyscallArg (0), (uint)Marshal.SizeOf (typeof(Utsname)), (byte*)unPtr);
 			
 			Marshal.FreeHGlobal (unPtr);
 			
 			return 0;
 		}
 
-		public static int LlseekImpl (SyscallDesc desc, Thread thread)
+		private static int LlseekImpl (SyscallDesc desc, Thread thread)
 		{
 			int fd = (int)thread.GetSyscallArg (0);
 			uint offsetHigh = thread.GetSyscallArg (1);
@@ -1317,38 +1323,15 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			return ret;
 		}
 
-		public static int InvalidArgImpl (SyscallDesc desc, Thread thread)
+		private static int InvalidArgImpl (SyscallDesc desc, Thread thread)
 		{
-			Logger.Warnf (LogCategory.SYSCALL, "syscall {0:s} is ignored.", desc.Name);
+			Logger.Warnf (LogCategory.Syscall, "syscall {0:s} is ignored.", desc.Name);
 			return -(int)Errno.EINVAL;
 		}
-	}
 
-	public class SyscallDesc
-	{
-		public SyscallDesc (string name, uint num) : this(name, num, null)
-		{
-		}
+		private static List<OpenFlagMapping> OpenFlagMappings;
+		private static Dictionary<uint, SyscallDesc> SyscallDescs { get; set; }
 
-		public SyscallDesc (string name, uint num, SyscallAction action)
-		{
-			this.Name = name;
-			this.Num = num;
-			this.Action = action;
-		}
-
-		public void DoSyscall (Thread thread)
-		{
-			if (this.Action == null) {
-				Logger.Fatalf (LogCategory.SYSCALL, "syscall {0:s} has not been implemented yet.", this.Name);
-			}
-			
-			int retVal = this.Action (this, thread);
-			thread.SetSyscallReturn (retVal);
-		}
-
-		public string Name { get; set; }
-		public uint Num { get; set; }
-		public SyscallAction Action { get; set; }
+		private static uint MAX_BUFFER_SIZE = 1024;
 	}
 }
