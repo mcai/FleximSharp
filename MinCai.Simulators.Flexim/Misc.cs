@@ -28,6 +28,7 @@ using System.Xml;
 using MinCai.Simulators.Flexim.Common;
 using MinCai.Simulators.Flexim.Interop;
 using Mono.Unix.Native;
+using System.Threading;
 
 namespace MinCai.Simulators.Flexim.Common
 {
@@ -244,185 +245,11 @@ namespace MinCai.Simulators.Flexim.Common
 		}
 	}
 
-	public class PipelineList<EntryT> where EntryT : class
-	{
-		public PipelineList (string name)
-		{
-			this.Name = name;
-			this.Entries = new List<EntryT> ();
-		}
-
-		public bool Empty {
-			get { return this.Entries.Count == 0; }
-		}
-
-		public uint Size {
-			get { return (uint)this.Entries.Count; }
-		}
-
-		public void TakeFront ()
-		{
-			this.Entries.RemoveAt (0);
-		}
-
-		public void TakeBack ()
-		{
-			this.Entries.RemoveAt (this.Entries.Count - 1);
-		}
-
-		public EntryT Front {
-			get {
-				if (!this.Empty) {
-					return this.Entries[0];
-				}
-				
-				return null;
-			}
-		}
-
-		public EntryT Back {
-			get {
-				if (!this.Empty) {
-					return this.Entries[this.Entries.Count - 1];
-				}
-				
-				return null;
-			}
-		}
-
-		public void Remove (EntryT val)
-		{
-			this.Entries.Remove (val);
-		}
-
-		public virtual void Add (EntryT val)
-		{
-			this.Entries.Add (val);
-		}
-
-		public void Clear ()
-		{
-			this.Entries.Clear ();
-		}
-
-		public List<EntryT>.Enumerator GetEnumerator ()
-		{
-			return this.Entries.GetEnumerator ();
-		}
-		
-		public override string ToString ()
-		{
-			return string.Format ("[PipelineList: Name={0}, Size={1}]", this.Name, this.Size);
-		}
-
-		public string Name { get; set; }
-		public List<EntryT> Entries { get; private set; }
-	}
-
-	public class PipelineQueue<EntryT> : PipelineList<EntryT> where EntryT : class
-	{
-		public PipelineQueue (string name, uint capacity) : base(name)
-		{
-			this.Capacity = capacity;
-		}
-
-		public bool Full {
-			get { return this.Size >= this.Capacity; }
-		}
-
-		public override void Add (EntryT val)
-		{
-			if (this.Full) {
-				Logger.Fatalf (LogCategory.MISC, "%s", this);
-			}
-			
-			base.Add (val);
-		}
-		
-		public override string ToString ()
-		{
-			return string.Format ("[PipelineQueue: Name={0}, Capacity={1}, Size={2}, Full={3}]", this.Name, this.Capacity, this.Size, this.Full);
-		}
-
-		public uint Capacity { get; private set; }
-	}
-
-	public class Event<EventTypeT, EventContextT>
-	{
-		public Event (EventTypeT eventType, EventContextT context, ulong scheduled, ulong when)
-		{
-			this.EventType = eventType;
-			this.Context = context;
-			this.Scheduled = scheduled;
-			this.When = when;
-		}
-		
-		public override string ToString ()
-		{
-			return string.Format ("[Event: EventType={0}, Context={1}, Scheduled={2}, When={3}]", this.EventType, this.Context, this.Scheduled, this.When);
-		}
-
-		public EventTypeT EventType { get; set; }
-		public EventContextT Context { get; set; }
-		public ulong Scheduled { get; set; }
-		public ulong When { get; set; }
-	}
-
-	public interface EventProcessor
-	{
-		void ProcessEvents ();
-	}
-
 	public delegate void VoidDelegate ();
 
 	public delegate void HasErrorDelegate (bool hasError);
 
 	public delegate void HasErrorAndIsSharedDelegate (bool hasError, bool isShared);
-
-	public class DelegateEventQueue : EventProcessor
-	{
-		public class EventT
-		{
-			public EventT (VoidDelegate del, ulong when)
-			{
-				this.Del = del;
-				this.When = when;
-			}
-
-			public VoidDelegate Del { get; set; }
-			public ulong When { get; set; }
-		}
-
-		public DelegateEventQueue ()
-		{
-			this.Events = new Dictionary<ulong, List<EventT>> ();
-		}
-
-		public void ProcessEvents ()
-		{
-			if (this.Events.ContainsKey (Simulator.CurrentCycle)) {
-				foreach (EventT evt in this.Events[Simulator.CurrentCycle]) {
-					evt.Del ();
-				}
-				
-				this.Events.Remove (Simulator.CurrentCycle);
-			}
-		}
-
-		public void Schedule (VoidDelegate del, ulong delay)
-		{
-			ulong when = Simulator.CurrentCycle + delay;
-			
-			if (!this.Events.ContainsKey (when)) {
-				this.Events[when] = new List<EventT> ();
-			}
-			
-			this.Events[when].Add (new EventT (del, when));
-		}
-
-		public Dictionary<ulong, List<EventT>> Events { get; private set; }
-	}
-
 
 	public class StringValue : Attribute
 	{
@@ -616,7 +443,7 @@ namespace MinCai.Simulators.Flexim.Common
 		public bool IsNull {
 			get { return this.Attributes.ContainsKey (IS_NULL) && bool.Parse (this[IS_NULL]) == true; }
 		}
-		
+
 		public override string ToString ()
 		{
 			return string.Format ("[XmlConfig: TypeName={0}, Attributes.Count={1}]", this.TypeName, this.Attributes.Count);
@@ -737,7 +564,7 @@ namespace MinCai.Simulators.Flexim.Common
 		public abstract T Load (XmlConfigFile xmlConfigFile);
 
 		public void SaveXML (T config, string cwd, string fileName)
-		{			
+		{
 			SaveXML (config, cwd + Path.DirectorySeparatorChar + fileName);
 		}
 
@@ -911,7 +738,7 @@ namespace MinCai.Simulators.Flexim.Common
 
 		public static string Message (string caption, string text)
 		{
-			return string.Format ("[{0:d}] \t{1:s}{2:s}", Simulator.CurrentCycle, caption.EndsWith ("info") ? "" : "[" + caption + "]", text);
+			return string.Format ("{0:s} {1:s}", caption.EndsWith ("info") ? "" : "[" + caption + "]", text);
 		}
 
 		public static void Infof (LogCategory category, string format, params object[] args)
@@ -958,12 +785,30 @@ namespace MinCai.Simulators.Flexim.Common
 			Syscall.exit (-1);
 		}
 
-		public static void Halt (LogCategory category, string text)
+		public static Dictionary<LogCategory, bool> LogSwitches { get; private set; }
+	}
+
+	public class Barrier
+	{
+		public Barrier (int participants)
 		{
-			Console.Error.WriteLine (Message (category + "|" + "halt", text));
-			Simulator.SingleInstance.Halted = true;
+			this.Participants = participants;
 		}
 
-		public static Dictionary<LogCategory, bool> LogSwitches { get; private set; }
+		public void Wait ()
+		{
+			lock (this) {
+				if (--this.Participants > 0) {
+					do {
+						Monitor.Wait (this);
+					} while (this.Participants > 0);
+				}
+				else {
+					Monitor.PulseAll (this);
+				}
+			}
+		}
+
+		public int Participants { get; private set; }
 	}
 }

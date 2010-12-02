@@ -306,17 +306,17 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 				switch (access) {
 				case MemoryAccessType.READ:
 				case MemoryAccessType.EXEC:
-					Logger.Warnf(LogCategory.MEMORY, "Memory.accessPageBoundary: unsafe reading 0x{0:x8}", addr);
+					Logger.Warnf (LogCategory.MEMORY, "Memory.accessPageBoundary: unsafe reading 0x{0:x8}", addr);
 					PtrUtils.memset (buf, 0, size);
 					return;
 				
 				case MemoryAccessType.WRITE:
 				case MemoryAccessType.INIT:
-					Logger.Warnf(LogCategory.MEMORY, "Memory.accessPageBoundary: unsafe writing 0x{0:x8}", addr);
+					Logger.Warnf (LogCategory.MEMORY, "Memory.accessPageBoundary: unsafe writing 0x{0:x8}", addr);
 					page = AddPage (addr, MemoryAccessType.READ | MemoryAccessType.WRITE | MemoryAccessType.EXEC | MemoryAccessType.INIT);
 					break;
 				default:
-					Logger.Panic(LogCategory.MEMORY, "Memory.accessPageBoundary: unknown access");
+					Logger.Panic (LogCategory.MEMORY, "Memory.accessPageBoundary: unknown access");
 					break;
 				}
 			}
@@ -326,7 +326,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 					throw new SegmentationFaultException (addr);
 				}
 				if ((page.perm & access) != access) {
-					Logger.Fatalf(LogCategory.MEMORY, "Memory.accessPageBoundary: permission denied at 0x{0:x8}, page.perm: 0x{1:x8}, access: 0x{2:x8}", addr, page.perm, access);
+					Logger.Fatalf (LogCategory.MEMORY, "Memory.accessPageBoundary: permission denied at 0x{0:x8}, page.perm: 0x{1:x8}, access: 0x{2:x8}", addr, page.perm, access);
 				}
 			}
 			
@@ -344,7 +344,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 					PtrUtils.memcpy (data, buf, size);
 					break;
 				default:
-					Logger.Panic(LogCategory.MEMORY, "Memory.accessPageBoundary: unknown access");
+					Logger.Panic (LogCategory.MEMORY, "Memory.accessPageBoundary: unknown access");
 					break;
 				}
 			}
@@ -512,11 +512,11 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 
 	public class MMU
 	{
-		public MMU()
+		public MMU ()
 		{
-			this.Pages = new Dictionary<uint, MMUPage>();
+			this.Pages = new Dictionary<uint, MMUPage> ();
 		}
-		
+
 		public MMUPage getPage (uint vtladdr)
 		{
 			uint idx = Page (vtladdr);
@@ -629,7 +629,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 		{
 			return this.Sharers.Contains (node);
 		}
-		
+
 		public override string ToString ()
 		{
 			return string.Format ("[DirEntry: X={0}, Y={1}, Owner={2}, Sharers.Count={3}]", this.X, this.Y, this.Owner, this.Sharers.Count);
@@ -675,7 +675,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 		{
 			this.Locked = false;
 		}
-		
+
 		public override string ToString ()
 		{
 			return string.Format ("[DirLock: X={0}, Locked={1}]", this.X, this.Locked);
@@ -761,7 +761,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			
 			this.LastAccess = 0;
 		}
-		
+
 		public override string ToString ()
 		{
 			return string.Format ("[CacheBlock: Set={0}, Way={1}, Tag={2}, TransientTag={3}, State={4}, LastAccess={5}]", this.Set, this.Way, this.Tag, this.TransientTag, this.State, this.LastAccess);
@@ -790,7 +790,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 				this.Blks.Add (new CacheBlock (this, i));
 			}
 		}
-		
+
 		public override string ToString ()
 		{
 			return string.Format ("[CacheSet: Assoc={0}, Cache={1}, Num={2}]", this.Assoc, this.Cache, this.Num);
@@ -810,8 +810,9 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 
 	public class Cache
 	{
-		public Cache (CacheConfig cacheConfig)
+		public Cache (CoherentCache coherentCache, CacheConfig cacheConfig)
 		{
+			this.CoherentCache = coherentCache;
 			this.CacheConfig = cacheConfig;
 			
 			this.Sets = new List<CacheSet> ();
@@ -875,7 +876,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			Debug.Assert (@set >= 0 && @set < this.NumSets);
 			Debug.Assert (way >= 0 && way < this.Assoc);
 			
-			this[@set][way].LastAccess = Simulator.CurrentCycle;
+			this[@set][way].LastAccess = this.CoherentCache.CycleProvider.CurrentCycle;
 		}
 
 		public uint ReplaceBlock (uint @set)
@@ -941,18 +942,20 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 		public List<CacheSet> Sets { get; set; }
 		public Dir Dir { get; set; }
 
+		public CoherentCache CoherentCache { get; set; }
 		public CacheConfig CacheConfig { get; set; }
 	}
 
 	public abstract class CoherentCacheNode
 	{
-		public CoherentCacheNode (MemorySystem memorySystem, string name)
+		public CoherentCacheNode (ICycleProvider cycleProvider, string name)
 		{
 			this.Name = name;
-			this.MemorySystem = memorySystem;
+			this.CycleProvider = cycleProvider;
 			
 			this.EventQueue = new DelegateEventQueue ();
-			Simulator.SingleInstance.AddEventProcessor (this.EventQueue);
+			
+			this.CycleProvider.EventProcessors.Add (this.EventQueue);
 		}
 
 		public void Schedule (VoidDelegate evt, ulong delay)
@@ -1011,23 +1014,23 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 		{
 			throw new NotImplementedException ();
 		}
-		
+
 		public override string ToString ()
 		{
-			return string.Format ("[CoherentCacheNode: Name={0}, Level={1}, MemorySystem={2}, Next={3}, EventQueue={4}]", this.Name, this.Level, this.MemorySystem, this.Next, this.EventQueue);
+			return string.Format ("[CoherentCacheNode: Name={0}, Level={1}, Next={3}, EventQueue={4}]", this.Name, this.Level, this.Next, this.EventQueue);
 		}
 
 		public abstract uint Level { get; }
 
 		public string Name { get; set; }
-		public MemorySystem MemorySystem { get; set; }
+		public ICycleProvider CycleProvider { get; set; }
 		public CoherentCacheNode Next { get; set; }
 		public DelegateEventQueue EventQueue { get; set; }
 	}
 
 	public class Sequencer : CoherentCacheNode
 	{
-		public Sequencer (string name, CoherentCache l1Cache) : base(l1Cache.MemorySystem, name)
+		public Sequencer (string name, CoherentCache l1Cache) : base(l1Cache.CycleProvider, name)
 		{
 			this.L1Cache = l1Cache;
 		}
@@ -1046,7 +1049,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 		{
 			this.L1Cache.Store (addr, isRetry, onCompletedCallback);
 		}
-		
+
 		public override string ToString ()
 		{
 			return string.Format ("[Sequencer: Name={0}]", this.Name);
@@ -1072,9 +1075,9 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 
 	public class CoherentCache : CoherentCacheNode
 	{
-		public CoherentCache (MemorySystem memorySystem, CacheConfig config, CacheStat stat) : base(memorySystem, config.Name)
+		public CoherentCache (ICycleProvider cycleProvider, CacheConfig config, CacheStat stat) : base(cycleProvider, config.Name)
 		{
-			this.Cache = new Cache (config);
+			this.Cache = new Cache (this, config);
 			this.Config = config;
 			this.Stat = stat;
 		}
@@ -1247,7 +1250,8 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			
 			this.Cache.GetBlock (@set, way, out tag, out state);
 			
-			uint srcSet = @set; //TODO: is it necessary or bug?
+			uint srcSet = @set;
+			//TODO: is it necessary or bug?
 			uint srcWay = way;
 			uint srcTag = tag;
 			CoherentCacheNode target = this.Next;
@@ -1472,7 +1476,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			
 			DirEntry dirEntry = this.Cache.Dir.DirEntries[(int)@set][(int)way];
 			
-			foreach (CoherentCacheNode sharer in dirEntry.Sharers.FindAll(sharer => sharer != except)) {
+			foreach (CoherentCacheNode sharer in dirEntry.Sharers.FindAll (sharer => sharer != except)) {
 				dirEntry.UnsetSharer (sharer);
 				if (dirEntry.Owner == sharer) {
 					dirEntry.Owner = null;
@@ -1503,7 +1507,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 
 	public class MemoryController : CoherentCacheNode
 	{
-		public MemoryController (MemorySystem memorySystem, MainMemoryConfig config, MainMemoryStat stat) : base(memorySystem, "mem")
+		public MemoryController (ICycleProvider cycleProvider, MainMemoryConfig config, MainMemoryStat stat) : base(cycleProvider, "mem")
 		{
 			this.Config = config;
 			this.Stat = stat;
@@ -1545,64 +1549,5 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 
 		public MainMemoryConfig Config { get; set; }
 		public MainMemoryStat Stat { get; set; }
-	}
-
-	public class MemorySystem
-	{
-		public MemorySystem (Simulation simulation)
-		{
-			this.Simulation = simulation;
-			this.EndNodeCount = (uint)this.Simulation.Config.Architecture.Processor.Cores.Count;
-			
-			this.SeqIs = new List<Sequencer> ();
-			this.SeqDs = new List<Sequencer> ();
-			
-			this.L1Is = new List<CoherentCache> ();
-			this.L1Ds = new List<CoherentCache> ();
-			
-			this.CreateMemoryHierarchy ();
-		}
-
-		private void CreateMemoryHierarchy ()
-		{
-			this.Mem = new MemoryController (this, this.Simulation.Config.Architecture.MainMemory, this.Simulation.Stat.MainMemory);
-			
-			this.L2 = new CoherentCache (this, this.Simulation.Config.Architecture.L2Cache, this.Simulation.Stat.L2Cache);
-			this.L2.Next = this.Mem;
-			
-			for (int i = 0; i < this.EndNodeCount; i++) {
-				CoherentCache l1I = new CoherentCache (this, this.Simulation.Config.Architecture.Processor.Cores[i].ICache, this.Simulation.Stat.Processor.Cores[i].ICache);
-				Sequencer seqI = new Sequencer ("seqI-" + i, l1I);
-				
-				CoherentCache l1D = new CoherentCache (this, this.Simulation.Config.Architecture.Processor.Cores[i].DCache, this.Simulation.Stat.Processor.Cores[i].DCache);
-				Sequencer seqD = new Sequencer ("seqD-" + i, l1D);
-				
-				this.SeqIs.Add (seqI);
-				this.L1Is.Add (l1I);
-				
-				this.SeqDs.Add (seqD);
-				this.L1Ds.Add (l1D);
-				
-				l1I.Next = l1D.Next = this.L2;
-			}
-			
-			this.MMU = new MMU ();
-		}
-
-		public uint EndNodeCount { get; set; }
-
-		public List<Sequencer> SeqIs { get; private set; }
-		public List<Sequencer> SeqDs { get; private set; }
-
-		public List<CoherentCache> L1Is { get; private set; }
-		public List<CoherentCache> L1Ds { get; private set; }
-
-		public CoherentCache L2 { get; set; }
-
-		public MemoryController Mem { get; set; }
-
-		public MMU MMU { get; set; }
-
-		public Simulation Simulation { get; set; }
 	}
 }

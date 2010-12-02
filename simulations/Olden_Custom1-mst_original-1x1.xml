@@ -2,11 +2,11 @@
   <SimulationConfig architectureConfigTitle="shared_l2_cmp_1x1">
     <ContextConfig workloadSetTitle="Olden_Custom1" workloadTitle="mst_original" />
   </SimulationConfig>
-  <SimulationStat cyclesPerSecond="19360.7" duration="210" instsPerCycle="0.569655711484261" totalCycles="4065747" totalInsts="2316076">
+  <SimulationStat cyclesPerSecond="19575.6730769231" duration="208" instsPerCycle="0.568817262398876" totalCycles="4071740" totalInsts="2316076">
     <ProcessorStat>
       <CoreStat>
         <CacheStat accesses="280356" blockingReads="0" blockingWrites="0" evictions="53" hits="280066" nonblockingReads="280356" nonblockingWrites="0" noRetryAccesses="280356" noRetryHits="280066" noRetryReadHits="280066" noRetryReads="280356" noRetryWriteHits="0" noRetryWrites="0" readHits="280066" readRetries="0" reads="280356" writeHits="0" writeRetries="0" writes="0" />
-        <CacheStat accesses="2293631" blockingReads="0" blockingWrites="0" evictions="19157" hits="2270489" nonblockingReads="649637" nonblockingWrites="1643994" noRetryAccesses="602505" noRetryHits="583060" noRetryReadHits="379791" noRetryReads="396963" noRetryWriteHits="203269" noRetryWrites="205542" readHits="631728" readRetries="0" reads="649637" writeHits="1638761" writeRetries="0" writes="1643994" />
+        <CacheStat accesses="2311948" blockingReads="0" blockingWrites="0" evictions="19157" hits="2288757" nonblockingReads="654609" nonblockingWrites="1657339" noRetryAccesses="602484" noRetryHits="583040" noRetryReadHits="379770" noRetryReads="396942" noRetryWriteHits="203270" noRetryWrites="205542" readHits="636719" readRetries="0" reads="654609" writeHits="1652038" writeRetries="0" writes="1657339" />
       </CoreStat>
       <ContextStat totalInsts="2316076" />
     </ProcessorStat>

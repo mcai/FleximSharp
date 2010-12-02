@@ -1,20 +1,20 @@
 ﻿<Properties>
   <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug|x86" ctype="Workspace" />
-  <MonoDevelop.Ide.Workbench ActiveDocument="MinCai.Simulators.Flexim/Mem.cs" ctype="Workbench">
+  <MonoDevelop.Ide.Workbench ActiveDocument="MinCai.Simulators.Flexim/Cpu.cs" ctype="Workbench">
     <Files>
-      <File FileName="MinCai.Simulators.Flexim/Cpu.cs" Line="25" Column="17" />
       <File FileName="MinCai.Simulators.Flexim/Kernel.cs" Line="28" Column="34" />
-      <File FileName="MinCai.Simulators.Flexim/Mem.cs" Line="32" Column="37" />
-      <File FileName="MinCai.Simulators.Flexim/Misc.cs" Line="35" Column="3" />
-      <File FileName="MinCai.Simulators.Flexim/Main.cs" Line="27" Column="35" />
-      <File FileName="MinCai.Simulators.Flexim/Sim.cs" Line="26" Column="39" />
-      <File FileName="MinCai.Simulators.Flexim/Isa.cs" Line="1" Column="1" />
+      <File FileName="MinCai.Simulators.Flexim/Mem.cs" Line="1545" Column="23" />
+      <File FileName="MinCai.Simulators.Flexim/Cpu.cs" Line="1540" Column="49" />
+      <File FileName="MinCai.Simulators.Flexim/Misc.cs" Line="744" Column="53" />
+      <File FileName="MinCai.Simulators.Flexim/Main.cs" Line="32" Column="4" />
+      <File FileName="MinCai.Simulators.Flexim/Sim.cs" Line="1122" Column="5" />
+      <File FileName="MinCai.Simulators.Flexim/Isa.cs" Line="813" Column="1" />
     </Files>
     <Pads>
       <Pad Id="ProjectPad">
         <State expanded="True">
           <Node name="MinCai.Simulators.Flexim" expanded="True">
-            <Node name="Mem.cs" selected="True" />
+            <Node name="Cpu.cs" selected="True" />
           </Node>
         </State>
       </Pad>

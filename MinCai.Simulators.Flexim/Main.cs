@@ -37,18 +37,18 @@ namespace MinCai.Simulators.Flexim
 //			string simulationTitle = "WCETBench-fir-1x1";
 				//string simulationTitle = "WCETBench-fir-2x1";
 				//string simulationTitle = "Olden_Custom1-em3d_original-1x1";
-				string simulationTitle = "Olden_Custom1-mst_original-1x1";
-				//string simulationTitle = "Olden_Custom1-mst_original-Olden_Custom1_em3d_original-2x1";
+//				string simulationTitle = "Olden_Custom1-mst_original-1x1";
 				//string simulationTitle = "Olden_Custom1-mst_original-2x1";
+				string simulationTitle = "Olden_Custom1-mst_original-2x2";
+				//string simulationTitle = "Olden_Custom1-mst_original-Olden_Custom1_em3d_original-2x1";
 				
-				Simulation simulation = Simulation.LoadXML (Simulator.WorkDirectory + Path.DirectorySeparatorChar + "simulations", simulationTitle + ".xml");
+				Simulation simulation = Simulation.LoadXML (Processor.WorkDirectory + Path.DirectorySeparatorChar + "simulations", simulationTitle + ".xml");
 				
 				Logger.Infof (LogCategory.SIMULATOR, "run simulation(title={0:s})", simulationTitle);
 				
-				simulation.Execute (delegate(CPUSimulator simulator) { });
+				simulation.Execute (delegate(Processor simulator) { });
 				
 				Simulation.SaveXML (simulation);
-			
 		}
 	}
 }

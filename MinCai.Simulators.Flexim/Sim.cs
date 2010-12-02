@@ -154,7 +154,7 @@ namespace MinCai.Simulators.Flexim.Interop
 
 		public void SaveXML (WorkloadSet workloadSet)
 		{
-			SaveXML (workloadSet, Simulator.WorkDirectory + Path.DirectorySeparatorChar + "configs/workloads", workloadSet.Title + ".xml");
+			SaveXML (workloadSet, Processor.WorkDirectory + Path.DirectorySeparatorChar + "configs/workloads", workloadSet.Title + ".xml");
 		}
 	}
 
@@ -296,7 +296,7 @@ namespace MinCai.Simulators.Flexim.Interop
 				string workloadSetTitle = xmlConfig["workloadSetTitle"];
 				string workloadTitle = xmlConfig["workloadTitle"];
 				
-				Workload workload = WorkloadSet.LoadXML (Simulator.WorkDirectory + Path.DirectorySeparatorChar + "configs/workloads", workloadSetTitle + ".xml")[workloadTitle];
+				Workload workload = WorkloadSet.LoadXML (Processor.WorkDirectory + Path.DirectorySeparatorChar + "configs/workloads", workloadSetTitle + ".xml")[workloadTitle];
 				
 				ContextConfig contextConfig = new ContextConfig (workload);
 				
@@ -543,7 +543,7 @@ namespace MinCai.Simulators.Flexim.Interop
 
 		public static void SaveXML (ArchitectureConfig architectureConfig)
 		{
-			SaveXML (architectureConfig, Simulator.WorkDirectory + Path.DirectorySeparatorChar + "configs/architectures", architectureConfig.Title + ".xml");
+			SaveXML (architectureConfig, MinCai.Simulators.Flexim.Pipelines.Processor.WorkDirectory + Path.DirectorySeparatorChar + "configs/architectures", architectureConfig.Title + ".xml");
 		}
 
 		public static void SaveXML (ArchitectureConfig architectureConfig, string cwd, string fileName)
@@ -577,7 +577,7 @@ namespace MinCai.Simulators.Flexim.Interop
 			{
 				string architectureConfigTitle = xmlConfig["architectureConfigTitle"];
 				
-				ArchitectureConfig architecture = ArchitectureConfig.LoadXML (Simulator.WorkDirectory + Path.DirectorySeparatorChar + "configs/architectures", architectureConfigTitle + ".xml");
+				ArchitectureConfig architecture = ArchitectureConfig.LoadXML (Processor.WorkDirectory + Path.DirectorySeparatorChar + "configs/architectures", architectureConfigTitle + ".xml");
 				
 				SimulationConfig simulationConfig = new SimulationConfig (architecture);
 				
@@ -1135,7 +1135,8 @@ namespace MinCai.Simulators.Flexim.Interop
 				string cwd = xmlConfigFile["cwd"];
 				
 				SimulationConfig config = SimulationConfig.Serializer.SingleInstance.Load (xmlConfigFile.Entries[0]);
-				SimulationStat stat = SimulationStat.Serializer.SingleInstance.Load (xmlConfigFile.Entries[1]);
+//				TODO: SimulationStat stat = SimulationStat.Serializer.SingleInstance.Load (xmlConfigFile.Entries[1]);
+				SimulationStat stat = new SimulationStat(config.Architecture.Processor.Cores.Count, config.Architecture.Processor.NumThreadsPerCore);
 				
 				Simulation simulation = new Simulation (title, cwd, config, stat);
 				
@@ -1161,7 +1162,7 @@ namespace MinCai.Simulators.Flexim.Interop
 			this.Stat = new SimulationStat (architectureConfig.Processor.Cores.Count, architectureConfig.Processor.NumThreadsPerCore);
 		}
 
-		public delegate void SimulatorInitDelegate (CPUSimulator simulator);
+		public delegate void SimulatorInitDelegate (Processor simulator);
 
 		public void Execute (SimulatorInitDelegate del)
 		{
@@ -1179,7 +1180,7 @@ namespace MinCai.Simulators.Flexim.Interop
 
 		public void Run ()
 		{
-			CPUSimulator simulator = new CPUSimulator (this);
+			Processor simulator = new Processor (this);
 			
 			if (this.SimulatorInitDel != null) {
 				this.SimulatorInitDel (simulator);
@@ -1224,44 +1225,7 @@ namespace MinCai.Simulators.Flexim.Interop
 
 		public static void SaveXML (Simulation simulation)
 		{
-			SaveXML (simulation, Simulator.WorkDirectory + Path.DirectorySeparatorChar + "simulations", simulation.Title + ".xml");
+			SaveXML (simulation, Processor.WorkDirectory + Path.DirectorySeparatorChar + "simulations", simulation.Title + ".xml");
 		}
-	}
-
-	public abstract class Simulator
-	{
-		public Simulator ()
-		{
-			this.EventQueue = new DelegateEventQueue ();
-			this.EventProcessors = new List<EventProcessor> ();
-			this.AddEventProcessor (this.EventQueue);
-			
-			Simulator.SingleInstance = this;
-			this.Halted = false;
-		}
-
-		public abstract void Run ();
-
-		public void AddEventProcessor (EventProcessor eventProcessor)
-		{
-			this.EventProcessors.Add (eventProcessor);
-		}
-
-		public EventProcessor EventQueue { get; set; }
-		public List<EventProcessor> EventProcessors { get; set; }
-		public bool Halted { get; set; }
-
-		static Simulator ()
-		{
-			CurrentCycle = 0;
-			
-			WorkDirectory = "../../../";
-			//TODO: not hardcode!
-		}
-
-		public static Simulator SingleInstance { get; set; }
-		public static ulong CurrentCycle { get; set; }
-
-		public static string WorkDirectory { get; set; }
 	}
 }

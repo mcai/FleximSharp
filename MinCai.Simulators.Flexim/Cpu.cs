@@ -36,6 +36,109 @@ using Process = MinCai.Simulators.Flexim.OperatingSystem.Process;
 
 namespace MinCai.Simulators.Flexim.Pipelines
 {
+	public class PipelineList<EntryT> where EntryT : class
+	{
+		public PipelineList (string name)
+		{
+			this.Name = name;
+			this.Entries = new List<EntryT> ();
+		}
+
+		public bool Empty {
+			get { return this.Entries.Count == 0; }
+		}
+
+		public uint Size {
+			get { return (uint)this.Entries.Count; }
+		}
+
+		public void TakeFront ()
+		{
+			this.Entries.RemoveAt (0);
+		}
+
+		public void TakeBack ()
+		{
+			this.Entries.RemoveAt (this.Entries.Count - 1);
+		}
+
+		public EntryT Front {
+			get {
+				if (!this.Empty) {
+					return this.Entries[0];
+				}
+				
+				return null;
+			}
+		}
+
+		public EntryT Back {
+			get {
+				if (!this.Empty) {
+					return this.Entries[this.Entries.Count - 1];
+				}
+				
+				return null;
+			}
+		}
+
+		public void Remove (EntryT val)
+		{
+			this.Entries.Remove (val);
+		}
+
+		public virtual void Add (EntryT val)
+		{
+			this.Entries.Add (val);
+		}
+
+		public void Clear ()
+		{
+			this.Entries.Clear ();
+		}
+
+		public List<EntryT>.Enumerator GetEnumerator ()
+		{
+			return this.Entries.GetEnumerator ();
+		}
+
+		public override string ToString ()
+		{
+			return string.Format ("[PipelineList: Name={0}, Size={1}]", this.Name, this.Size);
+		}
+
+		public string Name { get; set; }
+		public List<EntryT> Entries { get; private set; }
+	}
+
+	public class PipelineQueue<EntryT> : PipelineList<EntryT> where EntryT : class
+	{
+		public PipelineQueue (string name, uint capacity) : base(name)
+		{
+			this.Capacity = capacity;
+		}
+
+		public bool Full {
+			get { return this.Size >= this.Capacity; }
+		}
+
+		public override void Add (EntryT val)
+		{
+			if (this.Full) {
+				Logger.Fatalf (LogCategory.MISC, "%s", this);
+			}
+			
+			base.Add (val);
+		}
+
+		public override string ToString ()
+		{
+			return string.Format ("[PipelineQueue: Name={0}, Capacity={1}, Size={2}, Full={3}]", this.Name, this.Capacity, this.Size, this.Full);
+		}
+
+		public uint Capacity { get; private set; }
+	}
+
 	public static class BpredConstants
 	{
 		public static uint MD_BR_SHIFT = 3;
@@ -531,7 +634,8 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			this.Add (FunctionalUnitType.FloatSQRT, 1, 24, 24);
 			
 			this.EventQueue = new DelegateEventQueue ();
-			Simulator.SingleInstance.AddEventProcessor (this.EventQueue);
+			
+			this.Core.EventProcessors.Add (this.EventQueue);
 		}
 
 		public void Add (FunctionalUnitType type, uint quantity, uint opLat, uint issueLat)
@@ -544,7 +648,7 @@ namespace MinCai.Simulators.Flexim.Pipelines
 
 		public FunctionalUnit FindFree (FunctionalUnitType type)
 		{
-			return this.Entities[type].Find(fu => !fu.Busy);
+			return this.Entities[type].Find (fu => !fu.Busy);
 		}
 
 		public void Acquire (ReorderBufferEntry reorderBufferEntry, ReorderBufferEntryDelegate onCompletedCallback2)
@@ -633,15 +737,15 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			this.Name = "c" + this.Core.Num + "." + namePostfix;
 			this.Capacity = capacity;
 			
-			this.Entries = new List<PhysicalRegister>();
+			this.Entries = new List<PhysicalRegister> ();
 			for (uint i = 0; i < this.Capacity; i++) {
-				this.Entries.Add(new PhysicalRegister (this));
+				this.Entries.Add (new PhysicalRegister (this));
 			}
 		}
 
 		public PhysicalRegister FindFree ()
 		{
-			return this.Entries.Find(physReg => physReg.State == PhysicalRegisterState.FREE);
+			return this.Entries.Find (physReg => physReg.State == PhysicalRegisterState.FREE);
 		}
 
 		public PhysicalRegister Alloc (ReorderBufferEntry reorderBufferEntry)
@@ -773,9 +877,7 @@ namespace MinCai.Simulators.Flexim.Pipelines
 		}
 
 		public bool AllOperandsReady {
-			get {
-				return this.IDeps.All(iDep => this.SrcPhysRegs[iDep].IsReady);
-			}
+			get { return this.IDeps.All (iDep => this.SrcPhysRegs[iDep].IsReady); }
 		}
 
 		public bool StoreAddressReady {
@@ -789,7 +891,7 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			get {
 				MemoryOp memOp = this.DynamicInst.StaticInst as MemoryOp;
 				
-				return memOp.MemIDeps.GetRange (1, memOp.MemIDeps.Count - 1).All(iDep => this.SrcPhysRegs[iDep].IsReady);
+				return memOp.MemIDeps.GetRange (1, memOp.MemIDeps.Count - 1).All (iDep => this.SrcPhysRegs[iDep].IsReady);
 			}
 		}
 
@@ -871,40 +973,16 @@ namespace MinCai.Simulators.Flexim.Pipelines
 		}
 	}
 
-	public class Processor
-	{
-		public Processor (CPUSimulator simulator)
-		{
-			this.Simulator = simulator;
-			
-			this.Cores = new List<Core> ();
-			
-			this.ActiveThreadCount = 0;
-		}
-
-		public bool CanRun {
-			get { return this.ActiveThreadCount > 0; }
-		}
-
-		public void Run ()
-		{
-			foreach (Core core in this.Cores) {
-				core.Run ();
-			}
-		}
-
-		public CPUSimulator Simulator { get; set; }
-		public List<Core> Cores { get; set; }
-
-		public int ActiveThreadCount { get; set; }
-	}
-
-	public class Core
+	public class Core : ICycleProvider
 	{
 		public Core (Processor processor, ProcessorConfig config, uint num)
 		{
 			this.Processor = processor;
 			this.Num = num;
+			
+			this.CurrentCycle = 0;
+			
+			this.EventProcessors = new List<EventProcessor> ();
 			
 			this.Threads = new List<Thread> ();
 			
@@ -922,8 +1000,6 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			this.ReadyQueue = new ReadyQueue (this);
 			this.WaitingQueue = new WaitingQueue (this);
 			this.OoOEventQueue = new OoOEventQueue (this);
-			
-			this.Mem = new Memory ();
 		}
 
 		public void Fetch ()
@@ -1228,7 +1304,7 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			}
 		}
 
-		public void Run ()
+		public void AdvanceOneCycle ()
 		{
 			this.Commit ();
 			this.Writeback ();
@@ -1238,6 +1314,12 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			this.Dispatch ();
 			this.RegisterRename ();
 			this.Fetch ();
+			
+			foreach (EventProcessor eventProcessor in this.EventProcessors) {
+				eventProcessor.AdvanceOneCycle ();
+			}
+			
+			this.CurrentCycle++;
 		}
 
 		public PhysicalRegisterFile GetPhysicalRegisterFile (RegisterDependencyType type)
@@ -1251,31 +1333,21 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			}
 		}
 
-		public Sequencer SeqI {
-			get { return this.Processor.Simulator.MemorySystem.SeqIs[(int)this.Num]; }
-		}
+		public Sequencer SeqI {get;set;}
 
-		public CoherentCacheNode L1I {
-			get { return this.Processor.Simulator.MemorySystem.L1Is[(int)this.Num]; }
-		}
+		public CoherentCacheNode L1I {get;set;}
 
-		public Sequencer SeqD {
-			get { return this.Processor.Simulator.MemorySystem.SeqDs[(int)this.Num]; }
-		}
+		public Sequencer SeqD {get;set;}
 
-		public CoherentCacheNode L1D {
-			get { return this.Processor.Simulator.MemorySystem.L1Ds[(int)this.Num]; }
-		}
+		public CoherentCacheNode L1D {get;set;}
 
 		public MMU MMU {
-			get { return this.Processor.Simulator.MemorySystem.MMU; }
+			get { return this.Processor.MemorySystem.MMU; }
 		}
 
 		public uint Num { get; set; }
 		public Processor Processor { get; set; }
 		public List<Thread> Threads { get; set; }
-
-		public Memory Mem { get; set; }
 
 		public uint DecodeWidth { get; set; }
 		public uint IssueWidth { get; set; }
@@ -1291,17 +1363,21 @@ namespace MinCai.Simulators.Flexim.Pipelines
 		public ReadyQueue ReadyQueue { get; set; }
 		public WaitingQueue WaitingQueue { get; set; }
 		public OoOEventQueue OoOEventQueue { get; set; }
-	}
 
-	public enum ThreadState1
-	{
-		Inactive,
-		Active,
-		Halted
+		public ulong CurrentCycle { get; set; }
+
+		public List<EventProcessor> EventProcessors { get; set; }
 	}
 
 	public class Thread
-	{		
+	{
+		public enum ThreadState
+		{
+			Inactive,
+			Active,
+			Halted
+		}
+
 		public Thread (Core core, ProcessorConfig config, ContextStat stat, uint num, Process process)
 		{
 			this.Core = core;
@@ -1318,11 +1394,13 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			
 			this.ClearArchRegs ();
 			
+			this.Mem = new Memory ();
+			
 			this.Process.Load (this);
 			
 			this.Stat = stat;
 			
-			this.State = ThreadState1.Active;
+			this.State = ThreadState.Active;
 			
 			for (uint i = 0; i < RegisterConstants.NumIntRegs; i++) {
 				PhysicalRegister physReg = this.Core.IntRegFile[this.Num * RegisterConstants.NumIntRegs + i];
@@ -1433,8 +1511,8 @@ namespace MinCai.Simulators.Flexim.Pipelines
 		}
 
 		public ReorderBufferEntry GetNextReorderBufferEntryToDispatch ()
-		{				
-			return this.ReorderBuffer.Entries.Find(reorderBufferEntry => !reorderBufferEntry.IsDispatched);
+		{
+			return this.ReorderBuffer.Entries.Find (reorderBufferEntry => !reorderBufferEntry.IsDispatched);
 		}
 
 		public void RefreshLoadStoreQueue ()
@@ -1467,8 +1545,8 @@ namespace MinCai.Simulators.Flexim.Pipelines
 
 		public void Commit ()
 		{
-			if (Simulator.CurrentCycle - this.LastCommitCycle > COMMIT_TIMEOUT) {
-				Logger.Fatalf (LogCategory.SIMULATOR, "No instruction committed for {0:d} cycles", COMMIT_TIMEOUT);
+			if (this.Core.CurrentCycle - this.LastCommitCycle > COMMIT_TIMEOUT) {
+				Logger.Fatalf (LogCategory.SIMULATOR, "Thread {0:s} - No instruction committed for {1:d} cycles", this.Name, COMMIT_TIMEOUT);
 			}
 			
 			uint numCommitted = 0;
@@ -1512,13 +1590,13 @@ namespace MinCai.Simulators.Flexim.Pipelines
 				
 				this.Stat.TotalInsts++;
 				
-				this.LastCommitCycle = Simulator.CurrentCycle;
+				this.LastCommitCycle = this.Core.CurrentCycle;
 				
 				numCommitted++;
 				
-				this.Core.Processor.Simulator.Simulation.Stat.TotalInsts++;
+				this.Core.Processor.Simulation.Stat.TotalInsts++;
 				
-//				Logger.Infof (LogCategory.DEBUG, "instruction committed (dynamicInst={0})", reorderBufferEntry.DynamicInst);
+				Logger.Infof (LogCategory.DEBUG, "instruction committed (dynamicInst={0})", reorderBufferEntry.DynamicInst);
 			}
 		}
 
@@ -1594,12 +1672,12 @@ namespace MinCai.Simulators.Flexim.Pipelines
 
 		public void Halt (int exitCode)
 		{
-			if (this.State != ThreadState1.Halted) {
+			if (this.State != ThreadState.Halted) {
 				Logger.Infof (LogCategory.SIMULATOR, "target called exit({0:d})", exitCode);
-				this.State = ThreadState1.Halted;
+				this.State = ThreadState.Halted;
 				this.Core.Processor.ActiveThreadCount--;
 			} else {
-				Debug.Assert (false);
+				throw new Exception("Halted thread can not be halted again.");
 			}
 		}
 
@@ -1607,16 +1685,16 @@ namespace MinCai.Simulators.Flexim.Pipelines
 			get { return "c" + this.Core.Num + "t" + this.Num; }
 		}
 
-		public Memory Mem {
-			get { return this.Core.Mem; }
-		}
-
 		public uint Num { get; set; }
+
+		public ThreadState State { get; set; }
 
 		public Core Core { get; set; }
 
 		public Process Process { get; set; }
 		public SyscallEmul SyscallEmul { get; set; }
+
+		public Memory Mem { get; set; }
 
 		public CombinedRegisterFile Regs { get; set; }
 
@@ -1634,33 +1712,181 @@ namespace MinCai.Simulators.Flexim.Pipelines
 		public uint CommitWidth { get; set; }
 		public ulong LastCommitCycle { get; set; }
 
-		public ThreadState1 State { get; set; }
-
-		public ContextStat Stat { get; set; }
-
 		public DecodeBuffer DecodeBuffer { get; set; }
 		public ReorderBuffer ReorderBuffer { get; set; }
 		public LoadStoreQueue LoadStoreQueue { get; set; }
 
 		public bool IsSpeculative { get; set; }
 
-		public static uint COMMIT_TIMEOUT = 1000000;
+		public ContextStat Stat { get; set; }
+
+		public static uint COMMIT_TIMEOUT = 1000;//000;
 	}
 
-	public class CPUSimulator : Simulator
+	public class Event<EventTypeT, EventContextT>
 	{
-		public CPUSimulator (Simulation simulation)
+		public Event (EventTypeT eventType, EventContextT context, ulong scheduled, ulong when)
+		{
+			this.EventType = eventType;
+			this.Context = context;
+			this.Scheduled = scheduled;
+			this.When = when;
+		}
+
+		public override string ToString ()
+		{
+			return string.Format ("[Event: EventType={0}, Context={1}, Scheduled={2}, When={3}]", this.EventType, this.Context, this.Scheduled, this.When);
+		}
+
+		public EventTypeT EventType { get; set; }
+		public EventContextT Context { get; set; }
+		public ulong Scheduled { get; set; }
+		public ulong When { get; set; }
+	}
+
+	public class DelegateEventQueue : EventProcessor
+	{
+		public class EventT
+		{
+			public EventT (VoidDelegate del, ulong when)
+			{
+				this.Del = del;
+				this.When = when;
+			}
+
+			public VoidDelegate Del { get; set; }
+			public ulong When { get; set; }
+		}
+
+		public DelegateEventQueue ()
+		{
+			this.Events = new Dictionary<ulong, List<EventT>> ();
+		}
+
+		public void AdvanceOneCycle ()
+		{
+			if (this.Events.ContainsKey (this.CurrentCycle)) {
+				foreach (EventT evt in this.Events[this.CurrentCycle]) {
+					evt.Del ();
+				}
+				
+				this.Events.Remove (this.CurrentCycle);
+			}
+			
+			this.CurrentCycle++;
+		}
+
+		public void Schedule (VoidDelegate del, ulong delay)
+		{
+			ulong when = this.CurrentCycle + delay;
+			
+			if (!this.Events.ContainsKey (when)) {
+				this.Events[when] = new List<EventT> ();
+			}
+			
+			this.Events[when].Add (new EventT (del, when));
+		}
+
+		public ulong CurrentCycle { get; set; }
+		public Dictionary<ulong, List<EventT>> Events { get; private set; }
+	}
+
+	public interface EventProcessor
+	{
+		void AdvanceOneCycle ();
+	}
+
+	public interface ICycleProvider
+	{
+		ulong CurrentCycle { get; set; }
+		List<EventProcessor> EventProcessors { get; set; }
+		void AdvanceOneCycle ();
+	}
+
+	public class MemorySystem : ICycleProvider
+	{
+		public MemorySystem (Processor processor)
+		{
+			this.Processor = processor;
+			
+			this.CurrentCycle = 0;
+			
+			this.EventProcessors = new List<EventProcessor> ();
+			
+			this.CreateMemoryHierarchy ();
+		}
+
+		public void AdvanceOneCycle ()
+		{
+			foreach (EventProcessor eventProcessor in this.EventProcessors) {
+				eventProcessor.AdvanceOneCycle ();
+			}
+			
+			this.CurrentCycle++;
+		}
+
+		private void CreateMemoryHierarchy ()
+		{
+			this.Mem = new MemoryController (this, this.Processor.Simulation.Config.Architecture.MainMemory, this.Processor.Simulation.Stat.MainMemory);
+			
+			this.L2 = new CoherentCache (this, this.Processor.Simulation.Config.Architecture.L2Cache, this.Processor.Simulation.Stat.L2Cache);
+			this.L2.Next = this.Mem;
+			
+			for (int i = 0; i < this.Processor.Simulation.Config.Architecture.Processor.Cores.Count; i++) {
+				Core core = this.Processor.Cores[i];
+				
+				CoherentCache l1I = new CoherentCache (core, 
+				                                       this.Processor.Simulation.Config.Architecture.Processor.Cores[i].ICache, 
+				                                       this.Processor.Simulation.Stat.Processor.Cores[i].ICache);
+				Sequencer seqI = new Sequencer ("seqI-" + i, l1I);
+				
+				CoherentCache l1D = new CoherentCache (core, 
+				                                       this.Processor.Simulation.Config.Architecture.Processor.Cores[i].DCache, 
+				                                       this.Processor.Simulation.Stat.Processor.Cores[i].DCache);
+				Sequencer seqD = new Sequencer ("seqD-" + i, l1D);
+				
+				core.SeqI = seqI;
+				core.L1I = l1I;
+				
+				core.SeqD = seqD;
+				core.L1D = l1D;
+				
+				l1I.Next = l1D.Next = this.L2;
+			}
+			
+			this.MMU = new MMU ();
+		}
+
+		public CoherentCache L2 { get; set; }
+
+		public MemoryController Mem { get; set; }
+
+		public MMU MMU { get; set; }
+
+		public Processor Processor {get;set;}
+		
+		public ulong CurrentCycle { get; set; }
+
+		public List<EventProcessor> EventProcessors { get; set; }
+	}
+
+	public class Processor
+	{
+		public Processor (Simulation simulation)
 		{
 			this.Simulation = simulation;
-			this.Processor = new Processor (this);
 			
-			SimulationConfig simulationConfig = simulation.Config;
+			this.Cores = new List<Core> ();
 			
-			for (uint i = 0; i < simulationConfig.Architecture.Processor.Cores.Count; i++) {
-				Core core = new Core (this.Processor, simulationConfig.Architecture.Processor, i);
+			this.CurrentCycle = 0;
+			
+			this.ActiveThreadCount = 0;
+			
+			for (uint i = 0; i < this.Simulation.Config.Architecture.Processor.Cores.Count; i++) {
+				Core core = new Core (this, this.Simulation.Config.Architecture.Processor, i);
 				
-				for (uint j = 0; j < simulationConfig.Architecture.Processor.NumThreadsPerCore; j++) {
-					ContextConfig context = simulationConfig.Contexts[(int)(i * simulationConfig.Architecture.Processor.NumThreadsPerCore + j)];
+				for (uint j = 0; j < this.Simulation.Config.Architecture.Processor.NumThreadsPerCore; j++) {
+					ContextConfig context = this.Simulation.Config.Contexts[(int)(i * this.Simulation.Config.Architecture.Processor.NumThreadsPerCore + j)];
 					
 					List<string> args = new List<string> ();
 					args.Add (context.Workload.Cwd + Path.DirectorySeparatorChar + context.Workload.Exe + ".mipsel");
@@ -1668,61 +1894,66 @@ namespace MinCai.Simulators.Flexim.Pipelines
 					
 					Process process = new Process (context.Workload.Cwd, args);
 					
-					uint threadNum = i * simulationConfig.Architecture.Processor.NumThreadsPerCore + j;
-					ContextStat contextStat = simulation.Stat.Processor.Contexts[(int)threadNum];
+					uint threadNum = i * this.Simulation.Config.Architecture.Processor.NumThreadsPerCore + j;
+					ContextStat contextStat = this.Simulation.Stat.Processor.Contexts[(int)threadNum];
 					
-					Thread thread = new Thread (core, simulationConfig.Architecture.Processor, contextStat, threadNum, process);
+					Thread thread = new Thread (core, this.Simulation.Config.Architecture.Processor, contextStat, j, process);
 					
 					core.Threads.Add (thread);
 					
-					this.Processor.ActiveThreadCount++;
+					this.ActiveThreadCount++;
 				}
 				
-				this.Processor.Cores.Add (core);
+				this.Cores.Add (core);
 			}
 			
-			this.MemorySystem = new MemorySystem (simulation);
-			
-			this.Simulation.Stat.TotalCycles = CurrentCycle = 0;
+			this.MemorySystem = new MemorySystem (this);
 		}
 
-		public override void Run ()
+		public bool CanRun {
+			get { return this.ActiveThreadCount > 0; }
+		}
+
+		public void Run ()
 		{
 			DateTime beginTime = DateTime.Now;
 			
-			while (!this.Halted && this.Processor.CanRun && this.Simulation.Running) {
-				this.Processor.Run ();
-				
-				foreach (EventProcessor eventProcessor in this.EventProcessors) {
-					eventProcessor.ProcessEvents ();
+//			Barrier barrier = new Barrier(this.Cores.Count);
+//			barrier.Wait();
+			
+			while (this.CanRun && this.Simulation.Running) {
+				foreach (Core core in this.Cores) {
+					core.AdvanceOneCycle ();
 				}
 				
-				this.Simulation.Stat.TotalCycles = ++CurrentCycle;
+				this.MemorySystem.AdvanceOneCycle ();
+				
+				this.CurrentCycle++;
 			}
+			
+			this.Simulation.Stat.TotalCycles = this.CurrentCycle;
 			
 			this.Simulation.Stat.Duration = (ulong)((DateTime.Now - beginTime).TotalSeconds);
 			this.Simulation.Stat.InstsPerCycle = (double)this.Simulation.Stat.TotalInsts / this.Simulation.Stat.TotalCycles;
 			this.Simulation.Stat.CyclesPerSecond = (double)this.Simulation.Stat.TotalCycles / this.Simulation.Stat.Duration;
 		}
 
-		public Processor Processor { get; set; }
+		public List<Core> Cores { get; set; }
 		public MemorySystem MemorySystem { get; set; }
+
 		public Simulation Simulation { get; set; }
+
+		public ulong CurrentCycle { get; set; }
+
+		public int ActiveThreadCount { get; set; }
+
+		static Processor ()
+		{
+			WorkDirectory = DEFAULT_WORK_DIRECTORY;
+		}
+
+		public static string WorkDirectory { get; set; }
+		
+		public static string DEFAULT_WORK_DIRECTORY = "../../../";
 	}
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

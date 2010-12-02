@@ -606,7 +606,7 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			ElfFile elfFile = null;
 			
 			try {
-				stream = File.Open (Simulator.WorkDirectory + Path.DirectorySeparatorChar + filename, FileMode.Open);
+				stream = File.Open (Processor.WorkDirectory + Path.DirectorySeparatorChar + filename, FileMode.Open);
 				reader = new BinaryReader (stream);
 				
 				elfFile = ProcessFile (reader);
