@@ -754,7 +754,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 
 		public uint PhysPc {
-			get { return this.Thread.Core.MMU.GetPhysicalAddress (this.Pc); }
+			get { return this.Thread.Core.Processor.MMU.GetPhysicalAddress (this.Thread.MemoryMapId, this.Pc); }
 		}
 
 		public uint Pc { get; set; }
@@ -2763,7 +2763,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 			thread.Regs.Nnpc = this.GetTargetPc (thread);
 		}
 
-		public int Displacement {get; private set;}
+		public int Displacement { get; private set; }
 	}
 
 	public sealed class B : Branch
@@ -3102,7 +3102,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 			thread.Regs.Nnpc = this.GetTargetPc (thread);
 		}
 
-		public uint Target {get; private set;}
+		public uint Target { get; private set; }
 	}
 
 	public sealed class J : Jump
@@ -3213,9 +3213,9 @@ namespace MinCai.Simulators.Flexim.Architecture
 			this.SextImm = BitHelper.Sext (machInst[BitField.INTIMM], 16);
 		}
 
-		public short Imm {get; private set;}
-		public int SextImm {get; private set;}
-		public uint ZextImm {get; private set;}
+		public short Imm { get; private set; }
+		public int SextImm { get; private set; }
+		public uint ZextImm { get; private set; }
 	}
 
 	public sealed class Add : IntOp
@@ -4569,8 +4569,8 @@ namespace MinCai.Simulators.Flexim.Architecture
 			protected set { this.ODeps = value; }
 		}
 
-		public List<RegisterDependency> MemIDeps {get; protected set;}
-		public List<RegisterDependency> MemODeps {get; protected set;}
+		public List<RegisterDependency> MemIDeps { get; protected set; }
+		public List<RegisterDependency> MemODeps { get; protected set; }
 
 		public int Displacement { get; private set; }
 	}
@@ -5283,7 +5283,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 		public override void Execute (Thread thread)
 		{
 			Fault fault = new ReservedInstructionFault ();
-			fault.Invoke(thread);
+			fault.Invoke (thread);
 		}
 	}
 
@@ -5309,7 +5309,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 		{
 		}
 
-		protected short Imm {get; set;}
+		protected short Imm { get; set; }
 	}
 
 	public abstract class Fault
@@ -5318,7 +5318,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 		{
 		}
 
-		protected abstract string Name {get;}
+		protected abstract string Name { get; }
 
 		public void Invoke (Thread thread)
 		{
@@ -5333,15 +5333,11 @@ namespace MinCai.Simulators.Flexim.Architecture
 			this.Text = text;
 		}
 
-		protected override string Name
-		{
-			get
-			{
-				return string.Format("UnimplFault ({0:s})\n", this.Text);
-			}
+		protected override string Name {
+			get { return string.Format ("UnimplFault ({0:s})\n", this.Text); }
 		}
 
-		public string Text {get;private set;}
+		public string Text { get; private set; }
 	}
 
 	public sealed class ReservedInstructionFault : Fault
@@ -5350,12 +5346,8 @@ namespace MinCai.Simulators.Flexim.Architecture
 		{
 		}
 
-		protected override string Name
-		{
-			get
-			{
-				return "ReservedInstructionFault";
-			}
+		protected override string Name {
+			get { return "ReservedInstructionFault"; }
 		}
 	}
 }

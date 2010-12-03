@@ -36,6 +36,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 		public static uint PAGE_SIZE = (uint)(1 << (int)LOG_PAGE_SIZE);
 		public static uint PAGE_MASK = PAGE_SIZE - 1;
 		public static uint PAGE_COUNT = 1024;
+		public static uint PAGE_LIST_SIZE = 1 << 10;
 
 		public static uint BLOCK_SIZE = 64;
 	}
@@ -73,7 +74,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			this.Addr = addr;
 		}
 
-		public uint Addr {get; private set;}
+		public uint Addr { get; private set; }
 	}
 
 	public sealed class Memory
@@ -474,10 +475,10 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 		private ulong mappedSpace = 0;
 		private ulong maxMappedSpace = 0;
 
-		private bool safe {get; set;}
+		private bool safe { get; set; }
 	}
 
-	public sealed class MemoryManagementUnit //TODO: correctness?
+	public sealed class MemoryManagementUnit
 	{
 		private sealed class Page
 		{
@@ -485,10 +486,10 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			{
 			}
 
+			public uint MemoryMapId { get; set; }
 			public uint VirtualAddress { get; set; }
 			public uint PhysicalAddress { get; set; }
 			public Page Next { get; set; }
-			public Directory Directory { get; set; } //TODO: what about the usage?
 		}
 
 		public MemoryManagementUnit ()
@@ -496,38 +497,45 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			this.Pages = new Dictionary<uint, Page> ();
 		}
 
-		private Page getPage (uint virtualAddress)
+		private Page getPage (uint memoryMapId, uint virtualAddress)
 		{
-			uint pageIndex = GetPageIndex (virtualAddress);
+			uint pageIndex = GetPageIndex (memoryMapId, virtualAddress);
 			uint tag = GetTag (virtualAddress);
 			
+			Page prev = null;
 			Page page = this[pageIndex];
 			
 			while (page != null) {
-				if (page.VirtualAddress == tag)
+				if (page.VirtualAddress == tag && page.MemoryMapId == memoryMapId)
 					break;
+				prev = page;
 				page = page.Next;
 			}
 			
 			if (page == null) {
 				page = new Page ();
-				page.Directory = new Directory (MemoryConstants.PAGE_SIZE / MemoryConstants.BLOCK_SIZE, 1);
-				
+				page.MemoryMapId = memoryMapId;
 				page.VirtualAddress = tag;
-				page.PhysicalAddress = this.PageCount << (int)MemoryConstants.LOG_PAGE_SIZE;
-				
-				page.Next = this[pageIndex];
-				this[pageIndex] = page;
+				page.PhysicalAddress = (uint)this.PageCount << (int)MemoryConstants.LOG_PAGE_SIZE;
 				
 				this.PageCount++;
+				page.Next = this[pageIndex];
+				this[pageIndex] = page;
+				prev = null;
+			}
+			
+			if (prev != null) {
+				prev.Next = page.Next;
+				page.Next = this[pageIndex];
+				this[pageIndex] = page;
 			}
 			
 			return page;
 		}
 
-		public uint GetPhysicalAddress (uint virtualAddress)
+		public uint GetPhysicalAddress (uint memoryMapId, uint virtualAddress)
 		{
-			Page page = this.getPage (virtualAddress);
+			Page page = this.getPage (memoryMapId, virtualAddress);
 			return page.PhysicalAddress | GetOffset (virtualAddress);
 		}
 
@@ -545,9 +553,9 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 		private Dictionary<uint, Page> Pages { get; set; }
 		private uint PageCount { get; set; }
 
-		private static uint GetPageIndex (uint virtualAddress)
+		private static uint GetPageIndex (uint memoryMapId, uint virtualAddress)
 		{
-			return virtualAddress >> (int)MemoryConstants.LOG_PAGE_SIZE;
+			return ((virtualAddress >> (int)MemoryConstants.LOG_PAGE_SIZE) + memoryMapId * 23) % MemoryConstants.PAGE_LIST_SIZE;
 		}
 
 		private static uint GetTag (uint virtualAddress)
@@ -559,6 +567,13 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 		{
 			return virtualAddress & MemoryConstants.PAGE_MASK;
 		}
+
+		static MemoryManagementUnit ()
+		{
+			CurrentMemoryMapId = 0;
+		}
+
+		public static uint CurrentMemoryMapId;
 	}
 
 	public sealed class DirectoryEntry
@@ -969,7 +984,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 		}
 
 		public abstract uint Level { get; }
-			
+
 		public ICycleProvider CycleProvider { get; private set; }
 		public string Name { get; private set; }
 		public CoherentCacheNode Next { get; set; }
@@ -1022,7 +1037,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 	}
 
 	public sealed class CoherentCache : CoherentCacheNode
-	{		
+	{
 		public CoherentCache (ICycleProvider cycleProvider, CacheConfig config, CacheStat stat) : base(cycleProvider, config.Name)
 		{
 			this.Config = config;
@@ -1452,7 +1467,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 		public CacheStat Stat { get; private set; }
 
 		private Random Random { get; set; }
-		
+
 		public static bool IsReadHit (MESIState state)
 		{
 			return state != MESIState.Invalid;

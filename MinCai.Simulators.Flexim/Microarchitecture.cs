@@ -1235,7 +1235,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 						if (isHitInLoadStoreQueue) {
 							readyQueueEntry1.SignalCompleted ();
 						} else {
-							this.SeqD.Load (this.MMU.GetPhysicalAddress (readyQueueEntry1.Ea), false, readyQueueEntry1, delegate(ReorderBufferEntry readyQueueEntry2) { readyQueueEntry2.SignalCompleted (); });
+							this.SeqD.Load (this.Processor.MMU.GetPhysicalAddress (readyQueueEntry1.DynamicInst.Thread.MemoryMapId, readyQueueEntry1.Ea), false, readyQueueEntry1, delegate(ReorderBufferEntry readyQueueEntry2) { readyQueueEntry2.SignalCompleted (); });
 						}
 					});
 					
@@ -1332,10 +1332,6 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			}
 		}
 
-		public MemoryManagementUnit MMU { // TODO: here?
-			get { return this.Processor.MemorySystem.MMU; }
-		}
-
 		public Sequencer SeqI { get; set; }
 
 		public CoherentCacheNode L1I { get; set; }
@@ -1391,6 +1387,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			
 			this.ClearArchRegs ();
 			
+			this.MemoryMapId = MemoryManagementUnit.CurrentMemoryMapId++;
 			this.Mem = new Memory ();
 			
 			this.Process.Load (this);
@@ -1461,7 +1458,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			if (blockToFetch != this.LastFetchedBlock) {
 				this.LastFetchedBlock = blockToFetch;
 				
-				this.Core.SeqI.Load (this.Core.MMU.GetPhysicalAddress (this.FetchNpc), false, delegate() { this.IsFetchStalled = false; });
+				this.Core.SeqI.Load (this.Core.Processor.MMU.GetPhysicalAddress (this.MemoryMapId, this.FetchNpc), false, delegate() { this.IsFetchStalled = false; });
 				
 				this.IsFetchStalled = true;
 			}
@@ -1489,7 +1486,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 				uint stackRecoverIndex;
 				BranchPredictorUpdate dirUpdate = new BranchPredictorUpdate ();
 				
-				uint dest = this.Bpred.Lookup (this.Core.MMU.GetPhysicalAddress (this.FetchPc), 0, dynamicInst, out dirUpdate, out stackRecoverIndex);
+				uint dest = this.Bpred.Lookup (this.Core.Processor.MMU.GetPhysicalAddress (this.MemoryMapId, this.FetchPc), 0, dynamicInst, out dirUpdate, out stackRecoverIndex);
 				this.FetchNnpc = dest <= 1 ? (uint)(this.FetchNpc + Marshal.SizeOf (typeof(uint))) : dest;
 				
 				this.FetchNnpc = this.Regs.Nnpc;
@@ -1563,7 +1560,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 					}
 					
 					if (loadStoreQueueEntry.DynamicInst.StaticInst.IsStore) {
-						this.Core.FuPool.Acquire (loadStoreQueueEntry, delegate(ReorderBufferEntry loadStoreQueueEntry1) { this.Core.SeqD.Store (this.Core.MMU.GetPhysicalAddress (loadStoreQueueEntry1.Ea), false, delegate() { }); });
+						this.Core.FuPool.Acquire (loadStoreQueueEntry, delegate(ReorderBufferEntry loadStoreQueueEntry1) { this.Core.SeqD.Store (this.Core.Processor.MMU.GetPhysicalAddress (this.MemoryMapId, loadStoreQueueEntry1.Ea), false, delegate() { }); });
 					}
 					
 					foreach (var oDep in loadStoreQueueEntry.ODeps) {
@@ -1683,6 +1680,8 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 		}
 
 		public uint Num { get; private set; }
+		
+		public uint MemoryMapId {get; private set;}
 
 		public ThreadState State { get; private set; }
 
@@ -1927,6 +1926,10 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			this.Simulation.Stat.Duration = (ulong)((DateTime.Now - beginTime).TotalSeconds);
 			this.Simulation.Stat.InstsPerCycle = (double)this.Simulation.Stat.TotalInsts / this.Simulation.Stat.TotalCycles;
 			this.Simulation.Stat.CyclesPerSecond = (double)this.Simulation.Stat.TotalCycles / this.Simulation.Stat.Duration;
+		}
+
+		public MemoryManagementUnit MMU {
+			get { return this.MemorySystem.MMU; }
 		}
 
 		public List<Core> Cores { get; private set; }

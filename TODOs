@@ -1,6 +1,5 @@
-1. MMU...per thread? correctness?
-2. Cleanup of XmlConfig stuff...
-3. Verification of Branch predictor stuff.
-4. Multi-level cache hierarchy configuration.
-5. benchmarking.
-6. performance optimization.
+1. Cleanup of XmlConfig stuff...
+2. Verification of Branch predictor stuff.
+3. Multi-level cache hierarchy configuration.
+4. benchmarking.
+5. performance optimization.
