@@ -31,14 +31,11 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 {
 	public static class MemoryConstants
 	{
+		public static uint BLOCK_SIZE = 64;
 		public static uint LOG_PAGE_SIZE = 12;
-		public static uint PAGE_SHIFT = LOG_PAGE_SIZE;
 		public static uint PAGE_SIZE = (uint)(1 << (int)LOG_PAGE_SIZE);
 		public static uint PAGE_MASK = PAGE_SIZE - 1;
-		public static uint PAGE_COUNT = 1024;
-		public static uint PAGE_LIST_SIZE = 1 << 10;
-
-		public static uint BLOCK_SIZE = 64;
+		public static uint PAGE_COUNT = 1 << 10;
 	}
 
 	public enum MemoryAccessType : uint
@@ -283,7 +280,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			Debug.Assert (IsAligned (src));
 			Debug.Assert (IsAligned ((uint)size));
 			if ((src < dest && src + size > dest) || (dest < src && dest + size > src))
-				Logger.Fatal (LogCategory.Memory, "mem_copy: cannot copy overlapping regions");
+				Logger.Fatal (Logger.Categories.Memory, "mem_copy: cannot copy overlapping regions");
 			
 			while (size > 0) {
 				MemoryPage pageDest = this.GetPage (dest);
@@ -304,17 +301,17 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 				switch (access) {
 				case MemoryAccessType.Read:
 				case MemoryAccessType.Execute:
-					Logger.Warnf (LogCategory.Memory, "Memory.accessPageBoundary: unsafe reading 0x{0:x8}", addr);
+					Logger.Warnf (Logger.Categories.Memory, "Memory.accessPageBoundary: unsafe reading 0x{0:x8}", addr);
 					PtrHelper.Memset (buf, 0, size);
 					return;
 				
 				case MemoryAccessType.Write:
 				case MemoryAccessType.Init:
-					Logger.Warnf (LogCategory.Memory, "Memory.accessPageBoundary: unsafe writing 0x{0:x8}", addr);
+					Logger.Warnf (Logger.Categories.Memory, "Memory.accessPageBoundary: unsafe writing 0x{0:x8}", addr);
 					page = AddPage (addr, MemoryAccessType.Read | MemoryAccessType.Write | MemoryAccessType.Execute | MemoryAccessType.Init);
 					break;
 				default:
-					Logger.Panic (LogCategory.Memory, "Memory.accessPageBoundary: unknown access");
+					Logger.Panic (Logger.Categories.Memory, "Memory.accessPageBoundary: unknown access");
 					break;
 				}
 			}
@@ -324,7 +321,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 					throw new SegmentationFaultException (addr);
 				}
 				if ((page.Permission & access) != access) {
-					Logger.Fatalf (LogCategory.Memory, "Memory.accessPageBoundary: permission denied at 0x{0:x8}, page.Permission: 0x{1:x8}, access: 0x{2:x8}", addr, page.Permission, access);
+					Logger.Fatalf (Logger.Categories.Memory, "Memory.accessPageBoundary: permission denied at 0x{0:x8}, page.Permission: 0x{1:x8}, access: 0x{2:x8}", addr, page.Permission, access);
 				}
 			}
 			
@@ -342,7 +339,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 					PtrHelper.Memcpy (data, buf, size);
 					break;
 				default:
-					Logger.Panic (LogCategory.Memory, "Memory.accessPageBoundary: unknown access");
+					Logger.Panic (Logger.Categories.Memory, "Memory.accessPageBoundary: unknown access");
 					break;
 				}
 			}
@@ -423,7 +420,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 
 		public void Map (uint addr, int size, MemoryAccessType permission)
 		{
-//			Logger.Infof(LogCategory.MEMORY, "Memory.Map(), addr: 0x{0:x8} ~ 0x{1:x8}, size: {2:d}, permission: 0x{3:x8}", addr, addr + size, size, permission);
+//			Logger.Infof(Logger.Categories.MEMORY, "Memory.Map(), addr: 0x{0:x8} ~ 0x{1:x8}, size: {2:d}, permission: 0x{3:x8}", addr, addr + size, size, permission);
 			
 			for (uint tag = this.GetTag (addr); tag <= this.GetTag ((uint)(addr + size - 1)); tag += MemoryConstants.PAGE_SIZE) {
 				MemoryPage page = this.GetPage (tag);
@@ -555,7 +552,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 
 		private static uint GetPageIndex (uint memoryMapId, uint virtualAddress)
 		{
-			return ((virtualAddress >> (int)MemoryConstants.LOG_PAGE_SIZE) + memoryMapId * 23) % MemoryConstants.PAGE_LIST_SIZE;
+			return ((virtualAddress >> (int)MemoryConstants.LOG_PAGE_SIZE) + memoryMapId * 23) % MemoryConstants.PAGE_COUNT;
 		}
 
 		private static uint GetTag (uint virtualAddress)
@@ -980,7 +977,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 
 		public override string ToString ()
 		{
-			return string.Format ("[CoherentCacheNode: Name={0}, Level={1}, Next={3}, EventQueue={4}]", this.Name, this.Level, this.Next, this.EventQueue);
+			return string.Format ("[CoherentCacheNode: Name={0}, Next={1}, EventQueue={2}]", this.Name, this.Next, this.EventQueue);
 		}
 
 		public abstract uint Level { get; }

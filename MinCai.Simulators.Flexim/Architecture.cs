@@ -25,9 +25,11 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 using MinCai.Simulators.Flexim.Architecture;
+using MinCai.Simulators.Flexim.Architecture.Instructions;
 using MinCai.Simulators.Flexim.Common;
 using MinCai.Simulators.Flexim.MemoryHierarchy;
 using MinCai.Simulators.Flexim.Microarchitecture;
+using MinCai.Simulators.Flexim.Interop;
 
 namespace MinCai.Simulators.Flexim.Architecture
 {
@@ -132,24 +134,24 @@ namespace MinCai.Simulators.Flexim.Architecture
 		public static BitField CACHE_OP = new BitField ("CACHE_OP", 20, 16);
 	}
 
-	public enum MachInstType
+	public sealed class MachineInstruction
 	{
-		R,
-		I,
-		J,
-		F
-	}
+		public enum Types
+		{
+			R,
+			I,
+			J,
+			F
+		}
 
-	public sealed class MachInst
-	{
-		public MachInst (uint data)
+		public MachineInstruction (uint data)
 		{
 			this.Data = data;
 		}
 
 		public override string ToString ()
 		{
-			return string.Format ("[MachInst: Data=0x{0:x8}]", this.Data);
+			return string.Format ("[MachineInstruction: Data=0x{0:x8}]", this.Data);
 		}
 
 		public uint this[BitField field] {
@@ -251,44 +253,20 @@ namespace MinCai.Simulators.Flexim.Architecture
 			get { return (this[BitField.OPCODE_LO] == 0x0 && this[BitField.FUNC_HI] == 0x1 && this[BitField.FUNC_LO] == 0x4); }
 		}
 
-		public MachInstType MachInstType {
+		public Types MachineInstructionType {
 			get {
 				uint opcode = this[BitField.OPCODE];
 				
 				if (opcode == 0)
-					return MachInstType.R; else if ((opcode == 0x02) || (opcode == 0x03))
-					return MachInstType.J; else if (opcode == 0x11)
-					return MachInstType.F;
+					return Types.R; else if ((opcode == 0x02) || (opcode == 0x03))
+					return Types.J; else if (opcode == 0x11)
+					return Types.F;
 				else
-					return MachInstType.I;
+					return Types.I;
 			}
 		}
 
 		public uint Data { get; private set; }
-	}
-
-	public enum StaticInstFlag : uint
-	{
-		None = 0x00000000,
-		IntegerComputation = 0x00000001,
-		FloatComputation = 0x00000002,
-		Control = 0x00000004,
-		Unconditional = 0x00000008,
-		Conditional = 0x00000010,
-		Memory = 0x00000020,
-		Load = 0x00000040,
-		Store = 0x00000080,
-		DisplacedAddressing = 0x00000100,
-		RRAddressing = 0x00000200,
-		DirectAddressing = 0x00000400,
-		Trap = 0x00000800,
-		LongLatency = 0x00001000,
-		DirectJump = 0x00002000,
-		IndirectJump = 0x00004000,
-		Call = 0x00008000,
-		FloatConditional = 0x00010000,
-		Immediate = 0x00020000,
-		FunctionReturn = 0x00040000
 	}
 
 	public static class RegisterConstants
@@ -311,14 +289,11 @@ namespace MinCai.Simulators.Flexim.Architecture
 		public static uint RETURN_ADDRESS_REG = 31;
 
 		public static uint SYSCALL_PSEUDO_RETURN_REG = 3;
-	}
 
-	public enum MiscRegNums : int
-	{
-		Lo = 0,
-		Hi = 1,
-		Ea = 2,
-		Fcsr = 3
+		public static uint MISC_REG_LO = 0;
+		public static uint MISC_REG_HI = 1;
+		public static uint MISC_REG_EA = 2;
+		public static uint MISC_REG_FCSR = 3;
 	}
 
 	public abstract class RegisterFile
@@ -358,12 +333,12 @@ namespace MinCai.Simulators.Flexim.Architecture
 				Debug.Assert (index < RegisterConstants.NUM_INT_REGS);
 				
 				uint val = this.Regs[index];
-//				Logger.Infof(LogCategory.THREAD, "    Reading int reg {0:d} as 0x{1:x8}.", index, val);
+//				Logger.Infof(Logger.Categories.THREAD, "    Reading int reg {0:d} as 0x{1:x8}.", index, val);
 				return val;
 			}
 			set {
 				Debug.Assert (index < RegisterConstants.NUM_INT_REGS);
-//				Logger.Infof(LogCategory.THREAD, "    Setting int reg {0:d} to 0x{1:x8}.", index, value);
+//				Logger.Infof(Logger.Categories.THREAD, "    Setting int reg {0:d} to 0x{1:x8}.", index, value);
 				this.Regs[index] = value;
 			}
 		}
@@ -396,7 +371,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 			Debug.Assert (index < RegisterConstants.NUM_FLOAT_REGS);
 			
 			float val = this.Regs.f[index];
-//			Logger.Infof(LogCategory.REGISTER, "    Reading float reg {0:d} as {1:f}.", index, val);
+//			Logger.Infof(Logger.Categories.REGISTER, "    Reading float reg {0:d} as {1:f}.", index, val);
 			return val;
 		}
 
@@ -405,7 +380,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 			Debug.Assert (index < RegisterConstants.NUM_FLOAT_REGS);
 			
 			this.Regs.f[index] = val;
-//			Logger.Infof(LogCategory.REGISTER, "    Setting float reg {0:d} to {1:f}.", index, val);
+//			Logger.Infof(Logger.Categories.REGISTER, "    Setting float reg {0:d} to {1:f}.", index, val);
 		}
 
 		public double GetDouble (uint index)
@@ -413,7 +388,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 			Debug.Assert (index < RegisterConstants.NUM_FLOAT_REGS);
 			
 			double val = this.Regs.d[index / 2];
-//			Logger.Infof(LogCategory.REGISTER, "    Reading double reg {0:d} as {1:f}.", index, val);
+//			Logger.Infof(Logger.Categories.REGISTER, "    Reading double reg {0:d} as {1:f}.", index, val);
 			return val;
 		}
 
@@ -422,7 +397,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 			Debug.Assert (index < RegisterConstants.NUM_FLOAT_REGS);
 			
 			this.Regs.d[index / 2] = val;
-//			Logger.Infof(LogCategory.REGISTER, "    Setting double reg {0:d} to {1:f}.", index, val);
+//			Logger.Infof(Logger.Categories.REGISTER, "    Setting double reg {0:d} to {1:f}.", index, val);
 		}
 
 		public uint GetUint (uint index)
@@ -430,7 +405,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 			Debug.Assert (index < RegisterConstants.NUM_FLOAT_REGS);
 			
 			uint val = (uint)(this.Regs.i[index]);
-//			Logger.Infof(LogCategory.REGISTER, "    Reading float reg {0:d} bits as 0x{1:x8}.", index, val);
+//			Logger.Infof(Logger.Categories.REGISTER, "    Reading float reg {0:d} bits as 0x{1:x8}.", index, val);
 			return val;
 		}
 
@@ -439,7 +414,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 			Debug.Assert (index < RegisterConstants.NUM_FLOAT_REGS);
 			
 			this.Regs.i[index] = (int)val;
-//			Logger.Infof(LogCategory.REGISTER, "    Setting float reg (0:d} bits to 0x{1:x8}.", index, val);
+//			Logger.Infof(Logger.Categories.REGISTER, "    Setting float reg (0:d} bits to 0x{1:x8}.", index, val);
 		}
 
 		public ulong GetUlong (uint index)
@@ -447,7 +422,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 			Debug.Assert (index < RegisterConstants.NUM_FLOAT_REGS);
 			
 			ulong val = (ulong)(this.Regs.l[index / 2]);
-//			Logger.Infof(LogCategory.REGISTER, "    Reading double reg {0:d} bits as 0x{1:x8}.", index, val);
+//			Logger.Infof(Logger.Categories.REGISTER, "    Reading double reg {0:d} bits as 0x{1:x8}.", index, val);
 			return val;
 		}
 
@@ -456,7 +431,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 			Debug.Assert (index < RegisterConstants.NUM_FLOAT_REGS);
 			
 			this.Regs.l[index / 2] = (long)val;
-//			Logger.Infof(LogCategory.REGISTER, "    Setting double reg {0:d} bits to 0x{1:x8}.", index, val);
+//			Logger.Infof(Logger.Categories.REGISTER, "    Setting double reg {0:d} bits to 0x{1:x8}.", index, val);
 		}
 
 		public override string ToString ()
@@ -593,42 +568,42 @@ namespace MinCai.Simulators.Flexim.Architecture
 	{
 		public InstructionSetArchitecture ()
 		{
-			this.DecodedInsts = new Dictionary<uint, StaticInst> ();
+			this.DecodedStaticInstructions = new Dictionary<uint, StaticInstruction> ();
 		}
 
-		unsafe public StaticInst Decode (uint pc, Memory mem)
+		unsafe public StaticInstruction Decode (uint pc, Memory mem)
 		{
-			if (this.DecodedInsts.ContainsKey (pc)) {
-				return this.DecodedInsts[pc];
+			if (this.DecodedStaticInstructions.ContainsKey (pc)) {
+				return this.DecodedStaticInstructions[pc];
 			} else {
 				uint data = 0;
 				mem.ReadWord (pc, &data);
 				
-				MachInst machInst = new MachInst (data);
+				MachineInstruction machineInstruction = new MachineInstruction (data);
 				
-				StaticInst staticInst = this.DecodeMachInst (machInst);
+				StaticInstruction staticInstruction = this.DecodeMachineInstruction (machineInstruction);
 				
-				this.DecodedInsts[pc] = staticInst;
+				this.DecodedStaticInstructions[pc] = staticInstruction;
 				
-				return staticInst;
+				return staticInstruction;
 			}
 		}
 
-		public abstract StaticInst DecodeMachInst (MachInst machInst);
+		public abstract StaticInstruction DecodeMachineInstruction (MachineInstruction machineInstruction);
 
-		private Dictionary<uint, StaticInst> DecodedInsts { get; set; }
-	}
-
-	public enum RegisterDependencyType
-	{
-		Integer,
-		Float,
-		Misc
+		private Dictionary<uint, StaticInstruction> DecodedStaticInstructions { get; set; }
 	}
 
 	public sealed class RegisterDependency
 	{
-		public RegisterDependency (RegisterDependencyType type, uint num)
+		public enum Types
+		{
+			Integer,
+			Float,
+			Misc
+		}
+
+		public RegisterDependency (Types type, uint num)
 		{
 			this.Type = type;
 			this.Num = num;
@@ -639,18 +614,42 @@ namespace MinCai.Simulators.Flexim.Architecture
 			return string.Format ("[RegisterDependency: Type={0}, Num={1}]", this.Type, this.Num);
 		}
 
-		public RegisterDependencyType Type { get; private set; }
+		public Types Type { get; private set; }
 		public uint Num { get; private set; }
 	}
 
-	public abstract class StaticInst
+	public abstract class StaticInstruction
 	{
-		public StaticInst (string mnemonic, MachInst machInst, StaticInstFlag flags, FunctionalUnitType fuType)
+		public enum Flag : uint
+		{
+			None = 0x00000000,
+			IntegerComputation = 0x00000001,
+			FloatComputation = 0x00000002,
+			Control = 0x00000004,
+			UnconditionalBranch = 0x00000008,
+			ConditionalBranch = 0x00000010,
+			Memory = 0x00000020,
+			Load = 0x00000040,
+			Store = 0x00000080,
+			DisplacedAddressing = 0x00000100,
+			RRAddressing = 0x00000200,
+			DirectAddressing = 0x00000400,
+			Trap = 0x00000800,
+			LongLatency = 0x00001000,
+			DirectJump = 0x00002000,
+			IndirectJump = 0x00004000,
+			FunctionCall = 0x00008000,
+			FloatConditional = 0x00010000,
+			Immediate = 0x00020000,
+			FunctionReturn = 0x00040000
+		}
+
+		public StaticInstruction (string mnemonic, MachineInstruction machineInstruction, Flag flags, FunctionalUnit.Types fuType)
 		{
 			this.Mnemonic = mnemonic;
-			this.MachInst = machInst;
+			this.MachineInstruction = machineInstruction;
 			this.Flags = flags;
-			this.FuType = fuType;
+			this.FunctionalUnitType = fuType;
 			
 			this.IDeps = new List<RegisterDependency> ();
 			this.ODeps = new List<RegisterDependency> ();
@@ -658,66 +657,66 @@ namespace MinCai.Simulators.Flexim.Architecture
 			this.SetupDeps ();
 		}
 
-		public virtual uint GetTargetPc (Thread thread)
+		public virtual uint GetTargetPc (IThread thread)
 		{
-			throw new NotImplementedException();
+			throw new NotImplementedException ();
 		}
 
 		protected abstract void SetupDeps ();
 
-		public abstract void Execute (Thread thread);
+		public abstract void Execute (IThread thread);
 
 		public override string ToString ()
 		{
-			return string.Format ("[StaticInst: MachInst={0}, Mnemonic={1}, Flags={2}, FuType={3}]", this.MachInst, this.Mnemonic, this.Flags, this.FuType);
+			return string.Format ("[StaticInstruction: MachineInstruction={0}, Mnemonic={1}, Flags={2}, FunctionalUnitType={3}]", this.MachineInstruction, this.Mnemonic, this.Flags, this.FunctionalUnitType);
 		}
 
 		public uint this[BitField field] {
-			get { return this.MachInst[field]; }
+			get { return this.MachineInstruction[field]; }
 		}
 
 		public bool IsLongLatency {
-			get { return (this.Flags & StaticInstFlag.LongLatency) == StaticInstFlag.LongLatency; }
+			get { return (this.Flags & Flag.LongLatency) == Flag.LongLatency; }
 		}
 
 		public bool IsTrap {
-			get { return (this.Flags & StaticInstFlag.Trap) == StaticInstFlag.Trap; }
+			get { return (this.Flags & Flag.Trap) == Flag.Trap; }
 		}
 
 		public bool IsMemory {
-			get { return (this.Flags & StaticInstFlag.Memory) == StaticInstFlag.Memory; }
+			get { return (this.Flags & Flag.Memory) == Flag.Memory; }
 		}
 
 		public bool IsLoad {
-			get { return this.IsMemory && (this.Flags & StaticInstFlag.Load) == StaticInstFlag.Load; }
+			get { return this.IsMemory && (this.Flags & Flag.Load) == Flag.Load; }
 		}
 
 		public bool IsStore {
-			get { return this.IsMemory && (this.Flags & StaticInstFlag.Store) == StaticInstFlag.Store; }
+			get { return this.IsMemory && (this.Flags & Flag.Store) == Flag.Store; }
 		}
 
-		public bool IsConditional {
-			get { return (this.Flags & StaticInstFlag.Conditional) == StaticInstFlag.Conditional; }
+		public bool IsConditionalBranch {
+			get { return (this.Flags & Flag.ConditionalBranch) == Flag.ConditionalBranch; }
 		}
 
-		public bool IsUnconditional {
-			get { return (this.Flags & StaticInstFlag.Unconditional) == StaticInstFlag.Unconditional; }
+		public bool IsUnconditionalBranch {
+			get { return (this.Flags & Flag.UnconditionalBranch) == Flag.UnconditionalBranch; }
 		}
 
 		public bool IsDirectJump {
-			get { return (this.Flags & StaticInstFlag.DirectJump) != StaticInstFlag.DirectJump; }
+			get { return (this.Flags & Flag.DirectJump) != Flag.DirectJump; }
 		}
 
 		public bool IsControl {
-			get { return (this.Flags & StaticInstFlag.Control) == StaticInstFlag.Control; }
+			get { return (this.Flags & Flag.Control) == Flag.Control; }
 		}
 
-		public bool IsCall {
-			get { return (this.Flags & StaticInstFlag.Call) == StaticInstFlag.Call; }
+		public bool IsFunctionCall {
+			get { return (this.Flags & Flag.FunctionCall) == Flag.FunctionCall; }
 		}
 
 		public bool IsFunctionReturn {
-			get { return (this.Flags & StaticInstFlag.FunctionReturn) == StaticInstFlag.FunctionReturn; }
+			get { return (this.Flags & Flag.FunctionReturn) == Flag.FunctionReturn; }
 		}
 
 		public bool IsNop {
@@ -726,31 +725,31 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 		public List<RegisterDependency> IDeps { get; protected set; }
 		public List<RegisterDependency> ODeps { get; protected set; }
-		
+
 		public string Mnemonic { get; private set; }
-		public MachInst MachInst { get; private set; }
-		public StaticInstFlag Flags { get; private set; }
-		public FunctionalUnitType FuType { get; private set; }
+		public MachineInstruction MachineInstruction { get; private set; }
+		public Flag Flags { get; private set; }
+		public FunctionalUnit.Types FunctionalUnitType { get; private set; }
 	}
 
-	public sealed class DynamicInst
+	public sealed class DynamicInstruction
 	{
-		public DynamicInst (Thread thread, uint pc, StaticInst staticInst)
+		public DynamicInstruction (IThread thread, uint pc, StaticInstruction staticInst)
 		{
 			this.Thread = thread;
 			this.Pc = pc;
-			this.StaticInst = staticInst;
+			this.StaticInstruction = staticInst;
 		}
 
 		public void Execute ()
 		{
 			this.Thread.Regs.IntRegs[RegisterConstants.ZERO_REG] = 0;
-			this.StaticInst.Execute (this.Thread);
+			this.StaticInstruction.Execute (this.Thread);
 		}
 
 		public override string ToString ()
 		{
-			return string.Format ("[DynamicInst: Dis={0}, Thread.Name={1}]", Disassemble(this.StaticInst.MachInst, this.Pc, this.Thread), this.Thread.Name);
+			return string.Format ("[DynamicInstruction: Dis={0}, Thread.Name={1}]", Disassemble (this.StaticInstruction.MachineInstruction, this.Pc, this.Thread), this.Thread.Name);
 		}
 
 		public uint PhysPc {
@@ -758,72 +757,72 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 
 		public uint Pc { get; set; }
-		public StaticInst StaticInst { get; set; }
-		public Thread Thread { get; set; }
+		public StaticInstruction StaticInstruction { get; set; }
+		public IThread Thread { get; set; }
 
 		public static string[] MIPS_GPR_NAMES = { "zero", "at", "v0", "v1", "a0", "a1", "a2", "a3", "t0", "t1",
 		"t2", "t3", "t4", "t5", "t6", "t7", "s0", "s1", "s2", "s3",
 		"s4", "s5", "s6", "s7", "t8", "t9", "k0", "k1", "gp", "sp",
 		"s8", "ra" };
 
-		public static string Disassemble (MachInst machInst, uint pc, Thread thread)
+		public static string Disassemble (MachineInstruction machineInstruction, uint pc, IThread thread)
 		{
 			StringBuilder buf = new StringBuilder ();
 			
-			buf.AppendFormat ("0x{0:x8} : 0x{1:x8} {2} ", pc, machInst.Data, thread.Core.Isa.DecodeMachInst (machInst).Mnemonic);
+			buf.AppendFormat ("0x{0:x8} : 0x{1:x8} {2} ", pc, machineInstruction.Data, thread.Core.Isa.DecodeMachineInstruction (machineInstruction).Mnemonic);
 			
-			if (machInst.Data == 0x00000000) {
+			if (machineInstruction.Data == 0x00000000) {
 				return buf.ToString ();
 			}
 			
-			switch (machInst.MachInstType) {
-			case MachInstType.J:
-				buf.AppendFormat ("0x{0:x8}", machInst[BitField.JMPTARG]);
+			switch (machineInstruction.MachineInstructionType) {
+			case MachineInstruction.Types.J:
+				buf.AppendFormat ("0x{0:x8}", machineInstruction[BitField.JMPTARG]);
 				break;
-			case MachInstType.I:
-				if (machInst.IsOneOpBranch) {
-					buf.AppendFormat ("${0}, {1:d}", MIPS_GPR_NAMES[machInst[BitField.RS]], (short)machInst[BitField.INTIMM]);
-				} else if (machInst.IsLoadStore) {
-					buf.AppendFormat ("${0}, {1:d}(${2})", MIPS_GPR_NAMES[machInst[BitField.RT]], (short)machInst[BitField.INTIMM], MIPS_GPR_NAMES[machInst[BitField.RS]]);
-				} else if (machInst.IsFloatLoadStore) {
-					buf.AppendFormat ("$f{0}, {1:d}(${2})", machInst[BitField.FT], (short)machInst[BitField.INTIMM], MIPS_GPR_NAMES[machInst[BitField.RS]]);
+			case MachineInstruction.Types.I:
+				if (machineInstruction.IsOneOpBranch) {
+					buf.AppendFormat ("${0}, {1:d}", MIPS_GPR_NAMES[machineInstruction[BitField.RS]], (short)machineInstruction[BitField.INTIMM]);
+				} else if (machineInstruction.IsLoadStore) {
+					buf.AppendFormat ("${0}, {1:d}(${2})", MIPS_GPR_NAMES[machineInstruction[BitField.RT]], (short)machineInstruction[BitField.INTIMM], MIPS_GPR_NAMES[machineInstruction[BitField.RS]]);
+				} else if (machineInstruction.IsFloatLoadStore) {
+					buf.AppendFormat ("$f{0}, {1:d}(${2})", machineInstruction[BitField.FT], (short)machineInstruction[BitField.INTIMM], MIPS_GPR_NAMES[machineInstruction[BitField.RS]]);
 				} else {
-					buf.AppendFormat ("${0}, ${1}, {2:d}", MIPS_GPR_NAMES[machInst[BitField.RT]], MIPS_GPR_NAMES[machInst[BitField.RS]], (short)machInst[BitField.INTIMM]);
+					buf.AppendFormat ("${0}, ${1}, {2:d}", MIPS_GPR_NAMES[machineInstruction[BitField.RT]], MIPS_GPR_NAMES[machineInstruction[BitField.RS]], (short)machineInstruction[BitField.INTIMM]);
 				}
 				break;
-			case MachInstType.F:
-				if (machInst.IsConvert) {
-					buf.AppendFormat ("$f{0:d}, $f{1:d}", machInst[BitField.FD], machInst[BitField.FS]);
-				} else if (machInst.IsCompare) {
-					buf.AppendFormat ("{0:d}, $f{1:d}, $f{2:d}", machInst[BitField.FD] >> 2, machInst[BitField.FS], machInst[BitField.FT]);
-				} else if (machInst.IsFloatBranch) {
-					buf.AppendFormat ("{0:d}, {1:d}", machInst[BitField.FD] >> 2, (short)machInst[BitField.INTIMM]);
-				} else if (machInst.IsGPRFloatMove) {
-					buf.AppendFormat ("${0}, $f{1:d}", MIPS_GPR_NAMES[machInst[BitField.RT]], machInst[BitField.FS]);
-				} else if (machInst.IsGPRFCRMove) {
-					buf.AppendFormat ("${0}, ${1:d}", MIPS_GPR_NAMES[machInst[BitField.RT]], machInst[BitField.FS]);
+			case MachineInstruction.Types.F:
+				if (machineInstruction.IsConvert) {
+					buf.AppendFormat ("$f{0:d}, $f{1:d}", machineInstruction[BitField.FD], machineInstruction[BitField.FS]);
+				} else if (machineInstruction.IsCompare) {
+					buf.AppendFormat ("{0:d}, $f{1:d}, $f{2:d}", machineInstruction[BitField.FD] >> 2, machineInstruction[BitField.FS], machineInstruction[BitField.FT]);
+				} else if (machineInstruction.IsFloatBranch) {
+					buf.AppendFormat ("{0:d}, {1:d}", machineInstruction[BitField.FD] >> 2, (short)machineInstruction[BitField.INTIMM]);
+				} else if (machineInstruction.IsGPRFloatMove) {
+					buf.AppendFormat ("${0}, $f{1:d}", MIPS_GPR_NAMES[machineInstruction[BitField.RT]], machineInstruction[BitField.FS]);
+				} else if (machineInstruction.IsGPRFCRMove) {
+					buf.AppendFormat ("${0}, ${1:d}", MIPS_GPR_NAMES[machineInstruction[BitField.RT]], machineInstruction[BitField.FS]);
 				} else {
-					buf.AppendFormat ("$f{0:d}, $f{1:d}, $f{2:d}", machInst[BitField.FD], machInst[BitField.FS], machInst[BitField.FT]);
+					buf.AppendFormat ("$f{0:d}, $f{1:d}, $f{2:d}", machineInstruction[BitField.FD], machineInstruction[BitField.FS], machineInstruction[BitField.FT]);
 				}
 				break;
-			case MachInstType.R:
-				if (machInst.IsSyscall) {
-				} else if (machInst.IsShift) {
-					buf.AppendFormat ("${0}, ${1}, {2:d}", MIPS_GPR_NAMES[machInst[BitField.RD]], MIPS_GPR_NAMES[machInst[BitField.RT]], machInst[BitField.SA]);
-				} else if (machInst.IsROneOp) {
-					buf.AppendFormat ("${0}", MIPS_GPR_NAMES[machInst[BitField.RS]]);
-				} else if (machInst.IsRTwoOp) {
-					buf.AppendFormat ("${0}, ${1}", MIPS_GPR_NAMES[machInst[BitField.RS]], MIPS_GPR_NAMES[machInst[BitField.RT]]);
-				} else if (machInst.IsRMt) {
-					buf.AppendFormat ("${0}", MIPS_GPR_NAMES[machInst[BitField.RS]]);
-				} else if (machInst.IsRMf) {
-					buf.AppendFormat ("${0}", MIPS_GPR_NAMES[machInst[BitField.RD]]);
+			case MachineInstruction.Types.R:
+				if (machineInstruction.IsSyscall) {
+				} else if (machineInstruction.IsShift) {
+					buf.AppendFormat ("${0}, ${1}, {2:d}", MIPS_GPR_NAMES[machineInstruction[BitField.RD]], MIPS_GPR_NAMES[machineInstruction[BitField.RT]], machineInstruction[BitField.SA]);
+				} else if (machineInstruction.IsROneOp) {
+					buf.AppendFormat ("${0}", MIPS_GPR_NAMES[machineInstruction[BitField.RS]]);
+				} else if (machineInstruction.IsRTwoOp) {
+					buf.AppendFormat ("${0}, ${1}", MIPS_GPR_NAMES[machineInstruction[BitField.RS]], MIPS_GPR_NAMES[machineInstruction[BitField.RT]]);
+				} else if (machineInstruction.IsRMt) {
+					buf.AppendFormat ("${0}", MIPS_GPR_NAMES[machineInstruction[BitField.RS]]);
+				} else if (machineInstruction.IsRMf) {
+					buf.AppendFormat ("${0}", MIPS_GPR_NAMES[machineInstruction[BitField.RD]]);
 				} else {
-					buf.AppendFormat ("${0}, ${1}, ${2}", MIPS_GPR_NAMES[machInst[BitField.RD]], MIPS_GPR_NAMES[machInst[BitField.RS]], MIPS_GPR_NAMES[machInst[BitField.RT]]);
+					buf.AppendFormat ("${0}, ${1}, ${2}", MIPS_GPR_NAMES[machineInstruction[BitField.RD]], MIPS_GPR_NAMES[machineInstruction[BitField.RS]], MIPS_GPR_NAMES[machineInstruction[BitField.RT]]);
 				}
 				break;
 			default:
-				Logger.Fatal (LogCategory.Instruction, "you can not reach here");
+				Logger.Fatal (Logger.Categories.Instruction, "you can not reach here");
 				break;
 			}
 			
@@ -837,1928 +836,1931 @@ namespace MinCai.Simulators.Flexim.Architecture
 		{
 		}
 
-		public override StaticInst DecodeMachInst (MachInst machInst)
+		public override StaticInstruction DecodeMachineInstruction (MachineInstruction machineInstruction)
 		{
-			switch (machInst[BitField.OPCODE_HI]) {
+			switch (machineInstruction[BitField.OPCODE_HI]) {
 			case 0x0:
-				switch (machInst[BitField.OPCODE_LO]) {
+				switch (machineInstruction[BitField.OPCODE_LO]) {
 				case 0x0:
-					switch (machInst[BitField.FUNC_HI]) {
+					switch (machineInstruction[BitField.FUNC_HI]) {
 					case 0x0:
-						switch (machInst[BitField.FUNC_LO]) {
+						switch (machineInstruction[BitField.FUNC_LO]) {
 						case 0x1:
-							switch (machInst[BitField.MOVCI]) {
+							switch (machineInstruction[BitField.MOVCI]) {
 							case 0x0:
-								return new FailUnimplemented ("Movf", machInst);
+								return new FailUnimplemented ("Movf", machineInstruction);
 							case 0x1:
-								return new FailUnimplemented ("Movt", machInst);
+								return new FailUnimplemented ("Movt", machineInstruction);
 							default:
-								return new Unknown (machInst);
+								return new Unknown (machineInstruction);
 							}
 						case 0x0:
-							switch (machInst[BitField.RS]) {
+							switch (machineInstruction[BitField.RS]) {
 							case 0x0:
-								switch (machInst[BitField.RT_RD]) {
+								switch (machineInstruction[BitField.RT_RD]) {
 								case 0x0:
-									switch (machInst[BitField.SA]) {
+									switch (machineInstruction[BitField.SA]) {
 									case 0x1:
-										return new FailUnimplemented ("Ssnop", machInst);
+										return new FailUnimplemented ("Ssnop", machineInstruction);
 									case 0x3:
-										return new FailUnimplemented ("Ehb", machInst);
+										return new FailUnimplemented ("Ehb", machineInstruction);
 									default:
-										return new Nop (machInst);
+										return new Nop (machineInstruction);
 									}
 								default:
-									return new Sll (machInst);
+									return new Sll (machineInstruction);
 								}
 							default:
-								return new Unknown (machInst);
+								return new Unknown (machineInstruction);
 							}
 						case 0x2:
-							switch (machInst[BitField.RS_SRL]) {
+							switch (machineInstruction[BitField.RS_SRL]) {
 							case 0x0:
-								switch (machInst[BitField.SRL]) {
+								switch (machineInstruction[BitField.SRL]) {
 								case 0x0:
-									return new Srl (machInst);
+									return new Srl (machineInstruction);
 								case 0x1:
-									return new FailUnimplemented ("Rotr", machInst);
+									return new FailUnimplemented ("Rotr", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							default:
-								return new Unknown (machInst);
+								return new Unknown (machineInstruction);
 							}
 						case 0x3:
-							switch (machInst[BitField.RS]) {
+							switch (machineInstruction[BitField.RS]) {
 							case 0x0:
-								return new Sra (machInst);
+								return new Sra (machineInstruction);
 							default:
-								return new Unknown (machInst);
+								return new Unknown (machineInstruction);
 							}
 						case 0x4:
-							return new Sllv (machInst);
+							return new Sllv (machineInstruction);
 						case 0x6:
-							switch (machInst[BitField.SRLV]) {
+							switch (machineInstruction[BitField.SRLV]) {
 							case 0x0:
-								return new Srlv (machInst);
+								return new Srlv (machineInstruction);
 							case 0x1:
-								return new FailUnimplemented ("Rotrv", machInst);
+								return new FailUnimplemented ("Rotrv", machineInstruction);
 							default:
-								return new Unknown (machInst);
+								return new Unknown (machineInstruction);
 							}
 						case 0x7:
-							return new Srav (machInst);
+							return new Srav (machineInstruction);
 						default:
-							return new Unknown (machInst);
+							return new Unknown (machineInstruction);
 						}
 					case 0x1:
-						switch (machInst[BitField.FUNC_LO]) {
+						switch (machineInstruction[BitField.FUNC_LO]) {
 						case 0x0:
-							switch (machInst[BitField.HINT]) {
+							switch (machineInstruction[BitField.HINT]) {
 							case 0x1:
-								return new FailUnimplemented ("Jr_hb", machInst);
+								return new FailUnimplemented ("Jr_hb", machineInstruction);
 							default:
-								return new Jr (machInst);
+								return new Jr (machineInstruction);
 							}
 						case 0x1:
-							switch (machInst[BitField.HINT]) {
+							switch (machineInstruction[BitField.HINT]) {
 							case 0x1:
-								return new FailUnimplemented ("Jalr_hb", machInst);
+								return new FailUnimplemented ("Jalr_hb", machineInstruction);
 							default:
-								return new Jalr (machInst);
+								return new Jalr (machineInstruction);
 							}
 						case 0x2:
-							return new FailUnimplemented ("Movz", machInst);
+							return new FailUnimplemented ("Movz", machineInstruction);
 						case 0x3:
-							return new FailUnimplemented ("Movn", machInst);
+							return new FailUnimplemented ("Movn", machineInstruction);
 						case 0x4:
-							return new SyscallInst (machInst);
+							return new Syscall (machineInstruction);
 						case 0x7:
-							return new FailUnimplemented ("Sync", machInst);
+							return new FailUnimplemented ("Sync", machineInstruction);
 						case 0x5:
-							return new FailUnimplemented ("Break", machInst);
+							return new FailUnimplemented ("Break", machineInstruction);
 						default:
-							return new Unknown (machInst);
+							return new Unknown (machineInstruction);
 						}
 					case 0x2:
-						switch (machInst[BitField.FUNC_LO]) {
+						switch (machineInstruction[BitField.FUNC_LO]) {
 						case 0x0:
-							return new Mfhi (machInst);
+							return new Mfhi (machineInstruction);
 						case 0x1:
-							return new Mthi (machInst);
+							return new Mthi (machineInstruction);
 						case 0x2:
-							return new Mflo (machInst);
+							return new Mflo (machineInstruction);
 						case 0x3:
-							return new Mtlo (machInst);
+							return new Mtlo (machineInstruction);
 						default:
-							return new Unknown (machInst);
+							return new Unknown (machineInstruction);
 						}
 					case 0x3:
-						switch (machInst[BitField.FUNC_LO]) {
+						switch (machineInstruction[BitField.FUNC_LO]) {
 						case 0x0:
-							return new Mult (machInst);
+							return new Mult (machineInstruction);
 						case 0x1:
-							return new Multu (machInst);
+							return new Multu (machineInstruction);
 						case 0x2:
-							return new Div (machInst);
+							return new Div (machineInstruction);
 						case 0x3:
-							return new Divu (machInst);
+							return new Divu (machineInstruction);
 						default:
-							return new Unknown (machInst);
+							return new Unknown (machineInstruction);
 						}
 					case 0x4:
-						switch (machInst[BitField.HINT]) {
+						switch (machineInstruction[BitField.HINT]) {
 						case 0x0:
-							switch (machInst[BitField.FUNC_LO]) {
+							switch (machineInstruction[BitField.FUNC_LO]) {
 							case 0x0:
-								return new Add (machInst);
+								return new Add (machineInstruction);
 							case 0x1:
-								return new Addu (machInst);
+								return new Addu (machineInstruction);
 							case 0x2:
-								return new Sub (machInst);
+								return new Sub (machineInstruction);
 							case 0x3:
-								return new Subu (machInst);
+								return new Subu (machineInstruction);
 							case 0x4:
-								return new And (machInst);
+								return new And (machineInstruction);
 							case 0x5:
-								return new Or (machInst);
+								return new Or (machineInstruction);
 							case 0x6:
-								return new Xor (machInst);
+								return new Xor (machineInstruction);
 							case 0x7:
-								return new Nor (machInst);
+								return new Nor (machineInstruction);
 							default:
-								return new Unknown (machInst);
+								return new Unknown (machineInstruction);
 							}
 						default:
-							return new Unknown (machInst);
+							return new Unknown (machineInstruction);
 						}
 					case 0x5:
-						switch (machInst[BitField.HINT]) {
+						switch (machineInstruction[BitField.HINT]) {
 						case 0x0:
-							switch (machInst[BitField.FUNC_LO]) {
+							switch (machineInstruction[BitField.FUNC_LO]) {
 							case 0x2:
-								return new Slt (machInst);
+								return new Slt (machineInstruction);
 							case 0x3:
-								return new Sltu (machInst);
+								return new Sltu (machineInstruction);
 							default:
-								return new Unknown (machInst);
+								return new Unknown (machineInstruction);
 							}
 						default:
-							return new Unknown (machInst);
+							return new Unknown (machineInstruction);
 						}
 					case 0x6:
-						switch (machInst[BitField.FUNC_LO]) {
+						switch (machineInstruction[BitField.FUNC_LO]) {
 						case 0x0:
-							return new FailUnimplemented ("Tge", machInst);
+							return new FailUnimplemented ("Tge", machineInstruction);
 						case 0x1:
-							return new FailUnimplemented ("Tgeu", machInst);
+							return new FailUnimplemented ("Tgeu", machineInstruction);
 						case 0x2:
-							return new FailUnimplemented ("Tlt", machInst);
+							return new FailUnimplemented ("Tlt", machineInstruction);
 						case 0x3:
-							return new FailUnimplemented ("Tltu", machInst);
+							return new FailUnimplemented ("Tltu", machineInstruction);
 						case 0x4:
-							return new FailUnimplemented ("Teq", machInst);
+							return new FailUnimplemented ("Teq", machineInstruction);
 						case 0x6:
-							return new FailUnimplemented ("Tne", machInst);
+							return new FailUnimplemented ("Tne", machineInstruction);
 						default:
-							return new Unknown (machInst);
+							return new Unknown (machineInstruction);
 						}
 					default:
-						return new Unknown (machInst);
+						return new Unknown (machineInstruction);
 					}
 				case 0x1:
-					switch (machInst[BitField.REGIMM_HI]) {
+					switch (machineInstruction[BitField.REGIMM_HI]) {
 					case 0x0:
-						switch (machInst[BitField.REGIMM_LO]) {
+						switch (machineInstruction[BitField.REGIMM_LO]) {
 						case 0x0:
-							return new Bltz (machInst);
+							return new Bltz (machineInstruction);
 						case 0x1:
-							return new Bgez (machInst);
+							return new Bgez (machineInstruction);
 						case 0x2:
-							return new FailUnimplemented ("Bltzl", machInst);
+							return new FailUnimplemented ("Bltzl", machineInstruction);
 						case 0x3:
-							return new FailUnimplemented ("Bgezl", machInst);
+							return new FailUnimplemented ("Bgezl", machineInstruction);
 						default:
-							return new Unknown (machInst);
+							return new Unknown (machineInstruction);
 						}
 					case 0x1:
-						switch (machInst[BitField.REGIMM_LO]) {
+						switch (machineInstruction[BitField.REGIMM_LO]) {
 						case 0x0:
-							return new FailUnimplemented ("Tgei", machInst);
+							return new FailUnimplemented ("Tgei", machineInstruction);
 						case 0x1:
-							return new FailUnimplemented ("Tgeiu", machInst);
+							return new FailUnimplemented ("Tgeiu", machineInstruction);
 						case 0x2:
-							return new FailUnimplemented ("Tlti", machInst);
+							return new FailUnimplemented ("Tlti", machineInstruction);
 						case 0x3:
-							return new FailUnimplemented ("Tltiu", machInst);
+							return new FailUnimplemented ("Tltiu", machineInstruction);
 						case 0x4:
-							return new FailUnimplemented ("Teqi", machInst);
+							return new FailUnimplemented ("Teqi", machineInstruction);
 						case 0x6:
-							return new FailUnimplemented ("Tnei", machInst);
+							return new FailUnimplemented ("Tnei", machineInstruction);
 						default:
-							return new Unknown (machInst);
+							return new Unknown (machineInstruction);
 						}
 					case 0x2:
-						switch (machInst[BitField.REGIMM_LO]) {
+						switch (machineInstruction[BitField.REGIMM_LO]) {
 						case 0x0:
-							return new Bltzal (machInst);
+							return new Bltzal (machineInstruction);
 						case 0x1:
-							switch (machInst[BitField.RS]) {
+							switch (machineInstruction[BitField.RS]) {
 							case 0x0:
-								return new Bal (machInst);
+								return new Bal (machineInstruction);
 							default:
-								return new Bgezal (machInst);
+								return new Bgezal (machineInstruction);
 							}
 						case 0x2:
-							return new FailUnimplemented ("Bltzall", machInst);
+							return new FailUnimplemented ("Bltzall", machineInstruction);
 						case 0x3:
-							return new FailUnimplemented ("Bgezall", machInst);
+							return new FailUnimplemented ("Bgezall", machineInstruction);
 						default:
-							return new Unknown (machInst);
+							return new Unknown (machineInstruction);
 						}
 					case 0x3:
-						switch (machInst[BitField.REGIMM_LO]) {
+						switch (machineInstruction[BitField.REGIMM_LO]) {
 						case 0x4:
-							return new FailUnimplemented ("Bposge32", machInst);
+							return new FailUnimplemented ("Bposge32", machineInstruction);
 						case 0x7:
-							return new FailUnimplemented ("WarnUnimplemented.synci", machInst);
+							return new FailUnimplemented ("WarnUnimplemented.synci", machineInstruction);
 						default:
-							return new Unknown (machInst);
+							return new Unknown (machineInstruction);
 						}
 					default:
-						return new Unknown (machInst);
+						return new Unknown (machineInstruction);
 					}
 				case 0x2:
-					return new J (machInst);
+					return new J (machineInstruction);
 				case 0x3:
-					return new Jal (machInst);
+					return new Jal (machineInstruction);
 				case 0x4:
-					switch (machInst[BitField.RS_RT]) {
+					switch (machineInstruction[BitField.RS_RT]) {
 					case 0x0:
-						return new B (machInst);
+						return new B (machineInstruction);
 					default:
-						return new Beq (machInst);
+						return new Beq (machineInstruction);
 					}
 				case 0x5:
-					return new Bne (machInst);
+					return new Bne (machineInstruction);
 				case 0x6:
-					return new Blez (machInst);
+					return new Blez (machineInstruction);
 				case 0x7:
-					return new Bgtz (machInst);
+					return new Bgtz (machineInstruction);
 				default:
-					return new Unknown (machInst);
+					return new Unknown (machineInstruction);
 				}
 			case 0x1:
-				switch (machInst[BitField.OPCODE_LO]) {
+				switch (machineInstruction[BitField.OPCODE_LO]) {
 				case 0x0:
-					return new Addi (machInst);
+					return new Addi (machineInstruction);
 				case 0x1:
-					return new Addiu (machInst);
+					return new Addiu (machineInstruction);
 				case 0x2:
-					return new Slti (machInst);
+					return new Slti (machineInstruction);
 				case 0x3:
-					switch (machInst[BitField.RS_RT_INTIMM]) {
+					switch (machineInstruction[BitField.RS_RT_INTIMM]) {
 					case 0xabc1:
-						return new FailUnimplemented ("Fail", machInst);
+						return new FailUnimplemented ("Fail", machineInstruction);
 					case 0xabc2:
-						return new FailUnimplemented ("Pass", machInst);
+						return new FailUnimplemented ("Pass", machineInstruction);
 					default:
-						return new Sltiu (machInst);
+						return new Sltiu (machineInstruction);
 					}
 				case 0x4:
-					return new Andi (machInst);
+					return new Andi (machineInstruction);
 				case 0x5:
-					return new Ori (machInst);
+					return new Ori (machineInstruction);
 				case 0x6:
-					return new Xori (machInst);
+					return new Xori (machineInstruction);
 				case 0x7:
-					switch (machInst[BitField.RS]) {
+					switch (machineInstruction[BitField.RS]) {
 					case 0x0:
-						return new Lui (machInst);
+						return new Lui (machineInstruction);
 					default:
-						return new Unknown (machInst);
+						return new Unknown (machineInstruction);
 					}
 				default:
-					return new Unknown (machInst);
+					return new Unknown (machineInstruction);
 				}
 			case 0x2:
-				switch (machInst[BitField.OPCODE_LO]) {
+				switch (machineInstruction[BitField.OPCODE_LO]) {
 				case 0x0:
-					switch (machInst[BitField.RS_MSB]) {
+					switch (machineInstruction[BitField.RS_MSB]) {
 					case 0x0:
-						switch (machInst[BitField.RS]) {
+						switch (machineInstruction[BitField.RS]) {
 						case 0x0:
-							return new FailUnimplemented ("Mfc0", machInst);
+							return new FailUnimplemented ("Mfc0", machineInstruction);
 						case 0x4:
-							return new FailUnimplemented ("Mtc0", machInst);
+							return new FailUnimplemented ("Mtc0", machineInstruction);
 						case 0x1:
-							return new CP0Unimplemented ("dmfc0", machInst);
+							return new CP0Unimplemented ("dmfc0", machineInstruction);
 						case 0x5:
-							return new CP0Unimplemented ("dmtc0", machInst);
+							return new CP0Unimplemented ("dmtc0", machineInstruction);
 						default:
-							return new CP0Unimplemented ("unknown", machInst);
+							return new CP0Unimplemented ("unknown", machineInstruction);
 						case 0x8:
-							switch (machInst[BitField.MT_U]) {
+							switch (machineInstruction[BitField.MT_U]) {
 							case 0x0:
-								return new FailUnimplemented ("Mftc0", machInst);
+								return new FailUnimplemented ("Mftc0", machineInstruction);
 							case 0x1:
-								switch (machInst[BitField.SEL]) {
+								switch (machineInstruction[BitField.SEL]) {
 								case 0x0:
-									return new FailUnimplemented ("Mftgpr", machInst);
+									return new FailUnimplemented ("Mftgpr", machineInstruction);
 								case 0x1:
-									switch (machInst[BitField.RT]) {
+									switch (machineInstruction[BitField.RT]) {
 									case 0x0:
-										return new FailUnimplemented ("Mftlo_dsp0", machInst);
+										return new FailUnimplemented ("Mftlo_dsp0", machineInstruction);
 									case 0x1:
-										return new FailUnimplemented ("Mfthi_dsp0", machInst);
+										return new FailUnimplemented ("Mfthi_dsp0", machineInstruction);
 									case 0x2:
-										return new FailUnimplemented ("Mftacx_dsp0", machInst);
+										return new FailUnimplemented ("Mftacx_dsp0", machineInstruction);
 									case 0x4:
-										return new FailUnimplemented ("Mftlo_dsp1", machInst);
+										return new FailUnimplemented ("Mftlo_dsp1", machineInstruction);
 									case 0x5:
-										return new FailUnimplemented ("Mfthi_dsp1", machInst);
+										return new FailUnimplemented ("Mfthi_dsp1", machineInstruction);
 									case 0x6:
-										return new FailUnimplemented ("Mftacx_dsp1", machInst);
+										return new FailUnimplemented ("Mftacx_dsp1", machineInstruction);
 									case 0x8:
-										return new FailUnimplemented ("Mftlo_dsp2", machInst);
+										return new FailUnimplemented ("Mftlo_dsp2", machineInstruction);
 									case 0x9:
-										return new FailUnimplemented ("Mfthi_dsp2", machInst);
+										return new FailUnimplemented ("Mfthi_dsp2", machineInstruction);
 									case 0x10:
-										return new FailUnimplemented ("Mftacx_dsp2", machInst);
+										return new FailUnimplemented ("Mftacx_dsp2", machineInstruction);
 									case 0x12:
-										return new FailUnimplemented ("Mftlo_dsp3", machInst);
+										return new FailUnimplemented ("Mftlo_dsp3", machineInstruction);
 									case 0x13:
-										return new FailUnimplemented ("Mfthi_dsp3", machInst);
+										return new FailUnimplemented ("Mfthi_dsp3", machineInstruction);
 									case 0x14:
-										return new FailUnimplemented ("Mftacx_dsp3", machInst);
+										return new FailUnimplemented ("Mftacx_dsp3", machineInstruction);
 									case 0x16:
-										return new FailUnimplemented ("Mftdsp", machInst);
+										return new FailUnimplemented ("Mftdsp", machineInstruction);
 									default:
-										return new CP0Unimplemented ("unknown", machInst);
+										return new CP0Unimplemented ("unknown", machineInstruction);
 									}
 								case 0x2:
-									switch (machInst[BitField.MT_H]) {
+									switch (machineInstruction[BitField.MT_H]) {
 									case 0x0:
-										return new FailUnimplemented ("Mftc1", machInst);
+										return new FailUnimplemented ("Mftc1", machineInstruction);
 									case 0x1:
-										return new FailUnimplemented ("Mfthc1", machInst);
+										return new FailUnimplemented ("Mfthc1", machineInstruction);
 									default:
-										return new Unknown (machInst);
+										return new Unknown (machineInstruction);
 									}
 								case 0x3:
-									return new FailUnimplemented ("Cftc1", machInst);
+									return new FailUnimplemented ("Cftc1", machineInstruction);
 								default:
-									return new CP0Unimplemented ("unknown", machInst);
+									return new CP0Unimplemented ("unknown", machineInstruction);
 								}
 							default:
-								return new Unknown (machInst);
+								return new Unknown (machineInstruction);
 							}
 						case 0xc:
-							switch (machInst[BitField.MT_U]) {
+							switch (machineInstruction[BitField.MT_U]) {
 							case 0x0:
-								return new FailUnimplemented ("Mttc0", machInst);
+								return new FailUnimplemented ("Mttc0", machineInstruction);
 							case 0x1:
-								switch (machInst[BitField.SEL]) {
+								switch (machineInstruction[BitField.SEL]) {
 								case 0x0:
-									return new FailUnimplemented ("Mttgpr", machInst);
+									return new FailUnimplemented ("Mttgpr", machineInstruction);
 								case 0x1:
-									switch (machInst[BitField.RT]) {
+									switch (machineInstruction[BitField.RT]) {
 									case 0x0:
-										return new FailUnimplemented ("Mttlo_dsp0", machInst);
+										return new FailUnimplemented ("Mttlo_dsp0", machineInstruction);
 									case 0x1:
-										return new FailUnimplemented ("Mtthi_dsp0", machInst);
+										return new FailUnimplemented ("Mtthi_dsp0", machineInstruction);
 									case 0x2:
-										return new FailUnimplemented ("Mttacx_dsp0", machInst);
+										return new FailUnimplemented ("Mttacx_dsp0", machineInstruction);
 									case 0x4:
-										return new FailUnimplemented ("Mttlo_dsp1", machInst);
+										return new FailUnimplemented ("Mttlo_dsp1", machineInstruction);
 									case 0x5:
-										return new FailUnimplemented ("Mtthi_dsp1", machInst);
+										return new FailUnimplemented ("Mtthi_dsp1", machineInstruction);
 									case 0x6:
-										return new FailUnimplemented ("Mttacx_dsp1", machInst);
+										return new FailUnimplemented ("Mttacx_dsp1", machineInstruction);
 									case 0x8:
-										return new FailUnimplemented ("Mttlo_dsp2", machInst);
+										return new FailUnimplemented ("Mttlo_dsp2", machineInstruction);
 									case 0x9:
-										return new FailUnimplemented ("Mtthi_dsp2", machInst);
+										return new FailUnimplemented ("Mtthi_dsp2", machineInstruction);
 									case 0x10:
-										return new FailUnimplemented ("Mttacx_dsp2", machInst);
+										return new FailUnimplemented ("Mttacx_dsp2", machineInstruction);
 									case 0x12:
-										return new FailUnimplemented ("Mttlo_dsp3", machInst);
+										return new FailUnimplemented ("Mttlo_dsp3", machineInstruction);
 									case 0x13:
-										return new FailUnimplemented ("Mtthi_dsp3", machInst);
+										return new FailUnimplemented ("Mtthi_dsp3", machineInstruction);
 									case 0x14:
-										return new FailUnimplemented ("Mttacx_dsp3", machInst);
+										return new FailUnimplemented ("Mttacx_dsp3", machineInstruction);
 									case 0x16:
-										return new FailUnimplemented ("Mttdsp", machInst);
+										return new FailUnimplemented ("Mttdsp", machineInstruction);
 									default:
-										return new CP0Unimplemented ("unknown", machInst);
+										return new CP0Unimplemented ("unknown", machineInstruction);
 									}
 								case 0x2:
-									return new FailUnimplemented ("Mttc1", machInst);
+									return new FailUnimplemented ("Mttc1", machineInstruction);
 								case 0x3:
-									return new FailUnimplemented ("Cttc1", machInst);
+									return new FailUnimplemented ("Cttc1", machineInstruction);
 								default:
-									return new CP0Unimplemented ("unknown", machInst);
+									return new CP0Unimplemented ("unknown", machineInstruction);
 								}
 							default:
-								return new Unknown (machInst);
+								return new Unknown (machineInstruction);
 							}
 						case 0xb:
-							switch (machInst[BitField.RD]) {
+							switch (machineInstruction[BitField.RD]) {
 							case 0x0:
-								switch (machInst[BitField.POS]) {
+								switch (machineInstruction[BitField.POS]) {
 								case 0x0:
-									switch (machInst[BitField.SEL]) {
+									switch (machineInstruction[BitField.SEL]) {
 									case 0x1:
-										switch (machInst[BitField.SC]) {
+										switch (machineInstruction[BitField.SC]) {
 										case 0x0:
-											return new FailUnimplemented ("Dvpe", machInst);
+											return new FailUnimplemented ("Dvpe", machineInstruction);
 										case 0x1:
-											return new FailUnimplemented ("Evpe", machInst);
+											return new FailUnimplemented ("Evpe", machineInstruction);
 										default:
-											return new CP0Unimplemented ("unknown", machInst);
+											return new CP0Unimplemented ("unknown", machineInstruction);
 										}
 									default:
-										return new CP0Unimplemented ("unknown", machInst);
+										return new CP0Unimplemented ("unknown", machineInstruction);
 									}
 								default:
-									return new CP0Unimplemented ("unknown", machInst);
+									return new CP0Unimplemented ("unknown", machineInstruction);
 								}
 							case 0x1:
-								switch (machInst[BitField.POS]) {
+								switch (machineInstruction[BitField.POS]) {
 								case 0xf:
-									switch (machInst[BitField.SEL]) {
+									switch (machineInstruction[BitField.SEL]) {
 									case 0x1:
-										switch (machInst[BitField.SC]) {
+										switch (machineInstruction[BitField.SC]) {
 										case 0x0:
-											return new FailUnimplemented ("Dmt", machInst);
+											return new FailUnimplemented ("Dmt", machineInstruction);
 										case 0x1:
-											return new FailUnimplemented ("Emt", machInst);
+											return new FailUnimplemented ("Emt", machineInstruction);
 										default:
-											return new CP0Unimplemented ("unknown", machInst);
+											return new CP0Unimplemented ("unknown", machineInstruction);
 										}
 									default:
-										return new CP0Unimplemented ("unknown", machInst);
+										return new CP0Unimplemented ("unknown", machineInstruction);
 									}
 								default:
-									return new CP0Unimplemented ("unknown", machInst);
+									return new CP0Unimplemented ("unknown", machineInstruction);
 								}
 							case 0xc:
-								switch (machInst[BitField.POS]) {
+								switch (machineInstruction[BitField.POS]) {
 								case 0x0:
-									switch (machInst[BitField.SC]) {
+									switch (machineInstruction[BitField.SC]) {
 									case 0x0:
-										return new FailUnimplemented ("Di", machInst);
+										return new FailUnimplemented ("Di", machineInstruction);
 									case 0x1:
-										return new FailUnimplemented ("Ei", machInst);
+										return new FailUnimplemented ("Ei", machineInstruction);
 									default:
-										return new CP0Unimplemented ("unknown", machInst);
+										return new CP0Unimplemented ("unknown", machineInstruction);
 									}
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							default:
-								return new CP0Unimplemented ("unknown", machInst);
+								return new CP0Unimplemented ("unknown", machineInstruction);
 							}
 						case 0xa:
-							return new FailUnimplemented ("Rdpgpr", machInst);
+							return new FailUnimplemented ("Rdpgpr", machineInstruction);
 						case 0xe:
-							return new FailUnimplemented ("Wrpgpr", machInst);
+							return new FailUnimplemented ("Wrpgpr", machineInstruction);
 						}
 					case 0x1:
-						switch (machInst[BitField.FUNC]) {
+						switch (machineInstruction[BitField.FUNC]) {
 						case 0x18:
-							return new FailUnimplemented ("Eret", machInst);
+							return new FailUnimplemented ("Eret", machineInstruction);
 						case 0x1f:
-							return new FailUnimplemented ("Deret", machInst);
+							return new FailUnimplemented ("Deret", machineInstruction);
 						case 0x1:
-							return new FailUnimplemented ("Tlbr", machInst);
+							return new FailUnimplemented ("Tlbr", machineInstruction);
 						case 0x2:
-							return new FailUnimplemented ("Tlbwi", machInst);
+							return new FailUnimplemented ("Tlbwi", machineInstruction);
 						case 0x6:
-							return new FailUnimplemented ("Tlbwr", machInst);
+							return new FailUnimplemented ("Tlbwr", machineInstruction);
 						case 0x8:
-							return new FailUnimplemented ("Tlbp", machInst);
+							return new FailUnimplemented ("Tlbp", machineInstruction);
 						case 0x20:
-							return new CP0Unimplemented ("wait", machInst);
+							return new CP0Unimplemented ("wait", machineInstruction);
 						default:
-							return new CP0Unimplemented ("unknown", machInst);
+							return new CP0Unimplemented ("unknown", machineInstruction);
 						}
 					default:
-						return new Unknown (machInst);
+						return new Unknown (machineInstruction);
 					}
 				case 0x1:
-					switch (machInst[BitField.RS_MSB]) {
+					switch (machineInstruction[BitField.RS_MSB]) {
 					case 0x0:
-						switch (machInst[BitField.RS_HI]) {
+						switch (machineInstruction[BitField.RS_HI]) {
 						case 0x0:
-							switch (machInst[BitField.RS_LO]) {
+							switch (machineInstruction[BitField.RS_LO]) {
 							case 0x0:
-								return new Mfc1 (machInst);
+								return new Mfc1 (machineInstruction);
 							case 0x2:
-								return new Cfc1 (machInst);
+								return new Cfc1 (machineInstruction);
 							case 0x3:
-								return new FailUnimplemented ("Mfhc1", machInst);
+								return new FailUnimplemented ("Mfhc1", machineInstruction);
 							case 0x4:
-								return new Mtc1 (machInst);
+								return new Mtc1 (machineInstruction);
 							case 0x6:
-								return new Ctc1 (machInst);
+								return new Ctc1 (machineInstruction);
 							case 0x7:
-								return new FailUnimplemented ("Mthc1", machInst);
+								return new FailUnimplemented ("Mthc1", machineInstruction);
 							case 0x1:
-								return new CP1Unimplemented ("dmfc1", machInst);
+								return new CP1Unimplemented ("dmfc1", machineInstruction);
 							case 0x5:
-								return new CP1Unimplemented ("dmtc1", machInst);
+								return new CP1Unimplemented ("dmtc1", machineInstruction);
 							default:
-								return new Unknown (machInst);
+								return new Unknown (machineInstruction);
 							}
 						case 0x1:
-							switch (machInst[BitField.RS_LO]) {
+							switch (machineInstruction[BitField.RS_LO]) {
 							case 0x0:
-								switch (machInst[BitField.ND]) {
+								switch (machineInstruction[BitField.ND]) {
 								case 0x0:
-									switch (machInst[BitField.TF]) {
+									switch (machineInstruction[BitField.TF]) {
 									case 0x0:
-										return new Bc1f (machInst);
+										return new Bc1f (machineInstruction);
 									case 0x1:
-										return new Bc1t (machInst);
+										return new Bc1t (machineInstruction);
 									default:
-										return new Unknown (machInst);
+										return new Unknown (machineInstruction);
 									}
 								case 0x1:
-									switch (machInst[BitField.TF]) {
+									switch (machineInstruction[BitField.TF]) {
 									case 0x0:
-										return new Bc1fl (machInst);
+										return new Bc1fl (machineInstruction);
 									case 0x1:
-										return new Bc1tl (machInst);
+										return new Bc1tl (machineInstruction);
 									default:
-										return new Unknown (machInst);
+										return new Unknown (machineInstruction);
 									}
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							case 0x1:
-								return new CP1Unimplemented ("bc1any2", machInst);
+								return new CP1Unimplemented ("bc1any2", machineInstruction);
 							case 0x2:
-								return new CP1Unimplemented ("bc1any4", machInst);
+								return new CP1Unimplemented ("bc1any4", machineInstruction);
 							default:
-								return new CP1Unimplemented ("unknown", machInst);
+								return new CP1Unimplemented ("unknown", machineInstruction);
 							}
 						default:
-							return new Unknown (machInst);
+							return new Unknown (machineInstruction);
 						}
 					case 0x1:
-						switch (machInst[BitField.RS_HI]) {
+						switch (machineInstruction[BitField.RS_HI]) {
 						case 0x2:
-							switch (machInst[BitField.RS_LO]) {
+							switch (machineInstruction[BitField.RS_LO]) {
 							case 0x0:
-								switch (machInst[BitField.FUNC_HI]) {
+								switch (machineInstruction[BitField.FUNC_HI]) {
 								case 0x0:
-									switch (machInst[BitField.FUNC_LO]) {
+									switch (machineInstruction[BitField.FUNC_LO]) {
 									case 0x0:
-										return new Add_s (machInst);
+										return new Add_s (machineInstruction);
 									case 0x1:
-										return new Sub_s (machInst);
+										return new Sub_s (machineInstruction);
 									case 0x2:
-										return new Mul_s (machInst);
+										return new Mul_s (machineInstruction);
 									case 0x3:
-										return new Div_s (machInst);
+										return new Div_s (machineInstruction);
 									case 0x4:
-										return new Sqrt_s (machInst);
+										return new Sqrt_s (machineInstruction);
 									case 0x5:
-										return new Abs_s (machInst);
+										return new Abs_s (machineInstruction);
 									case 0x7:
-										return new Neg_s (machInst);
+										return new Neg_s (machineInstruction);
 									case 0x6:
-										return new Mov_s (machInst);
+										return new Mov_s (machineInstruction);
 									default:
-										return new Unknown (machInst);
+										return new Unknown (machineInstruction);
 									}
 								case 0x1:
-									switch (machInst[BitField.FUNC_LO]) {
+									switch (machineInstruction[BitField.FUNC_LO]) {
 									case 0x0:
-										return new FailUnimplemented ("Round_l_s", machInst);
+										return new FailUnimplemented ("Round_l_s", machineInstruction);
 									case 0x1:
-										return new FailUnimplemented ("Trunc_l_s", machInst);
+										return new FailUnimplemented ("Trunc_l_s", machineInstruction);
 									case 0x2:
-										return new FailUnimplemented ("Ceil_l_s", machInst);
+										return new FailUnimplemented ("Ceil_l_s", machineInstruction);
 									case 0x3:
-										return new FailUnimplemented ("Floor_l_s", machInst);
+										return new FailUnimplemented ("Floor_l_s", machineInstruction);
 									case 0x4:
-										return new FailUnimplemented ("Round_w_s", machInst);
+										return new FailUnimplemented ("Round_w_s", machineInstruction);
 									case 0x5:
-										return new FailUnimplemented ("Trunc_w_s", machInst);
+										return new FailUnimplemented ("Trunc_w_s", machineInstruction);
 									case 0x6:
-										return new FailUnimplemented ("Ceil_w_s", machInst);
+										return new FailUnimplemented ("Ceil_w_s", machineInstruction);
 									case 0x7:
-										return new FailUnimplemented ("Floor_w_s", machInst);
+										return new FailUnimplemented ("Floor_w_s", machineInstruction);
 									default:
-										return new Unknown (machInst);
+										return new Unknown (machineInstruction);
 									}
 								case 0x2:
-									switch (machInst[BitField.FUNC_LO]) {
+									switch (machineInstruction[BitField.FUNC_LO]) {
 									case 0x1:
-										switch (machInst[BitField.MOVCF]) {
+										switch (machineInstruction[BitField.MOVCF]) {
 										case 0x0:
-											return new FailUnimplemented ("Movf_s", machInst);
+											return new FailUnimplemented ("Movf_s", machineInstruction);
 										case 0x1:
-											return new FailUnimplemented ("Movt_s", machInst);
+											return new FailUnimplemented ("Movt_s", machineInstruction);
 										default:
-											return new Unknown (machInst);
+											return new Unknown (machineInstruction);
 										}
 									case 0x2:
-										return new FailUnimplemented ("Movz_s", machInst);
+										return new FailUnimplemented ("Movz_s", machineInstruction);
 									case 0x3:
-										return new FailUnimplemented ("Movn_s", machInst);
+										return new FailUnimplemented ("Movn_s", machineInstruction);
 									case 0x5:
-										return new FailUnimplemented ("Recip_s", machInst);
+										return new FailUnimplemented ("Recip_s", machineInstruction);
 									case 0x6:
-										return new FailUnimplemented ("Rsqrt_s", machInst);
+										return new FailUnimplemented ("Rsqrt_s", machineInstruction);
 									default:
-										return new CP1Unimplemented ("unknown", machInst);
+										return new CP1Unimplemented ("unknown", machineInstruction);
 									}
 								case 0x3:
-									return new CP1Unimplemented ("unknown", machInst);
+									return new CP1Unimplemented ("unknown", machineInstruction);
 								case 0x4:
-									switch (machInst[BitField.FUNC_LO]) {
+									switch (machineInstruction[BitField.FUNC_LO]) {
 									case 0x1:
-										return new Cvt_d_s (machInst);
+										return new Cvt_d_s (machineInstruction);
 									case 0x4:
-										return new Cvt_w_s (machInst);
+										return new Cvt_w_s (machineInstruction);
 									case 0x5:
-										return new Cvt_l_s (machInst);
+										return new Cvt_l_s (machineInstruction);
 									case 0x6:
-										return new FailUnimplemented ("Cvt_ps_s", machInst);
+										return new FailUnimplemented ("Cvt_ps_s", machineInstruction);
 									default:
-										return new CP1Unimplemented ("unknown", machInst);
+										return new CP1Unimplemented ("unknown", machineInstruction);
 									}
 								case 0x5:
-									return new CP1Unimplemented ("unknown", machInst);
+									return new CP1Unimplemented ("unknown", machineInstruction);
 								case 0x6:
-									switch (machInst[BitField.FUNC_LO]) {
+									switch (machineInstruction[BitField.FUNC_LO]) {
 									case 0x0:
-										return new C_f_s (machInst);
+										return new C_f_s (machineInstruction);
 									case 0x1:
-										return new C_un_s (machInst);
+										return new C_un_s (machineInstruction);
 									case 0x2:
-										return new C_eq_s (machInst);
+										return new C_eq_s (machineInstruction);
 									case 0x3:
-										return new C_ueq_s (machInst);
+										return new C_ueq_s (machineInstruction);
 									case 0x4:
-										return new C_olt_s (machInst);
+										return new C_olt_s (machineInstruction);
 									case 0x5:
-										return new C_ult_s (machInst);
+										return new C_ult_s (machineInstruction);
 									case 0x6:
-										return new C_ole_s (machInst);
+										return new C_ole_s (machineInstruction);
 									case 0x7:
-										return new C_ule_s (machInst);
+										return new C_ule_s (machineInstruction);
 									default:
-										return new Unknown (machInst);
+										return new Unknown (machineInstruction);
 									}
 								case 0x7:
-									switch (machInst[BitField.FUNC_LO]) {
+									switch (machineInstruction[BitField.FUNC_LO]) {
 									case 0x0:
-										return new C_sf_s (machInst);
+										return new C_sf_s (machineInstruction);
 									case 0x1:
-										return new C_ngle_s (machInst);
+										return new C_ngle_s (machineInstruction);
 									case 0x2:
-										return new C_seq_s (machInst);
+										return new C_seq_s (machineInstruction);
 									case 0x3:
-										return new C_ngl_s (machInst);
+										return new C_ngl_s (machineInstruction);
 									case 0x4:
-										return new C_lt_s (machInst);
+										return new C_lt_s (machineInstruction);
 									case 0x5:
-										return new C_nge_s (machInst);
+										return new C_nge_s (machineInstruction);
 									case 0x6:
-										return new C_le_s (machInst);
+										return new C_le_s (machineInstruction);
 									case 0x7:
-										return new C_ngt_s (machInst);
+										return new C_ngt_s (machineInstruction);
 									default:
-										return new Unknown (machInst);
+										return new Unknown (machineInstruction);
 									}
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							case 0x1:
-								switch (machInst[BitField.FUNC_HI]) {
+								switch (machineInstruction[BitField.FUNC_HI]) {
 								case 0x0:
-									switch (machInst[BitField.FUNC_LO]) {
+									switch (machineInstruction[BitField.FUNC_LO]) {
 									case 0x0:
-										return new Add_d (machInst);
+										return new Add_d (machineInstruction);
 									case 0x1:
-										return new Sub_d (machInst);
+										return new Sub_d (machineInstruction);
 									case 0x2:
-										return new Mul_d (machInst);
+										return new Mul_d (machineInstruction);
 									case 0x3:
-										return new Div_d (machInst);
+										return new Div_d (machineInstruction);
 									case 0x4:
-										return new Sqrt_d (machInst);
+										return new Sqrt_d (machineInstruction);
 									case 0x5:
-										return new Abs_d (machInst);
+										return new Abs_d (machineInstruction);
 									case 0x7:
-										return new Neg_d (machInst);
+										return new Neg_d (machineInstruction);
 									case 0x6:
-										return new Mov_d (machInst);
+										return new Mov_d (machineInstruction);
 									default:
-										return new Unknown (machInst);
+										return new Unknown (machineInstruction);
 									}
 								case 0x1:
-									switch (machInst[BitField.FUNC_LO]) {
+									switch (machineInstruction[BitField.FUNC_LO]) {
 									case 0x0:
-										return new FailUnimplemented ("Round_l_d", machInst);
+										return new FailUnimplemented ("Round_l_d", machineInstruction);
 									case 0x1:
-										return new FailUnimplemented ("Trunc_l_d", machInst);
+										return new FailUnimplemented ("Trunc_l_d", machineInstruction);
 									case 0x2:
-										return new FailUnimplemented ("Ceil_l_d", machInst);
+										return new FailUnimplemented ("Ceil_l_d", machineInstruction);
 									case 0x3:
-										return new FailUnimplemented ("Floor_l_d", machInst);
+										return new FailUnimplemented ("Floor_l_d", machineInstruction);
 									case 0x4:
-										return new FailUnimplemented ("Round_w_d", machInst);
+										return new FailUnimplemented ("Round_w_d", machineInstruction);
 									case 0x5:
-										return new FailUnimplemented ("Trunc_w_d", machInst);
+										return new FailUnimplemented ("Trunc_w_d", machineInstruction);
 									case 0x6:
-										return new FailUnimplemented ("Ceil_w_d", machInst);
+										return new FailUnimplemented ("Ceil_w_d", machineInstruction);
 									case 0x7:
-										return new FailUnimplemented ("Floor_w_d", machInst);
+										return new FailUnimplemented ("Floor_w_d", machineInstruction);
 									default:
-										return new Unknown (machInst);
+										return new Unknown (machineInstruction);
 									}
 								case 0x2:
-									switch (machInst[BitField.FUNC_LO]) {
+									switch (machineInstruction[BitField.FUNC_LO]) {
 									case 0x1:
-										switch (machInst[BitField.MOVCF]) {
+										switch (machineInstruction[BitField.MOVCF]) {
 										case 0x0:
-											return new FailUnimplemented ("Movf_d", machInst);
+											return new FailUnimplemented ("Movf_d", machineInstruction);
 										case 0x1:
-											return new FailUnimplemented ("Movt_d", machInst);
+											return new FailUnimplemented ("Movt_d", machineInstruction);
 										default:
-											return new Unknown (machInst);
+											return new Unknown (machineInstruction);
 										}
 									case 0x2:
-										return new FailUnimplemented ("Movz_d", machInst);
+										return new FailUnimplemented ("Movz_d", machineInstruction);
 									case 0x3:
-										return new FailUnimplemented ("Movn_d", machInst);
+										return new FailUnimplemented ("Movn_d", machineInstruction);
 									case 0x5:
-										return new FailUnimplemented ("Recip_d", machInst);
+										return new FailUnimplemented ("Recip_d", machineInstruction);
 									case 0x6:
-										return new FailUnimplemented ("Rsqrt_d", machInst);
+										return new FailUnimplemented ("Rsqrt_d", machineInstruction);
 									default:
-										return new CP1Unimplemented ("unknown", machInst);
+										return new CP1Unimplemented ("unknown", machineInstruction);
 									}
 								case 0x4:
-									switch (machInst[BitField.FUNC_LO]) {
+									switch (machineInstruction[BitField.FUNC_LO]) {
 									case 0x0:
-										return new Cvt_s_d (machInst);
+										return new Cvt_s_d (machineInstruction);
 									case 0x4:
-										return new Cvt_w_d (machInst);
+										return new Cvt_w_d (machineInstruction);
 									case 0x5:
-										return new Cvt_l_d (machInst);
+										return new Cvt_l_d (machineInstruction);
 									default:
-										return new CP1Unimplemented ("unknown", machInst);
+										return new CP1Unimplemented ("unknown", machineInstruction);
 									}
 								case 0x6:
-									switch (machInst[BitField.FUNC_LO]) {
+									switch (machineInstruction[BitField.FUNC_LO]) {
 									case 0x0:
-										return new C_f_d (machInst);
+										return new C_f_d (machineInstruction);
 									case 0x1:
-										return new C_un_d (machInst);
+										return new C_un_d (machineInstruction);
 									case 0x2:
-										return new C_eq_d (machInst);
+										return new C_eq_d (machineInstruction);
 									case 0x3:
-										return new C_ueq_d (machInst);
+										return new C_ueq_d (machineInstruction);
 									case 0x4:
-										return new C_olt_d (machInst);
+										return new C_olt_d (machineInstruction);
 									case 0x5:
-										return new C_ult_d (machInst);
+										return new C_ult_d (machineInstruction);
 									case 0x6:
-										return new C_ole_d (machInst);
+										return new C_ole_d (machineInstruction);
 									case 0x7:
-										return new C_ule_d (machInst);
+										return new C_ule_d (machineInstruction);
 									default:
-										return new Unknown (machInst);
+										return new Unknown (machineInstruction);
 									}
 								case 0x7:
-									switch (machInst[BitField.FUNC_LO]) {
+									switch (machineInstruction[BitField.FUNC_LO]) {
 									case 0x0:
-										return new C_sf_d (machInst);
+										return new C_sf_d (machineInstruction);
 									case 0x1:
-										return new C_ngle_d (machInst);
+										return new C_ngle_d (machineInstruction);
 									case 0x2:
-										return new C_seq_d (machInst);
+										return new C_seq_d (machineInstruction);
 									case 0x3:
-										return new C_ngl_d (machInst);
+										return new C_ngl_d (machineInstruction);
 									case 0x4:
-										return new C_lt_d (machInst);
+										return new C_lt_d (machineInstruction);
 									case 0x5:
-										return new C_nge_d (machInst);
+										return new C_nge_d (machineInstruction);
 									case 0x6:
-										return new C_le_d (machInst);
+										return new C_le_d (machineInstruction);
 									case 0x7:
-										return new C_ngt_d (machInst);
+										return new C_ngt_d (machineInstruction);
 									default:
-										return new Unknown (machInst);
+										return new Unknown (machineInstruction);
 									}
 								default:
-									return new CP1Unimplemented ("unknown", machInst);
+									return new CP1Unimplemented ("unknown", machineInstruction);
 								}
 							case 0x2:
-								return new CP1Unimplemented ("unknown", machInst);
+								return new CP1Unimplemented ("unknown", machineInstruction);
 							case 0x3:
-								return new CP1Unimplemented ("unknown", machInst);
+								return new CP1Unimplemented ("unknown", machineInstruction);
 							case 0x7:
-								return new CP1Unimplemented ("unknown", machInst);
+								return new CP1Unimplemented ("unknown", machineInstruction);
 							case 0x4:
-								switch (machInst[BitField.FUNC]) {
+								switch (machineInstruction[BitField.FUNC]) {
 								case 0x20:
-									return new Cvt_s_w (machInst);
+									return new Cvt_s_w (machineInstruction);
 								case 0x21:
-									return new Cvt_d_w (machInst);
+									return new Cvt_d_w (machineInstruction);
 								case 0x26:
-									return new CP1Unimplemented ("cvt_ps_w", machInst);
+									return new CP1Unimplemented ("cvt_ps_w", machineInstruction);
 								default:
-									return new CP1Unimplemented ("unknown", machInst);
+									return new CP1Unimplemented ("unknown", machineInstruction);
 								}
 							case 0x5:
-								switch (machInst[BitField.FUNC_HI]) {
+								switch (machineInstruction[BitField.FUNC_HI]) {
 								case 0x20:
-									return new Cvt_s_l (machInst);
+									return new Cvt_s_l (machineInstruction);
 								case 0x21:
-									return new Cvt_d_l (machInst);
+									return new Cvt_d_l (machineInstruction);
 								case 0x26:
-									return new CP1Unimplemented ("cvt_ps_l", machInst);
+									return new CP1Unimplemented ("cvt_ps_l", machineInstruction);
 								default:
-									return new CP1Unimplemented ("unknown", machInst);
+									return new CP1Unimplemented ("unknown", machineInstruction);
 								}
 							case 0x6:
-								switch (machInst[BitField.FUNC_HI]) {
+								switch (machineInstruction[BitField.FUNC_HI]) {
 								case 0x0:
-									switch (machInst[BitField.FUNC_LO]) {
+									switch (machineInstruction[BitField.FUNC_LO]) {
 									case 0x0:
-										return new FailUnimplemented ("Add_ps", machInst);
+										return new FailUnimplemented ("Add_ps", machineInstruction);
 									case 0x1:
-										return new FailUnimplemented ("Sub_ps", machInst);
+										return new FailUnimplemented ("Sub_ps", machineInstruction);
 									case 0x2:
-										return new FailUnimplemented ("Mul_ps", machInst);
+										return new FailUnimplemented ("Mul_ps", machineInstruction);
 									case 0x5:
-										return new FailUnimplemented ("Abs_ps", machInst);
+										return new FailUnimplemented ("Abs_ps", machineInstruction);
 									case 0x6:
-										return new FailUnimplemented ("Mov_ps", machInst);
+										return new FailUnimplemented ("Mov_ps", machineInstruction);
 									case 0x7:
-										return new FailUnimplemented ("Neg_ps", machInst);
+										return new FailUnimplemented ("Neg_ps", machineInstruction);
 									default:
-										return new CP1Unimplemented ("unknown", machInst);
+										return new CP1Unimplemented ("unknown", machineInstruction);
 									}
 								case 0x1:
-									return new CP1Unimplemented ("unknown", machInst);
+									return new CP1Unimplemented ("unknown", machineInstruction);
 								case 0x2:
-									switch (machInst[BitField.FUNC_LO]) {
+									switch (machineInstruction[BitField.FUNC_LO]) {
 									case 0x1:
-										switch (machInst[BitField.MOVCF]) {
+										switch (machineInstruction[BitField.MOVCF]) {
 										case 0x0:
-											return new FailUnimplemented ("Movf_ps", machInst);
+											return new FailUnimplemented ("Movf_ps", machineInstruction);
 										case 0x1:
-											return new FailUnimplemented ("Movt_ps", machInst);
+											return new FailUnimplemented ("Movt_ps", machineInstruction);
 										default:
-											return new Unknown (machInst);
+											return new Unknown (machineInstruction);
 										}
 									case 0x2:
-										return new FailUnimplemented ("Movz_ps", machInst);
+										return new FailUnimplemented ("Movz_ps", machineInstruction);
 									case 0x3:
-										return new FailUnimplemented ("Movn_ps", machInst);
+										return new FailUnimplemented ("Movn_ps", machineInstruction);
 									default:
-										return new CP1Unimplemented ("unknown", machInst);
+										return new CP1Unimplemented ("unknown", machineInstruction);
 									}
 								case 0x3:
-									return new CP1Unimplemented ("unknown", machInst);
+									return new CP1Unimplemented ("unknown", machineInstruction);
 								case 0x4:
-									switch (machInst[BitField.FUNC_LO]) {
+									switch (machineInstruction[BitField.FUNC_LO]) {
 									case 0x0:
-										return new FailUnimplemented ("Cvt_s_pu", machInst);
+										return new FailUnimplemented ("Cvt_s_pu", machineInstruction);
 									default:
-										return new CP1Unimplemented ("unknown", machInst);
+										return new CP1Unimplemented ("unknown", machineInstruction);
 									}
 								case 0x5:
-									switch (machInst[BitField.FUNC_LO]) {
+									switch (machineInstruction[BitField.FUNC_LO]) {
 									case 0x0:
-										return new FailUnimplemented ("Cvt_s_pl", machInst);
+										return new FailUnimplemented ("Cvt_s_pl", machineInstruction);
 									case 0x4:
-										return new FailUnimplemented ("Pll", machInst);
+										return new FailUnimplemented ("Pll", machineInstruction);
 									case 0x5:
-										return new FailUnimplemented ("Plu", machInst);
+										return new FailUnimplemented ("Plu", machineInstruction);
 									case 0x6:
-										return new FailUnimplemented ("Pul", machInst);
+										return new FailUnimplemented ("Pul", machineInstruction);
 									case 0x7:
-										return new FailUnimplemented ("Puu", machInst);
+										return new FailUnimplemented ("Puu", machineInstruction);
 									default:
-										return new CP1Unimplemented ("unknown", machInst);
+										return new CP1Unimplemented ("unknown", machineInstruction);
 									}
 								case 0x6:
-									switch (machInst[BitField.FUNC_LO]) {
+									switch (machineInstruction[BitField.FUNC_LO]) {
 									case 0x0:
-										return new FailUnimplemented ("C_f_ps", machInst);
+										return new FailUnimplemented ("C_f_ps", machineInstruction);
 									case 0x1:
-										return new FailUnimplemented ("C_un_ps", machInst);
+										return new FailUnimplemented ("C_un_ps", machineInstruction);
 									case 0x2:
-										return new FailUnimplemented ("C_eq_ps", machInst);
+										return new FailUnimplemented ("C_eq_ps", machineInstruction);
 									case 0x3:
-										return new FailUnimplemented ("C_ueq_ps", machInst);
+										return new FailUnimplemented ("C_ueq_ps", machineInstruction);
 									case 0x4:
-										return new FailUnimplemented ("C_olt_ps", machInst);
+										return new FailUnimplemented ("C_olt_ps", machineInstruction);
 									case 0x5:
-										return new FailUnimplemented ("C_ult_ps", machInst);
+										return new FailUnimplemented ("C_ult_ps", machineInstruction);
 									case 0x6:
-										return new FailUnimplemented ("C_ole_ps", machInst);
+										return new FailUnimplemented ("C_ole_ps", machineInstruction);
 									case 0x7:
-										return new FailUnimplemented ("C_ule_ps", machInst);
+										return new FailUnimplemented ("C_ule_ps", machineInstruction);
 									default:
-										return new Unknown (machInst);
+										return new Unknown (machineInstruction);
 									}
 								case 0x7:
-									switch (machInst[BitField.FUNC_LO]) {
+									switch (machineInstruction[BitField.FUNC_LO]) {
 									case 0x0:
-										return new FailUnimplemented ("C_sf_ps", machInst);
+										return new FailUnimplemented ("C_sf_ps", machineInstruction);
 									case 0x1:
-										return new FailUnimplemented ("C_ngle_ps", machInst);
+										return new FailUnimplemented ("C_ngle_ps", machineInstruction);
 									case 0x2:
-										return new FailUnimplemented ("C_seq_ps", machInst);
+										return new FailUnimplemented ("C_seq_ps", machineInstruction);
 									case 0x3:
-										return new FailUnimplemented ("C_ngl_ps", machInst);
+										return new FailUnimplemented ("C_ngl_ps", machineInstruction);
 									case 0x4:
-										return new FailUnimplemented ("C_lt_ps", machInst);
+										return new FailUnimplemented ("C_lt_ps", machineInstruction);
 									case 0x5:
-										return new FailUnimplemented ("C_nge_ps", machInst);
+										return new FailUnimplemented ("C_nge_ps", machineInstruction);
 									case 0x6:
-										return new FailUnimplemented ("C_le_ps", machInst);
+										return new FailUnimplemented ("C_le_ps", machineInstruction);
 									case 0x7:
-										return new FailUnimplemented ("C_ngt_ps", machInst);
+										return new FailUnimplemented ("C_ngt_ps", machineInstruction);
 									default:
-										return new Unknown (machInst);
+										return new Unknown (machineInstruction);
 									}
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							default:
-								return new Unknown (machInst);
+								return new Unknown (machineInstruction);
 							}
 						default:
-							return new CP1Unimplemented ("unknown", machInst);
+							return new CP1Unimplemented ("unknown", machineInstruction);
 						}
 					default:
-						return new Unknown (machInst);
+						return new Unknown (machineInstruction);
 					}
 				case 0x2:
-					switch (machInst[BitField.RS_MSB]) {
+					switch (machineInstruction[BitField.RS_MSB]) {
 					case 0x0:
-						switch (machInst[BitField.RS_HI]) {
+						switch (machineInstruction[BitField.RS_HI]) {
 						case 0x0:
-							switch (machInst[BitField.RS_LO]) {
+							switch (machineInstruction[BitField.RS_LO]) {
 							case 0x0:
-								return new CP2Unimplemented ("mfc2", machInst);
+								return new CP2Unimplemented ("mfc2", machineInstruction);
 							case 0x2:
-								return new CP2Unimplemented ("cfc2", machInst);
+								return new CP2Unimplemented ("cfc2", machineInstruction);
 							case 0x3:
-								return new CP2Unimplemented ("mfhc2", machInst);
+								return new CP2Unimplemented ("mfhc2", machineInstruction);
 							case 0x4:
-								return new CP2Unimplemented ("mtc2", machInst);
+								return new CP2Unimplemented ("mtc2", machineInstruction);
 							case 0x6:
-								return new CP2Unimplemented ("ctc2", machInst);
+								return new CP2Unimplemented ("ctc2", machineInstruction);
 							case 0x7:
-								return new CP2Unimplemented ("mftc2", machInst);
+								return new CP2Unimplemented ("mftc2", machineInstruction);
 							default:
-								return new CP2Unimplemented ("unknown", machInst);
+								return new CP2Unimplemented ("unknown", machineInstruction);
 							}
 						case 0x1:
-							switch (machInst[BitField.ND]) {
+							switch (machineInstruction[BitField.ND]) {
 							case 0x0:
-								switch (machInst[BitField.TF]) {
+								switch (machineInstruction[BitField.TF]) {
 								case 0x0:
-									return new CP2Unimplemented ("bc2f", machInst);
+									return new CP2Unimplemented ("bc2f", machineInstruction);
 								case 0x1:
-									return new CP2Unimplemented ("bc2t", machInst);
+									return new CP2Unimplemented ("bc2t", machineInstruction);
 								default:
-									return new CP2Unimplemented ("unknown", machInst);
+									return new CP2Unimplemented ("unknown", machineInstruction);
 								}
 							case 0x1:
-								switch (machInst[BitField.TF]) {
+								switch (machineInstruction[BitField.TF]) {
 								case 0x0:
-									return new CP2Unimplemented ("bc2fl", machInst);
+									return new CP2Unimplemented ("bc2fl", machineInstruction);
 								case 0x1:
-									return new CP2Unimplemented ("bc2tl", machInst);
+									return new CP2Unimplemented ("bc2tl", machineInstruction);
 								default:
-									return new CP2Unimplemented ("unknown", machInst);
+									return new CP2Unimplemented ("unknown", machineInstruction);
 								}
 							default:
-								return new CP2Unimplemented ("unknown", machInst);
+								return new CP2Unimplemented ("unknown", machineInstruction);
 							}
 						default:
-							return new CP2Unimplemented ("unknown", machInst);
+							return new CP2Unimplemented ("unknown", machineInstruction);
 						}
 					default:
-						return new CP2Unimplemented ("unknown", machInst);
+						return new CP2Unimplemented ("unknown", machineInstruction);
 					}
 				case 0x3:
-					switch (machInst[BitField.FUNC_HI]) {
+					switch (machineInstruction[BitField.FUNC_HI]) {
 					case 0x0:
-						switch (machInst[BitField.FUNC_LO]) {
+						switch (machineInstruction[BitField.FUNC_LO]) {
 						case 0x0:
-							return new FailUnimplemented ("Lwxc1", machInst);
+							return new FailUnimplemented ("Lwxc1", machineInstruction);
 						case 0x1:
-							return new FailUnimplemented ("Ldxc1", machInst);
+							return new FailUnimplemented ("Ldxc1", machineInstruction);
 						case 0x5:
-							return new FailUnimplemented ("Luxc1", machInst);
+							return new FailUnimplemented ("Luxc1", machineInstruction);
 						default:
-							return new Unknown (machInst);
+							return new Unknown (machineInstruction);
 						}
 					case 0x1:
-						switch (machInst[BitField.FUNC_LO]) {
+						switch (machineInstruction[BitField.FUNC_LO]) {
 						case 0x0:
-							return new FailUnimplemented ("Swxc1", machInst);
+							return new FailUnimplemented ("Swxc1", machineInstruction);
 						case 0x1:
-							return new FailUnimplemented ("Sdxc1", machInst);
+							return new FailUnimplemented ("Sdxc1", machineInstruction);
 						case 0x5:
-							return new FailUnimplemented ("Suxc1", machInst);
+							return new FailUnimplemented ("Suxc1", machineInstruction);
 						case 0x7:
-							return new FailUnimplemented ("Prefx", machInst);
+							return new FailUnimplemented ("Prefx", machineInstruction);
 						default:
-							return new Unknown (machInst);
+							return new Unknown (machineInstruction);
 						}
 					case 0x3:
-						switch (machInst[BitField.FUNC_LO]) {
+						switch (machineInstruction[BitField.FUNC_LO]) {
 						case 0x6:
-							return new FailUnimplemented ("Alnv_ps", machInst);
+							return new FailUnimplemented ("Alnv_ps", machineInstruction);
 						default:
-							return new Unknown (machInst);
+							return new Unknown (machineInstruction);
 						}
 					case 0x4:
-						switch (machInst[BitField.FUNC_LO]) {
+						switch (machineInstruction[BitField.FUNC_LO]) {
 						case 0x0:
-							return new FailUnimplemented ("Madd_s", machInst);
+							return new FailUnimplemented ("Madd_s", machineInstruction);
 						case 0x1:
-							return new FailUnimplemented ("Madd_d", machInst);
+							return new FailUnimplemented ("Madd_d", machineInstruction);
 						case 0x6:
-							return new FailUnimplemented ("Madd_ps", machInst);
+							return new FailUnimplemented ("Madd_ps", machineInstruction);
 						default:
-							return new Unknown (machInst);
+							return new Unknown (machineInstruction);
 						}
 					case 0x5:
-						switch (machInst[BitField.FUNC_LO]) {
+						switch (machineInstruction[BitField.FUNC_LO]) {
 						case 0x0:
-							return new FailUnimplemented ("Msub_s", machInst);
+							return new FailUnimplemented ("Msub_s", machineInstruction);
 						case 0x1:
-							return new FailUnimplemented ("Msub_d", machInst);
+							return new FailUnimplemented ("Msub_d", machineInstruction);
 						case 0x6:
-							return new FailUnimplemented ("Msub_ps", machInst);
+							return new FailUnimplemented ("Msub_ps", machineInstruction);
 						default:
-							return new Unknown (machInst);
+							return new Unknown (machineInstruction);
 						}
 					case 0x6:
-						switch (machInst[BitField.FUNC_LO]) {
+						switch (machineInstruction[BitField.FUNC_LO]) {
 						case 0x0:
-							return new FailUnimplemented ("Nmadd_s", machInst);
+							return new FailUnimplemented ("Nmadd_s", machineInstruction);
 						case 0x1:
-							return new FailUnimplemented ("Nmadd_d", machInst);
+							return new FailUnimplemented ("Nmadd_d", machineInstruction);
 						case 0x6:
-							return new FailUnimplemented ("Nmadd_ps", machInst);
+							return new FailUnimplemented ("Nmadd_ps", machineInstruction);
 						default:
-							return new Unknown (machInst);
+							return new Unknown (machineInstruction);
 						}
 					case 0x7:
-						switch (machInst[BitField.FUNC_LO]) {
+						switch (machineInstruction[BitField.FUNC_LO]) {
 						case 0x0:
-							return new FailUnimplemented ("Nmsub_s", machInst);
+							return new FailUnimplemented ("Nmsub_s", machineInstruction);
 						case 0x1:
-							return new FailUnimplemented ("Nmsub_d", machInst);
+							return new FailUnimplemented ("Nmsub_d", machineInstruction);
 						case 0x6:
-							return new FailUnimplemented ("Nmsub_ps", machInst);
+							return new FailUnimplemented ("Nmsub_ps", machineInstruction);
 						default:
-							return new Unknown (machInst);
+							return new Unknown (machineInstruction);
 						}
 					default:
-						return new Unknown (machInst);
+						return new Unknown (machineInstruction);
 					}
 				case 0x4:
-					return new FailUnimplemented ("Beql", machInst);
+					return new FailUnimplemented ("Beql", machineInstruction);
 				case 0x5:
-					return new FailUnimplemented ("Bnel", machInst);
+					return new FailUnimplemented ("Bnel", machineInstruction);
 				case 0x6:
-					return new FailUnimplemented ("Blezl", machInst);
+					return new FailUnimplemented ("Blezl", machineInstruction);
 				case 0x7:
-					return new FailUnimplemented ("Bgtzl", machInst);
+					return new FailUnimplemented ("Bgtzl", machineInstruction);
 				default:
-					return new Unknown (machInst);
+					return new Unknown (machineInstruction);
 				}
 			case 0x3:
-				switch (machInst[BitField.OPCODE_LO]) {
+				switch (machineInstruction[BitField.OPCODE_LO]) {
 				case 0x4:
-					switch (machInst[BitField.FUNC_HI]) {
+					switch (machineInstruction[BitField.FUNC_HI]) {
 					case 0x0:
-						switch (machInst[BitField.FUNC_LO]) {
+						switch (machineInstruction[BitField.FUNC_LO]) {
 						case 0x2:
-							return new FailUnimplemented ("Mul", machInst);
+							return new FailUnimplemented ("Mul", machineInstruction);
 						case 0x0:
-							return new FailUnimplemented ("Madd", machInst);
+							return new FailUnimplemented ("Madd", machineInstruction);
 						case 0x1:
-							return new FailUnimplemented ("Maddu", machInst);
+							return new FailUnimplemented ("Maddu", machineInstruction);
 						case 0x4:
-							return new FailUnimplemented ("Msub", machInst);
+							return new FailUnimplemented ("Msub", machineInstruction);
 						case 0x5:
-							return new FailUnimplemented ("Msubu", machInst);
+							return new FailUnimplemented ("Msubu", machineInstruction);
 						default:
-							return new Unknown (machInst);
+							return new Unknown (machineInstruction);
 						}
 					case 0x4:
-						switch (machInst[BitField.FUNC_LO]) {
+						switch (machineInstruction[BitField.FUNC_LO]) {
 						case 0x0:
-							return new FailUnimplemented ("Clz", machInst);
+							return new FailUnimplemented ("Clz", machineInstruction);
 						case 0x1:
-							return new FailUnimplemented ("Clo", machInst);
+							return new FailUnimplemented ("Clo", machineInstruction);
 						default:
-							return new Unknown (machInst);
+							return new Unknown (machineInstruction);
 						}
 					case 0x7:
-						switch (machInst[BitField.FUNC_LO]) {
+						switch (machineInstruction[BitField.FUNC_LO]) {
 						case 0x7:
-							return new FailUnimplemented ("sdbbp", machInst);
+							return new FailUnimplemented ("sdbbp", machineInstruction);
 						default:
-							return new Unknown (machInst);
+							return new Unknown (machineInstruction);
 						}
 					default:
-						return new Unknown (machInst);
+						return new Unknown (machineInstruction);
 					}
 				case 0x7:
-					switch (machInst[BitField.FUNC_HI]) {
+					switch (machineInstruction[BitField.FUNC_HI]) {
 					case 0x0:
-						switch (machInst[BitField.FUNC_LO]) {
+						switch (machineInstruction[BitField.FUNC_LO]) {
 						case 0x0:
-							return new FailUnimplemented ("Ext", machInst);
+							return new FailUnimplemented ("Ext", machineInstruction);
 						case 0x4:
-							return new FailUnimplemented ("Ins", machInst);
+							return new FailUnimplemented ("Ins", machineInstruction);
 						default:
-							return new Unknown (machInst);
+							return new Unknown (machineInstruction);
 						}
 					case 0x1:
-						switch (machInst[BitField.FUNC_LO]) {
+						switch (machineInstruction[BitField.FUNC_LO]) {
 						case 0x0:
-							return new FailUnimplemented ("Fork", machInst);
+							return new FailUnimplemented ("Fork", machineInstruction);
 						case 0x1:
-							return new FailUnimplemented ("Yield", machInst);
+							return new FailUnimplemented ("Yield", machineInstruction);
 						case 0x2:
-							switch (machInst[BitField.OP_HI]) {
+							switch (machineInstruction[BitField.OP_HI]) {
 							case 0x0:
-								switch (machInst[BitField.OP_LO]) {
+								switch (machineInstruction[BitField.OP_LO]) {
 								case 0x0:
-									return new FailUnimplemented ("Lwx", machInst);
+									return new FailUnimplemented ("Lwx", machineInstruction);
 								case 0x4:
-									return new FailUnimplemented ("Lhx", machInst);
+									return new FailUnimplemented ("Lhx", machineInstruction);
 								case 0x6:
-									return new FailUnimplemented ("Lbux", machInst);
+									return new FailUnimplemented ("Lbux", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							default:
-								return new Unknown (machInst);
+								return new Unknown (machineInstruction);
 							}
 						case 0x4:
-							return new FailUnimplemented ("Insv", machInst);
+							return new FailUnimplemented ("Insv", machineInstruction);
 						default:
-							return new Unknown (machInst);
+							return new Unknown (machineInstruction);
 						}
 					case 0x2:
-						switch (machInst[BitField.FUNC_LO]) {
+						switch (machineInstruction[BitField.FUNC_LO]) {
 						case 0x0:
-							switch (machInst[BitField.OP_HI]) {
+							switch (machineInstruction[BitField.OP_HI]) {
 							case 0x0:
-								switch (machInst[BitField.OP_LO]) {
+								switch (machineInstruction[BitField.OP_LO]) {
 								case 0x0:
-									return new FailUnimplemented ("Addu_qb", machInst);
+									return new FailUnimplemented ("Addu_qb", machineInstruction);
 								case 0x1:
-									return new FailUnimplemented ("Subu_qb", machInst);
+									return new FailUnimplemented ("Subu_qb", machineInstruction);
 								case 0x4:
-									return new FailUnimplemented ("Addu_s_qb", machInst);
+									return new FailUnimplemented ("Addu_s_qb", machineInstruction);
 								case 0x5:
-									return new FailUnimplemented ("Subu_s_qb", machInst);
+									return new FailUnimplemented ("Subu_s_qb", machineInstruction);
 								case 0x6:
-									return new FailUnimplemented ("Muleu_s_ph_qbl", machInst);
+									return new FailUnimplemented ("Muleu_s_ph_qbl", machineInstruction);
 								case 0x7:
-									return new FailUnimplemented ("Muleu_s_ph_qbr", machInst);
+									return new FailUnimplemented ("Muleu_s_ph_qbr", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							case 0x1:
-								switch (machInst[BitField.OP_LO]) {
+								switch (machineInstruction[BitField.OP_LO]) {
 								case 0x0:
-									return new FailUnimplemented ("Addu_ph", machInst);
+									return new FailUnimplemented ("Addu_ph", machineInstruction);
 								case 0x1:
-									return new FailUnimplemented ("Subu_ph", machInst);
+									return new FailUnimplemented ("Subu_ph", machineInstruction);
 								case 0x2:
-									return new FailUnimplemented ("Addq_ph", machInst);
+									return new FailUnimplemented ("Addq_ph", machineInstruction);
 								case 0x3:
-									return new FailUnimplemented ("Subq_ph", machInst);
+									return new FailUnimplemented ("Subq_ph", machineInstruction);
 								case 0x4:
-									return new FailUnimplemented ("Addu_s_ph", machInst);
+									return new FailUnimplemented ("Addu_s_ph", machineInstruction);
 								case 0x5:
-									return new FailUnimplemented ("Subu_s_ph", machInst);
+									return new FailUnimplemented ("Subu_s_ph", machineInstruction);
 								case 0x6:
-									return new FailUnimplemented ("Addq_s_ph", machInst);
+									return new FailUnimplemented ("Addq_s_ph", machineInstruction);
 								case 0x7:
-									return new FailUnimplemented ("Subq_s_ph", machInst);
+									return new FailUnimplemented ("Subq_s_ph", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							case 0x2:
-								switch (machInst[BitField.OP_LO]) {
+								switch (machineInstruction[BitField.OP_LO]) {
 								case 0x0:
-									return new FailUnimplemented ("Addsc", machInst);
+									return new FailUnimplemented ("Addsc", machineInstruction);
 								case 0x1:
-									return new FailUnimplemented ("Addwc", machInst);
+									return new FailUnimplemented ("Addwc", machineInstruction);
 								case 0x2:
-									return new FailUnimplemented ("Modsub", machInst);
+									return new FailUnimplemented ("Modsub", machineInstruction);
 								case 0x4:
-									return new FailUnimplemented ("Raddu_w_qb", machInst);
+									return new FailUnimplemented ("Raddu_w_qb", machineInstruction);
 								case 0x6:
-									return new FailUnimplemented ("Addq_s_w", machInst);
+									return new FailUnimplemented ("Addq_s_w", machineInstruction);
 								case 0x7:
-									return new FailUnimplemented ("Subq_s_w", machInst);
+									return new FailUnimplemented ("Subq_s_w", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							case 0x3:
-								switch (machInst[BitField.OP_LO]) {
+								switch (machineInstruction[BitField.OP_LO]) {
 								case 0x4:
-									return new FailUnimplemented ("Muleq_s_w_phl", machInst);
+									return new FailUnimplemented ("Muleq_s_w_phl", machineInstruction);
 								case 0x5:
-									return new FailUnimplemented ("Muleq_s_w_phr", machInst);
+									return new FailUnimplemented ("Muleq_s_w_phr", machineInstruction);
 								case 0x6:
-									return new FailUnimplemented ("Mulq_s_ph", machInst);
+									return new FailUnimplemented ("Mulq_s_ph", machineInstruction);
 								case 0x7:
-									return new FailUnimplemented ("Mulq_rs_ph", machInst);
+									return new FailUnimplemented ("Mulq_rs_ph", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							default:
-								return new Unknown (machInst);
+								return new Unknown (machineInstruction);
 							}
 						case 0x1:
-							switch (machInst[BitField.OP_HI]) {
+							switch (machineInstruction[BitField.OP_HI]) {
 							case 0x0:
-								switch (machInst[BitField.OP_LO]) {
+								switch (machineInstruction[BitField.OP_LO]) {
 								case 0x0:
-									return new FailUnimplemented ("Cmpu_eq_qb", machInst);
+									return new FailUnimplemented ("Cmpu_eq_qb", machineInstruction);
 								case 0x1:
-									return new FailUnimplemented ("Cmpu_lt_qb", machInst);
+									return new FailUnimplemented ("Cmpu_lt_qb", machineInstruction);
 								case 0x2:
-									return new FailUnimplemented ("Cmpu_le_qb", machInst);
+									return new FailUnimplemented ("Cmpu_le_qb", machineInstruction);
 								case 0x3:
-									return new FailUnimplemented ("Pick_qb", machInst);
+									return new FailUnimplemented ("Pick_qb", machineInstruction);
 								case 0x4:
-									return new FailUnimplemented ("Cmpgu_eq_qb", machInst);
+									return new FailUnimplemented ("Cmpgu_eq_qb", machineInstruction);
 								case 0x5:
-									return new FailUnimplemented ("Cmpgu_lt_qb", machInst);
+									return new FailUnimplemented ("Cmpgu_lt_qb", machineInstruction);
 								case 0x6:
-									return new FailUnimplemented ("Cmpgu_le_qb", machInst);
+									return new FailUnimplemented ("Cmpgu_le_qb", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							case 0x1:
-								switch (machInst[BitField.OP_LO]) {
+								switch (machineInstruction[BitField.OP_LO]) {
 								case 0x0:
-									return new FailUnimplemented ("Cmp_eq_ph", machInst);
+									return new FailUnimplemented ("Cmp_eq_ph", machineInstruction);
 								case 0x1:
-									return new FailUnimplemented ("Cmp_lt_ph", machInst);
+									return new FailUnimplemented ("Cmp_lt_ph", machineInstruction);
 								case 0x2:
-									return new FailUnimplemented ("Cmp_le_ph", machInst);
+									return new FailUnimplemented ("Cmp_le_ph", machineInstruction);
 								case 0x3:
-									return new FailUnimplemented ("Pick_ph", machInst);
+									return new FailUnimplemented ("Pick_ph", machineInstruction);
 								case 0x4:
-									return new FailUnimplemented ("Precrq_qb_ph", machInst);
+									return new FailUnimplemented ("Precrq_qb_ph", machineInstruction);
 								case 0x5:
-									return new FailUnimplemented ("Precr_qb_ph", machInst);
+									return new FailUnimplemented ("Precr_qb_ph", machineInstruction);
 								case 0x6:
-									return new FailUnimplemented ("Packrl_ph", machInst);
+									return new FailUnimplemented ("Packrl_ph", machineInstruction);
 								case 0x7:
-									return new FailUnimplemented ("Precrqu_s_qb_ph", machInst);
+									return new FailUnimplemented ("Precrqu_s_qb_ph", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							case 0x2:
-								switch (machInst[BitField.OP_LO]) {
+								switch (machineInstruction[BitField.OP_LO]) {
 								case 0x4:
-									return new FailUnimplemented ("Precrq_ph_w", machInst);
+									return new FailUnimplemented ("Precrq_ph_w", machineInstruction);
 								case 0x5:
-									return new FailUnimplemented ("Precrq_rs_ph_w", machInst);
+									return new FailUnimplemented ("Precrq_rs_ph_w", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							case 0x3:
-								switch (machInst[BitField.OP_LO]) {
+								switch (machineInstruction[BitField.OP_LO]) {
 								case 0x0:
-									return new FailUnimplemented ("Cmpgdu_eq_qb", machInst);
+									return new FailUnimplemented ("Cmpgdu_eq_qb", machineInstruction);
 								case 0x1:
-									return new FailUnimplemented ("Cmpgdu_lt_qb", machInst);
+									return new FailUnimplemented ("Cmpgdu_lt_qb", machineInstruction);
 								case 0x2:
-									return new FailUnimplemented ("Cmpgdu_le_qb", machInst);
+									return new FailUnimplemented ("Cmpgdu_le_qb", machineInstruction);
 								case 0x6:
-									return new FailUnimplemented ("Precr_sra_ph_w", machInst);
+									return new FailUnimplemented ("Precr_sra_ph_w", machineInstruction);
 								case 0x7:
-									return new FailUnimplemented ("Precr_sra_r_ph_w", machInst);
+									return new FailUnimplemented ("Precr_sra_r_ph_w", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							default:
-								return new Unknown (machInst);
+								return new Unknown (machineInstruction);
 							}
 						case 0x2:
-							switch (machInst[BitField.OP_HI]) {
+							switch (machineInstruction[BitField.OP_HI]) {
 							case 0x0:
-								switch (machInst[BitField.OP_LO]) {
+								switch (machineInstruction[BitField.OP_LO]) {
 								case 0x1:
-									return new FailUnimplemented ("Absq_s_qb", machInst);
+									return new FailUnimplemented ("Absq_s_qb", machineInstruction);
 								case 0x2:
-									return new FailUnimplemented ("Repl_qb", machInst);
+									return new FailUnimplemented ("Repl_qb", machineInstruction);
 								case 0x3:
-									return new FailUnimplemented ("Replv_qb", machInst);
+									return new FailUnimplemented ("Replv_qb", machineInstruction);
 								case 0x4:
-									return new FailUnimplemented ("Precequ_ph_qbl", machInst);
+									return new FailUnimplemented ("Precequ_ph_qbl", machineInstruction);
 								case 0x5:
-									return new FailUnimplemented ("Precequ_ph_qbr", machInst);
+									return new FailUnimplemented ("Precequ_ph_qbr", machineInstruction);
 								case 0x6:
-									return new FailUnimplemented ("Precequ_ph_qbla", machInst);
+									return new FailUnimplemented ("Precequ_ph_qbla", machineInstruction);
 								case 0x7:
-									return new FailUnimplemented ("Precequ_ph_qbra", machInst);
+									return new FailUnimplemented ("Precequ_ph_qbra", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							case 0x1:
-								switch (machInst[BitField.OP_LO]) {
+								switch (machineInstruction[BitField.OP_LO]) {
 								case 0x1:
-									return new FailUnimplemented ("Absq_s_ph", machInst);
+									return new FailUnimplemented ("Absq_s_ph", machineInstruction);
 								case 0x2:
-									return new FailUnimplemented ("Repl_ph", machInst);
+									return new FailUnimplemented ("Repl_ph", machineInstruction);
 								case 0x3:
-									return new FailUnimplemented ("Replv_ph", machInst);
+									return new FailUnimplemented ("Replv_ph", machineInstruction);
 								case 0x4:
-									return new FailUnimplemented ("Preceq_w_phl", machInst);
+									return new FailUnimplemented ("Preceq_w_phl", machineInstruction);
 								case 0x5:
-									return new FailUnimplemented ("Preceq_w_phr", machInst);
+									return new FailUnimplemented ("Preceq_w_phr", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							case 0x2:
-								switch (machInst[BitField.OP_LO]) {
+								switch (machineInstruction[BitField.OP_LO]) {
 								case 0x1:
-									return new FailUnimplemented ("Absq_s_w", machInst);
+									return new FailUnimplemented ("Absq_s_w", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							case 0x3:
-								switch (machInst[BitField.OP_LO]) {
+								switch (machineInstruction[BitField.OP_LO]) {
 								case 0x3:
-									return new FailUnimplemented ("Bitrev", machInst);
+									return new FailUnimplemented ("Bitrev", machineInstruction);
 								case 0x4:
-									return new FailUnimplemented ("Preceu_ph_qbl", machInst);
+									return new FailUnimplemented ("Preceu_ph_qbl", machineInstruction);
 								case 0x5:
-									return new FailUnimplemented ("Preceu_ph_qbr", machInst);
+									return new FailUnimplemented ("Preceu_ph_qbr", machineInstruction);
 								case 0x6:
-									return new FailUnimplemented ("Preceu_ph_qbla", machInst);
+									return new FailUnimplemented ("Preceu_ph_qbla", machineInstruction);
 								case 0x7:
-									return new FailUnimplemented ("Preceu_ph_qbra", machInst);
+									return new FailUnimplemented ("Preceu_ph_qbra", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							default:
-								return new Unknown (machInst);
+								return new Unknown (machineInstruction);
 							}
 						case 0x3:
-							switch (machInst[BitField.OP_HI]) {
+							switch (machineInstruction[BitField.OP_HI]) {
 							case 0x0:
-								switch (machInst[BitField.OP_LO]) {
+								switch (machineInstruction[BitField.OP_LO]) {
 								case 0x0:
-									return new FailUnimplemented ("Shll_qb", machInst);
+									return new FailUnimplemented ("Shll_qb", machineInstruction);
 								case 0x1:
-									return new FailUnimplemented ("Shrl_qb", machInst);
+									return new FailUnimplemented ("Shrl_qb", machineInstruction);
 								case 0x2:
-									return new FailUnimplemented ("Shllv_qb", machInst);
+									return new FailUnimplemented ("Shllv_qb", machineInstruction);
 								case 0x3:
-									return new FailUnimplemented ("Shrlv_qb", machInst);
+									return new FailUnimplemented ("Shrlv_qb", machineInstruction);
 								case 0x4:
-									return new FailUnimplemented ("Shra_qb", machInst);
+									return new FailUnimplemented ("Shra_qb", machineInstruction);
 								case 0x5:
-									return new FailUnimplemented ("Shra_r_qb", machInst);
+									return new FailUnimplemented ("Shra_r_qb", machineInstruction);
 								case 0x6:
-									return new FailUnimplemented ("Shrav_qb", machInst);
+									return new FailUnimplemented ("Shrav_qb", machineInstruction);
 								case 0x7:
-									return new FailUnimplemented ("Shrav_r_qb", machInst);
+									return new FailUnimplemented ("Shrav_r_qb", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							case 0x1:
-								switch (machInst[BitField.OP_LO]) {
+								switch (machineInstruction[BitField.OP_LO]) {
 								case 0x0:
-									return new FailUnimplemented ("Shll_ph", machInst);
+									return new FailUnimplemented ("Shll_ph", machineInstruction);
 								case 0x1:
-									return new FailUnimplemented ("Shra_ph", machInst);
+									return new FailUnimplemented ("Shra_ph", machineInstruction);
 								case 0x2:
-									return new FailUnimplemented ("Shllv_ph", machInst);
+									return new FailUnimplemented ("Shllv_ph", machineInstruction);
 								case 0x3:
-									return new FailUnimplemented ("Shrav_ph", machInst);
+									return new FailUnimplemented ("Shrav_ph", machineInstruction);
 								case 0x4:
-									return new FailUnimplemented ("Shll_s_ph", machInst);
+									return new FailUnimplemented ("Shll_s_ph", machineInstruction);
 								case 0x5:
-									return new FailUnimplemented ("Shra_r_ph", machInst);
+									return new FailUnimplemented ("Shra_r_ph", machineInstruction);
 								case 0x6:
-									return new FailUnimplemented ("Shllv_s_ph", machInst);
+									return new FailUnimplemented ("Shllv_s_ph", machineInstruction);
 								case 0x7:
-									return new FailUnimplemented ("Shrav_r_ph", machInst);
+									return new FailUnimplemented ("Shrav_r_ph", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							case 0x2:
-								switch (machInst[BitField.OP_LO]) {
+								switch (machineInstruction[BitField.OP_LO]) {
 								case 0x4:
-									return new FailUnimplemented ("Shll_s_w", machInst);
+									return new FailUnimplemented ("Shll_s_w", machineInstruction);
 								case 0x5:
-									return new FailUnimplemented ("Shra_r_w", machInst);
+									return new FailUnimplemented ("Shra_r_w", machineInstruction);
 								case 0x6:
-									return new FailUnimplemented ("Shllv_s_w", machInst);
+									return new FailUnimplemented ("Shllv_s_w", machineInstruction);
 								case 0x7:
-									return new FailUnimplemented ("Shrav_r_w", machInst);
+									return new FailUnimplemented ("Shrav_r_w", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							case 0x3:
-								switch (machInst[BitField.OP_LO]) {
+								switch (machineInstruction[BitField.OP_LO]) {
 								case 0x1:
-									return new FailUnimplemented ("Shrl_ph", machInst);
+									return new FailUnimplemented ("Shrl_ph", machineInstruction);
 								case 0x3:
-									return new FailUnimplemented ("Shrlv_ph", machInst);
+									return new FailUnimplemented ("Shrlv_ph", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							default:
-								return new Unknown (machInst);
+								return new Unknown (machineInstruction);
 							}
 						default:
-							return new Unknown (machInst);
+							return new Unknown (machineInstruction);
 						}
 					case 0x3:
-						switch (machInst[BitField.FUNC_LO]) {
+						switch (machineInstruction[BitField.FUNC_LO]) {
 						case 0x0:
-							switch (machInst[BitField.OP_HI]) {
+							switch (machineInstruction[BitField.OP_HI]) {
 							case 0x0:
-								switch (machInst[BitField.OP_LO]) {
+								switch (machineInstruction[BitField.OP_LO]) {
 								case 0x0:
-									return new FailUnimplemented ("Adduh_qb", machInst);
+									return new FailUnimplemented ("Adduh_qb", machineInstruction);
 								case 0x1:
-									return new FailUnimplemented ("Subuh_qb", machInst);
+									return new FailUnimplemented ("Subuh_qb", machineInstruction);
 								case 0x2:
-									return new FailUnimplemented ("Adduh_r_qb", machInst);
+									return new FailUnimplemented ("Adduh_r_qb", machineInstruction);
 								case 0x3:
-									return new FailUnimplemented ("Subuh_r_qb", machInst);
+									return new FailUnimplemented ("Subuh_r_qb", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							case 0x1:
-								switch (machInst[BitField.OP_LO]) {
+								switch (machineInstruction[BitField.OP_LO]) {
 								case 0x0:
-									return new FailUnimplemented ("Addqh_ph", machInst);
+									return new FailUnimplemented ("Addqh_ph", machineInstruction);
 								case 0x1:
-									return new FailUnimplemented ("Subqh_ph", machInst);
+									return new FailUnimplemented ("Subqh_ph", machineInstruction);
 								case 0x2:
-									return new FailUnimplemented ("Addqh_r_ph", machInst);
+									return new FailUnimplemented ("Addqh_r_ph", machineInstruction);
 								case 0x3:
-									return new FailUnimplemented ("Subqh_r_ph", machInst);
+									return new FailUnimplemented ("Subqh_r_ph", machineInstruction);
 								case 0x4:
-									return new FailUnimplemented ("Mul_ph", machInst);
+									return new FailUnimplemented ("Mul_ph", machineInstruction);
 								case 0x6:
-									return new FailUnimplemented ("Mul_s_ph", machInst);
+									return new FailUnimplemented ("Mul_s_ph", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							case 0x2:
-								switch (machInst[BitField.OP_LO]) {
+								switch (machineInstruction[BitField.OP_LO]) {
 								case 0x0:
-									return new FailUnimplemented ("Addqh_w", machInst);
+									return new FailUnimplemented ("Addqh_w", machineInstruction);
 								case 0x1:
-									return new FailUnimplemented ("Subqh_w", machInst);
+									return new FailUnimplemented ("Subqh_w", machineInstruction);
 								case 0x2:
-									return new FailUnimplemented ("Addqh_r_w", machInst);
+									return new FailUnimplemented ("Addqh_r_w", machineInstruction);
 								case 0x3:
-									return new FailUnimplemented ("Subqh_r_w", machInst);
+									return new FailUnimplemented ("Subqh_r_w", machineInstruction);
 								case 0x6:
-									return new FailUnimplemented ("Mulq_s_w", machInst);
+									return new FailUnimplemented ("Mulq_s_w", machineInstruction);
 								case 0x7:
-									return new FailUnimplemented ("Mulq_rs_w", machInst);
+									return new FailUnimplemented ("Mulq_rs_w", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							default:
-								return new Unknown (machInst);
+								return new Unknown (machineInstruction);
 							}
 						default:
-							return new Unknown (machInst);
+							return new Unknown (machineInstruction);
 						}
 					case 0x4:
-						switch (machInst[BitField.SA]) {
+						switch (machineInstruction[BitField.SA]) {
 						case 0x2:
-							return new FailUnimplemented ("Wsbh", machInst);
+							return new FailUnimplemented ("Wsbh", machineInstruction);
 						case 0x10:
-							return new FailUnimplemented ("Seb", machInst);
+							return new FailUnimplemented ("Seb", machineInstruction);
 						case 0x18:
-							return new FailUnimplemented ("Seh", machInst);
+							return new FailUnimplemented ("Seh", machineInstruction);
 						default:
-							return new Unknown (machInst);
+							return new Unknown (machineInstruction);
 						}
 					case 0x6:
-						switch (machInst[BitField.FUNC_LO]) {
+						switch (machineInstruction[BitField.FUNC_LO]) {
 						case 0x0:
-							switch (machInst[BitField.OP_HI]) {
+							switch (machineInstruction[BitField.OP_HI]) {
 							case 0x0:
-								switch (machInst[BitField.OP_LO]) {
+								switch (machineInstruction[BitField.OP_LO]) {
 								case 0x0:
-									return new FailUnimplemented ("Dpa_w_ph", machInst);
+									return new FailUnimplemented ("Dpa_w_ph", machineInstruction);
 								case 0x1:
-									return new FailUnimplemented ("Dps_w_ph", machInst);
+									return new FailUnimplemented ("Dps_w_ph", machineInstruction);
 								case 0x2:
-									return new FailUnimplemented ("Mulsa_w_ph", machInst);
+									return new FailUnimplemented ("Mulsa_w_ph", machineInstruction);
 								case 0x3:
-									return new FailUnimplemented ("Dpau_h_qbl", machInst);
+									return new FailUnimplemented ("Dpau_h_qbl", machineInstruction);
 								case 0x4:
-									return new FailUnimplemented ("Dpaq_s_w_ph", machInst);
+									return new FailUnimplemented ("Dpaq_s_w_ph", machineInstruction);
 								case 0x5:
-									return new FailUnimplemented ("Dpsq_s_w_ph", machInst);
+									return new FailUnimplemented ("Dpsq_s_w_ph", machineInstruction);
 								case 0x6:
-									return new FailUnimplemented ("Mulsaq_s_w_ph", machInst);
+									return new FailUnimplemented ("Mulsaq_s_w_ph", machineInstruction);
 								case 0x7:
-									return new FailUnimplemented ("Dpau_h_qbr", machInst);
+									return new FailUnimplemented ("Dpau_h_qbr", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							case 0x1:
-								switch (machInst[BitField.OP_LO]) {
+								switch (machineInstruction[BitField.OP_LO]) {
 								case 0x0:
-									return new FailUnimplemented ("Dpax_w_ph", machInst);
+									return new FailUnimplemented ("Dpax_w_ph", machineInstruction);
 								case 0x1:
-									return new FailUnimplemented ("Dpsx_w_ph", machInst);
+									return new FailUnimplemented ("Dpsx_w_ph", machineInstruction);
 								case 0x3:
-									return new FailUnimplemented ("Dpsu_h_qbl", machInst);
+									return new FailUnimplemented ("Dpsu_h_qbl", machineInstruction);
 								case 0x4:
-									return new FailUnimplemented ("Dpaq_sa_l_w", machInst);
+									return new FailUnimplemented ("Dpaq_sa_l_w", machineInstruction);
 								case 0x5:
-									return new FailUnimplemented ("Dpsq_sa_l_w", machInst);
+									return new FailUnimplemented ("Dpsq_sa_l_w", machineInstruction);
 								case 0x7:
-									return new FailUnimplemented ("Dpsu_h_qbr", machInst);
+									return new FailUnimplemented ("Dpsu_h_qbr", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							case 0x2:
-								switch (machInst[BitField.OP_LO]) {
+								switch (machineInstruction[BitField.OP_LO]) {
 								case 0x0:
-									return new FailUnimplemented ("Maq_sa_w_phl", machInst);
+									return new FailUnimplemented ("Maq_sa_w_phl", machineInstruction);
 								case 0x2:
-									return new FailUnimplemented ("Maq_sa_w_phr", machInst);
+									return new FailUnimplemented ("Maq_sa_w_phr", machineInstruction);
 								case 0x4:
-									return new FailUnimplemented ("Maq_s_w_phl", machInst);
+									return new FailUnimplemented ("Maq_s_w_phl", machineInstruction);
 								case 0x6:
-									return new FailUnimplemented ("Maq_s_w_phr", machInst);
+									return new FailUnimplemented ("Maq_s_w_phr", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							case 0x3:
-								switch (machInst[BitField.OP_LO]) {
+								switch (machineInstruction[BitField.OP_LO]) {
 								case 0x0:
-									return new FailUnimplemented ("Dpaqx_s_w_ph", machInst);
+									return new FailUnimplemented ("Dpaqx_s_w_ph", machineInstruction);
 								case 0x1:
-									return new FailUnimplemented ("Dpsqx_s_w_ph", machInst);
+									return new FailUnimplemented ("Dpsqx_s_w_ph", machineInstruction);
 								case 0x2:
-									return new FailUnimplemented ("Dpaqx_sa_w_ph", machInst);
+									return new FailUnimplemented ("Dpaqx_sa_w_ph", machineInstruction);
 								case 0x3:
-									return new FailUnimplemented ("Dpsqx_sa_w_ph", machInst);
+									return new FailUnimplemented ("Dpsqx_sa_w_ph", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							default:
-								return new Unknown (machInst);
+								return new Unknown (machineInstruction);
 							}
 						case 0x1:
-							switch (machInst[BitField.OP_HI]) {
+							switch (machineInstruction[BitField.OP_HI]) {
 							case 0x0:
-								switch (machInst[BitField.OP_LO]) {
+								switch (machineInstruction[BitField.OP_LO]) {
 								case 0x0:
-									return new FailUnimplemented ("Append", machInst);
+									return new FailUnimplemented ("Append", machineInstruction);
 								case 0x1:
-									return new FailUnimplemented ("Prepend", machInst);
+									return new FailUnimplemented ("Prepend", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							case 0x2:
-								switch (machInst[BitField.OP_LO]) {
+								switch (machineInstruction[BitField.OP_LO]) {
 								case 0x0:
-									return new FailUnimplemented ("Balign", machInst);
+									return new FailUnimplemented ("Balign", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							default:
-								return new Unknown (machInst);
+								return new Unknown (machineInstruction);
 							}
 						default:
-							return new Unknown (machInst);
+							return new Unknown (machineInstruction);
 						}
 					case 0x7:
-						switch (machInst[BitField.FUNC_LO]) {
+						switch (machineInstruction[BitField.FUNC_LO]) {
 						case 0x0:
-							switch (machInst[BitField.OP_HI]) {
+							switch (machineInstruction[BitField.OP_HI]) {
 							case 0x0:
-								switch (machInst[BitField.OP_LO]) {
+								switch (machineInstruction[BitField.OP_LO]) {
 								case 0x0:
-									return new FailUnimplemented ("Extr_w", machInst);
+									return new FailUnimplemented ("Extr_w", machineInstruction);
 								case 0x1:
-									return new FailUnimplemented ("Extrv_w", machInst);
+									return new FailUnimplemented ("Extrv_w", machineInstruction);
 								case 0x2:
-									return new FailUnimplemented ("Extp", machInst);
+									return new FailUnimplemented ("Extp", machineInstruction);
 								case 0x3:
-									return new FailUnimplemented ("Extpv", machInst);
+									return new FailUnimplemented ("Extpv", machineInstruction);
 								case 0x4:
-									return new FailUnimplemented ("Extr_r_w", machInst);
+									return new FailUnimplemented ("Extr_r_w", machineInstruction);
 								case 0x5:
-									return new FailUnimplemented ("Extrv_r_w", machInst);
+									return new FailUnimplemented ("Extrv_r_w", machineInstruction);
 								case 0x6:
-									return new FailUnimplemented ("Extr_rs_w", machInst);
+									return new FailUnimplemented ("Extr_rs_w", machineInstruction);
 								case 0x7:
-									return new FailUnimplemented ("Extrv_rs_w", machInst);
+									return new FailUnimplemented ("Extrv_rs_w", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							case 0x1:
-								switch (machInst[BitField.OP_LO]) {
+								switch (machineInstruction[BitField.OP_LO]) {
 								case 0x2:
-									return new FailUnimplemented ("Extpdp", machInst);
+									return new FailUnimplemented ("Extpdp", machineInstruction);
 								case 0x3:
-									return new FailUnimplemented ("Extpdpv", machInst);
+									return new FailUnimplemented ("Extpdpv", machineInstruction);
 								case 0x6:
-									return new FailUnimplemented ("Extr_s_h", machInst);
+									return new FailUnimplemented ("Extr_s_h", machineInstruction);
 								case 0x7:
-									return new FailUnimplemented ("Extrv_s_h", machInst);
+									return new FailUnimplemented ("Extrv_s_h", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							case 0x2:
-								switch (machInst[BitField.OP_LO]) {
+								switch (machineInstruction[BitField.OP_LO]) {
 								case 0x2:
-									return new FailUnimplemented ("Rddsp", machInst);
+									return new FailUnimplemented ("Rddsp", machineInstruction);
 								case 0x3:
-									return new FailUnimplemented ("Wrdsp", machInst);
+									return new FailUnimplemented ("Wrdsp", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							case 0x3:
-								switch (machInst[BitField.OP_LO]) {
+								switch (machineInstruction[BitField.OP_LO]) {
 								case 0x2:
-									return new FailUnimplemented ("Shilo", machInst);
+									return new FailUnimplemented ("Shilo", machineInstruction);
 								case 0x3:
-									return new FailUnimplemented ("Shilov", machInst);
+									return new FailUnimplemented ("Shilov", machineInstruction);
 								case 0x7:
-									return new FailUnimplemented ("Mthlip", machInst);
+									return new FailUnimplemented ("Mthlip", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							default:
-								return new Unknown (machInst);
+								return new Unknown (machineInstruction);
 							}
 						case 0x3:
-							switch (machInst[BitField.OP]) {
+							switch (machineInstruction[BitField.OP]) {
 							case 0x0:
-								switch (machInst[BitField.RD]) {
+								switch (machineInstruction[BitField.RD]) {
 								case 0x1d:
-									return new FailUnimplemented ("Rdhwr", machInst);
+									return new FailUnimplemented ("Rdhwr", machineInstruction);
 								default:
-									return new Unknown (machInst);
+									return new Unknown (machineInstruction);
 								}
 							default:
-								return new Unknown (machInst);
+								return new Unknown (machineInstruction);
 							}
 						default:
-							return new Unknown (machInst);
+							return new Unknown (machineInstruction);
 						}
 					default:
-						return new Unknown (machInst);
+						return new Unknown (machineInstruction);
 					}
 				default:
-					return new Unknown (machInst);
+					return new Unknown (machineInstruction);
 				}
 			case 0x4:
-				switch (machInst[BitField.OPCODE_LO]) {
+				switch (machineInstruction[BitField.OPCODE_LO]) {
 				case 0x0:
-					return new Lb (machInst);
+					return new Lb (machineInstruction);
 				case 0x1:
-					return new Lh (machInst);
+					return new Lh (machineInstruction);
 				case 0x3:
-					return new Lw (machInst);
+					return new Lw (machineInstruction);
 				case 0x4:
-					return new Lbu (machInst);
+					return new Lbu (machineInstruction);
 				case 0x5:
-					return new Lhu (machInst);
+					return new Lhu (machineInstruction);
 				case 0x2:
-					return new Lwl (machInst);
+					return new Lwl (machineInstruction);
 				case 0x6:
-					return new Lwr (machInst);
+					return new Lwr (machineInstruction);
 				default:
-					return new Unknown (machInst);
+					return new Unknown (machineInstruction);
 				}
 			case 0x5:
-				switch (machInst[BitField.OPCODE_LO]) {
+				switch (machineInstruction[BitField.OPCODE_LO]) {
 				case 0x0:
-					return new Sb (machInst);
+					return new Sb (machineInstruction);
 				case 0x1:
-					return new Sh (machInst);
+					return new Sh (machineInstruction);
 				case 0x3:
-					return new Sw (machInst);
+					return new Sw (machineInstruction);
 				case 0x2:
-					return new Swl (machInst);
+					return new Swl (machineInstruction);
 				case 0x6:
-					return new Swr (machInst);
+					return new Swr (machineInstruction);
 				case 0x7:
-					return new FailUnimplemented ("Cache", machInst);
+					return new FailUnimplemented ("Cache", machineInstruction);
 				default:
-					return new Unknown (machInst);
+					return new Unknown (machineInstruction);
 				}
 			case 0x6:
-				switch (machInst[BitField.OPCODE_LO]) {
+				switch (machineInstruction[BitField.OPCODE_LO]) {
 				case 0x0:
-					return new Ll (machInst);
+					return new Ll (machineInstruction);
 				case 0x1:
-					return new Lwc1 (machInst);
+					return new Lwc1 (machineInstruction);
 				case 0x5:
-					return new Ldc1 (machInst);
+					return new Ldc1 (machineInstruction);
 				case 0x2:
-					return new CP2Unimplemented ("lwc2", machInst);
+					return new CP2Unimplemented ("lwc2", machineInstruction);
 				case 0x6:
-					return new CP2Unimplemented ("ldc2", machInst);
+					return new CP2Unimplemented ("ldc2", machineInstruction);
 				case 0x3:
-					return new FailUnimplemented ("Pref", machInst);
+					return new FailUnimplemented ("Pref", machineInstruction);
 				default:
-					return new Unknown (machInst);
+					return new Unknown (machineInstruction);
 				}
 			case 0x7:
-				switch (machInst[BitField.OPCODE_LO]) {
+				switch (machineInstruction[BitField.OPCODE_LO]) {
 				case 0x0:
-					return new Sc (machInst);
+					return new Sc (machineInstruction);
 				case 0x1:
-					return new Swc1 (machInst);
+					return new Swc1 (machineInstruction);
 				case 0x5:
-					return new Sdc1 (machInst);
+					return new Sdc1 (machineInstruction);
 				case 0x2:
-					return new CP2Unimplemented ("swc2", machInst);
+					return new CP2Unimplemented ("swc2", machineInstruction);
 				case 0x6:
-					return new CP2Unimplemented ("sdc2", machInst);
+					return new CP2Unimplemented ("sdc2", machineInstruction);
 				default:
-					return new Unknown (machInst);
+					return new Unknown (machineInstruction);
 				}
 			default:
-				return new Unknown (machInst);
+				return new Unknown (machineInstruction);
 			}
 		}
 	}
+}
 
-	public sealed class SyscallInst : StaticInst
+namespace MinCai.Simulators.Flexim.Architecture.Instructions
+{
+	public sealed class Syscall : StaticInstruction
 	{
-		public SyscallInst (MachInst machInst) : base("syscall", machInst, StaticInstFlag.None, FunctionalUnitType.None)
+		public Syscall (MachineInstruction machineInstruction) : base("syscall", machineInstruction, Flag.None, FunctionalUnit.Types.None)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, 2));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, 2));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Syscall (thread.Regs.IntRegs[2]);
 		}
 	}
 
-	public sealed class Sll : StaticInst
+	public sealed class Sll : StaticInstruction
 	{
-		public Sll (MachInst machInst) : base("sll", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
+		public Sll (MachineInstruction machineInstruction) : base("sll", machineInstruction, Flag.IntegerComputation, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RD]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.IntRegs[this[BitField.RD]] = thread.Regs.IntRegs[this[BitField.RT]] << (int)this[BitField.SA];
 		}
 	}
 
-	public sealed class Sllv : StaticInst
+	public sealed class Sllv : StaticInstruction
 	{
-		public Sllv (MachInst machInst) : base("sllv", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
+		public Sllv (MachineInstruction machineInstruction) : base("sllv", machineInstruction, Flag.IntegerComputation, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RD]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.IntRegs[this[BitField.RD]] = thread.Regs.IntRegs[this[BitField.RT]] << (int)BitHelper.Bits (thread.Regs.IntRegs[this[BitField.RS]], 4, 0);
 		}
 	}
 
-	public sealed class Sra : StaticInst
+	public sealed class Sra : StaticInstruction
 	{
-		public Sra (MachInst machInst) : base("sra", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
+		public Sra (MachineInstruction machineInstruction) : base("sra", machineInstruction, Flag.IntegerComputation, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RD]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.IntRegs[this[BitField.RD]] = (uint)((int)thread.Regs.IntRegs[this[BitField.RT]] >> (int)this[BitField.SA]);
 		}
 	}
 
-	public sealed class Srav : StaticInst
+	public sealed class Srav : StaticInstruction
 	{
-		public Srav (MachInst machInst) : base("srav", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
+		public Srav (MachineInstruction machineInstruction) : base("srav", machineInstruction, Flag.IntegerComputation, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RD]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.IntRegs[this[BitField.RD]] = (uint)((int)thread.Regs.IntRegs[this[BitField.RT]] >> (int)BitHelper.Bits (thread.Regs.IntRegs[this[BitField.RS]], 4, 0));
 		}
 	}
 
-	public sealed class Srl : StaticInst
+	public sealed class Srl : StaticInstruction
 	{
-		public Srl (MachInst machInst) : base("srl", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
+		public Srl (MachineInstruction machineInstruction) : base("srl", machineInstruction, Flag.IntegerComputation, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RD]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.IntRegs[this[BitField.RD]] = (uint)thread.Regs.IntRegs[this[BitField.RT]] >> (int)this[BitField.SA];
 		}
 	}
 
-	public sealed class Srlv : StaticInst
+	public sealed class Srlv : StaticInstruction
 	{
-		public Srlv (MachInst machInst) : base("srlv", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
+		public Srlv (MachineInstruction machineInstruction) : base("srlv", machineInstruction, Flag.IntegerComputation, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RD]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.IntRegs[this[BitField.RD]] = (uint)thread.Regs.IntRegs[this[BitField.RT]] >> (int)BitHelper.Bits (thread.Regs.IntRegs[this[BitField.RS]], 4, 0);
 		}
 	}
 
-	public abstract class Branch : StaticInst
+	public abstract class Branch : StaticInstruction
 	{
-		public Branch (string mnemonic, MachInst machInst, StaticInstFlag flags, FunctionalUnitType fuType) : base(mnemonic, machInst, flags, fuType)
+		public Branch (string mnemonic, MachineInstruction machineInstruction, Flag flags, FunctionalUnit.Types fuType) : base(mnemonic, machineInstruction, flags, fuType)
 		{
 			this.Displacement = BitHelper.Sext (this[BitField.OFFSET] << 2, 16);
 		}
 
-		public override uint GetTargetPc (Thread thread)
+		public override uint GetTargetPc (IThread thread)
 		{
 			return (uint)(thread.Regs.Npc + this.Displacement);
 		}
 
-		public void DoBranch (Thread thread)
+		public void DoBranch (IThread thread)
 		{
 			thread.Regs.Nnpc = this.GetTargetPc (thread);
 		}
@@ -2768,7 +2770,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class B : Branch
 	{
-		public B (MachInst machInst) : base("b", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Control | StaticInstFlag.Unconditional | StaticInstFlag.DirectJump, FunctionalUnitType.IntALU)
+		public B (MachineInstruction machineInstruction) : base("b", machineInstruction, Flag.IntegerComputation | Flag.Control | Flag.UnconditionalBranch | Flag.DirectJump, FunctionalUnit.Types.IntALU)
 		{
 		}
 
@@ -2776,7 +2778,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			this.DoBranch (thread);
 		}
@@ -2784,16 +2786,16 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Bal : Branch
 	{
-		public Bal (MachInst machInst) : base("bal", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Control | StaticInstFlag.Unconditional | StaticInstFlag.DirectJump, FunctionalUnitType.IntALU)
+		public Bal (MachineInstruction machineInstruction) : base("bal", machineInstruction, Flag.IntegerComputation | Flag.Control | Flag.UnconditionalBranch | Flag.DirectJump, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, RegisterConstants.RETURN_ADDRESS_REG));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, RegisterConstants.RETURN_ADDRESS_REG));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.IntRegs[RegisterConstants.RETURN_ADDRESS_REG] = thread.Regs.Nnpc;
 			this.DoBranch (thread);
@@ -2802,17 +2804,17 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Beq : Branch
 	{
-		public Beq (MachInst machInst) : base("beq", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Control | StaticInstFlag.Conditional | StaticInstFlag.DirectJump, FunctionalUnitType.IntALU)
+		public Beq (MachineInstruction machineInstruction) : base("beq", machineInstruction, Flag.IntegerComputation | Flag.Control | Flag.ConditionalBranch | Flag.DirectJump, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			if ((int)thread.Regs.IntRegs[this[BitField.RS]] == (int)thread.Regs.IntRegs[this[BitField.RT]]) {
 				this.DoBranch (thread);
@@ -2822,16 +2824,16 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Beqz : Branch
 	{
-		public Beqz (MachInst machInst) : base("beqz", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Control | StaticInstFlag.Conditional | StaticInstFlag.DirectJump, FunctionalUnitType.IntALU)
+		public Beqz (MachineInstruction machineInstruction) : base("beqz", machineInstruction, Flag.IntegerComputation | Flag.Control | Flag.ConditionalBranch | Flag.DirectJump, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			if ((int)thread.Regs.IntRegs[this[BitField.RS]] == 0) {
 				this.DoBranch (thread);
@@ -2841,16 +2843,16 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Bgez : Branch
 	{
-		public Bgez (MachInst machInst) : base("bgez", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Control | StaticInstFlag.Conditional | StaticInstFlag.DirectJump, FunctionalUnitType.IntALU)
+		public Bgez (MachineInstruction machineInstruction) : base("bgez", machineInstruction, Flag.IntegerComputation | Flag.Control | Flag.ConditionalBranch | Flag.DirectJump, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			if ((int)thread.Regs.IntRegs[this[BitField.RS]] >= 0) {
 				this.DoBranch (thread);
@@ -2860,17 +2862,17 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Bgezal : Branch
 	{
-		public Bgezal (MachInst machInst) : base("bgezal", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Control | StaticInstFlag.Conditional | StaticInstFlag.Call | StaticInstFlag.DirectJump, FunctionalUnitType.IntALU)
+		public Bgezal (MachineInstruction machineInstruction) : base("bgezal", machineInstruction, Flag.IntegerComputation | Flag.Control | Flag.ConditionalBranch | Flag.FunctionCall | Flag.DirectJump, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, RegisterConstants.RETURN_ADDRESS_REG));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, RegisterConstants.RETURN_ADDRESS_REG));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.IntRegs[RegisterConstants.RETURN_ADDRESS_REG] = thread.Regs.Nnpc;
 			if ((int)thread.Regs.IntRegs[this[BitField.RS]] >= 0) {
@@ -2881,16 +2883,16 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Bgtz : Branch
 	{
-		public Bgtz (MachInst machInst) : base("bgtz", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Control | StaticInstFlag.Conditional | StaticInstFlag.DirectJump, FunctionalUnitType.IntALU)
+		public Bgtz (MachineInstruction machineInstruction) : base("bgtz", machineInstruction, Flag.IntegerComputation | Flag.Control | Flag.ConditionalBranch | Flag.DirectJump, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			if ((int)thread.Regs.IntRegs[this[BitField.RS]] > 0) {
 				this.DoBranch (thread);
@@ -2900,16 +2902,16 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Blez : Branch
 	{
-		public Blez (MachInst machInst) : base("blez", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Control | StaticInstFlag.Conditional | StaticInstFlag.DirectJump, FunctionalUnitType.IntALU)
+		public Blez (MachineInstruction machineInstruction) : base("blez", machineInstruction, Flag.IntegerComputation | Flag.Control | Flag.ConditionalBranch | Flag.DirectJump, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			if ((int)thread.Regs.IntRegs[this[BitField.RS]] <= 0) {
 				this.DoBranch (thread);
@@ -2919,16 +2921,16 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Bltz : Branch
 	{
-		public Bltz (MachInst machInst) : base("bltz", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Control | StaticInstFlag.Conditional | StaticInstFlag.DirectJump, FunctionalUnitType.IntALU)
+		public Bltz (MachineInstruction machineInstruction) : base("bltz", machineInstruction, Flag.IntegerComputation | Flag.Control | Flag.ConditionalBranch | Flag.DirectJump, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			if ((int)thread.Regs.IntRegs[this[BitField.RS]] < 0) {
 				this.DoBranch (thread);
@@ -2938,17 +2940,17 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Bltzal : Branch
 	{
-		public Bltzal (MachInst machInst) : base("bltzal", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Control | StaticInstFlag.Conditional | StaticInstFlag.Call | StaticInstFlag.DirectJump, FunctionalUnitType.IntALU)
+		public Bltzal (MachineInstruction machineInstruction) : base("bltzal", machineInstruction, Flag.IntegerComputation | Flag.Control | Flag.ConditionalBranch | Flag.FunctionCall | Flag.DirectJump, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, RegisterConstants.RETURN_ADDRESS_REG));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, RegisterConstants.RETURN_ADDRESS_REG));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.IntRegs[RegisterConstants.RETURN_ADDRESS_REG] = thread.Regs.Nnpc;
 			if ((int)thread.Regs.IntRegs[this[BitField.RS]] < 0) {
@@ -2959,17 +2961,17 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Bne : Branch
 	{
-		public Bne (MachInst machInst) : base("bne", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Control | StaticInstFlag.Conditional | StaticInstFlag.DirectJump, FunctionalUnitType.IntALU)
+		public Bne (MachineInstruction machineInstruction) : base("bne", machineInstruction, Flag.IntegerComputation | Flag.Control | Flag.ConditionalBranch | Flag.DirectJump, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			if ((int)thread.Regs.IntRegs[this[BitField.RS]] != (int)thread.Regs.IntRegs[this[BitField.RT]]) {
 				this.DoBranch (thread);
@@ -2979,16 +2981,16 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Bnez : Branch
 	{
-		public Bnez (MachInst machInst) : base("bnez", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Control | StaticInstFlag.Conditional | StaticInstFlag.DirectJump, FunctionalUnitType.IntALU)
+		public Bnez (MachineInstruction machineInstruction) : base("bnez", machineInstruction, Flag.IntegerComputation | Flag.Control | Flag.ConditionalBranch | Flag.DirectJump, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			if ((int)thread.Regs.IntRegs[this[BitField.RS]] != 0) {
 				this.DoBranch (thread);
@@ -2998,16 +3000,16 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Bc1f : Branch
 	{
-		public Bc1f (MachInst machInst) : base("bc1f", machInst, StaticInstFlag.Control | StaticInstFlag.Conditional, FunctionalUnitType.None)
+		public Bc1f (MachineInstruction machineInstruction) : base("bc1f", machineInstruction, Flag.Control | Flag.ConditionalBranch, FunctionalUnit.Types.None)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Fcsr));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Misc, RegisterConstants.MISC_REG_FCSR));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			uint fcsr = thread.Regs.MiscRegs.Fcsr;
 			bool cond = !BitHelper.GetFCC (fcsr, (int)this[BitField.BRANCH_CC]);
@@ -3020,16 +3022,16 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Bc1t : Branch
 	{
-		public Bc1t (MachInst machInst) : base("bc1t", machInst, StaticInstFlag.Control | StaticInstFlag.Conditional, FunctionalUnitType.None)
+		public Bc1t (MachineInstruction machineInstruction) : base("bc1t", machineInstruction, Flag.Control | Flag.ConditionalBranch, FunctionalUnit.Types.None)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Fcsr));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Misc, RegisterConstants.MISC_REG_FCSR));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			uint fcsr = thread.Regs.MiscRegs.Fcsr;
 			bool cond = BitHelper.GetFCC (fcsr, (int)this[BitField.BRANCH_CC]);
@@ -3042,16 +3044,16 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Bc1fl : Branch
 	{
-		public Bc1fl (MachInst machInst) : base("bc1fl", machInst, StaticInstFlag.Control | StaticInstFlag.Conditional, FunctionalUnitType.None)
+		public Bc1fl (MachineInstruction machineInstruction) : base("bc1fl", machineInstruction, Flag.Control | Flag.ConditionalBranch, FunctionalUnit.Types.None)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Fcsr));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Misc, RegisterConstants.MISC_REG_FCSR));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			uint fcsr = thread.Regs.MiscRegs.Fcsr;
 			bool cond = !BitHelper.GetFCC (fcsr, (int)this[BitField.BRANCH_CC]);
@@ -3067,16 +3069,16 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Bc1tl : Branch
 	{
-		public Bc1tl (MachInst machInst) : base("bc1tl", machInst, StaticInstFlag.Control | StaticInstFlag.Conditional, FunctionalUnitType.None)
+		public Bc1tl (MachineInstruction machineInstruction) : base("bc1tl", machineInstruction, Flag.Control | Flag.ConditionalBranch, FunctionalUnit.Types.None)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Fcsr));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Misc, RegisterConstants.MISC_REG_FCSR));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			uint fcsr = thread.Regs.MiscRegs.Fcsr;
 			bool cond = BitHelper.GetFCC (fcsr, (int)this[BitField.BRANCH_CC]);
@@ -3090,14 +3092,14 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public abstract class Jump : StaticInst
+	public abstract class Jump : StaticInstruction
 	{
-		public Jump (string mnemonic, MachInst machInst, StaticInstFlag flags, FunctionalUnitType fuType) : base(mnemonic, machInst, flags, fuType)
+		public Jump (string mnemonic, MachineInstruction machineInstruction, Flag flags, FunctionalUnit.Types fuType) : base(mnemonic, machineInstruction, flags, fuType)
 		{
 			this.Target = this[BitField.JMPTARG] << 2;
 		}
 
-		public void DoJump (Thread thread)
+		public void DoJump (IThread thread)
 		{
 			thread.Regs.Nnpc = this.GetTargetPc (thread);
 		}
@@ -3107,7 +3109,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class J : Jump
 	{
-		public J (MachInst machInst) : base("j", machInst, StaticInstFlag.Control | StaticInstFlag.Unconditional | StaticInstFlag.DirectJump, FunctionalUnitType.IntALU)
+		public J (MachineInstruction machineInstruction) : base("j", machineInstruction, Flag.Control | Flag.UnconditionalBranch | Flag.DirectJump, FunctionalUnit.Types.IntALU)
 		{
 		}
 
@@ -3115,12 +3117,12 @@ namespace MinCai.Simulators.Flexim.Architecture
 		{
 		}
 
-		public override uint GetTargetPc (Thread thread)
+		public override uint GetTargetPc (IThread thread)
 		{
 			return BitHelper.Mbits (thread.Regs.Npc, 32, 28) | this.Target;
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			this.DoJump (thread);
 		}
@@ -3128,21 +3130,21 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Jal : Jump
 	{
-		public Jal (MachInst machInst) : base("jal", machInst, StaticInstFlag.Control | StaticInstFlag.Unconditional | StaticInstFlag.Call | StaticInstFlag.DirectJump, FunctionalUnitType.IntALU)
+		public Jal (MachineInstruction machineInstruction) : base("jal", machineInstruction, Flag.Control | Flag.UnconditionalBranch | Flag.FunctionCall | Flag.DirectJump, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, RegisterConstants.RETURN_ADDRESS_REG));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, RegisterConstants.RETURN_ADDRESS_REG));
 		}
 
-		public override uint GetTargetPc (Thread thread)
+		public override uint GetTargetPc (IThread thread)
 		{
 			return BitHelper.Mbits (thread.Regs.Npc, 32, 28) | this.Target;
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.IntRegs[RegisterConstants.RETURN_ADDRESS_REG] = thread.Regs.Nnpc;
 			this.DoJump (thread);
@@ -3151,22 +3153,22 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Jalr : Jump
 	{
-		public Jalr (MachInst machInst) : base("jalr", machInst, StaticInstFlag.Control | StaticInstFlag.Unconditional | StaticInstFlag.Call | StaticInstFlag.IndirectJump, FunctionalUnitType.IntALU)
+		public Jalr (MachineInstruction machineInstruction) : base("jalr", machineInstruction, Flag.Control | Flag.UnconditionalBranch | Flag.FunctionCall | Flag.IndirectJump, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RD]));
 		}
 
-		public override uint GetTargetPc (Thread thread)
+		public override uint GetTargetPc (IThread thread)
 		{
 			return thread.Regs.IntRegs[this[BitField.RS]];
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.IntRegs[this[BitField.RD]] = thread.Regs.Nnpc;
 			this.DoJump (thread);
@@ -3175,42 +3177,42 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Jr : Jump
 	{
-		public Jr (MachInst machInst) : base("jr", machInst, StaticInstFlag.Control | StaticInstFlag.Unconditional | StaticInstFlag.FunctionReturn | StaticInstFlag.IndirectJump, FunctionalUnitType.None)
+		public Jr (MachineInstruction machineInstruction) : base("jr", machineInstruction, Flag.Control | Flag.UnconditionalBranch | Flag.FunctionReturn | Flag.IndirectJump, FunctionalUnit.Types.None)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
 		}
 
-		public override uint GetTargetPc (Thread thread)
+		public override uint GetTargetPc (IThread thread)
 		{
 			return thread.Regs.IntRegs[this[BitField.RS]];
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			this.DoJump (thread);
 		}
 	}
 
-	public abstract class IntOp : StaticInst
+	public abstract class IntOp : StaticInstruction
 	{
-		public IntOp (string mnemonic, MachInst machInst, StaticInstFlag flags, FunctionalUnitType fuType) : base(mnemonic, machInst, flags, fuType)
+		public IntOp (string mnemonic, MachineInstruction machineInstruction, Flag flags, FunctionalUnit.Types fuType) : base(mnemonic, machineInstruction, flags, fuType)
 		{
 		}
 	}
 
-	public abstract class IntImmOp : StaticInst
+	public abstract class IntImmOp : StaticInstruction
 	{
-		public IntImmOp (string mnemonic, MachInst machInst, StaticInstFlag flags, FunctionalUnitType fuType) : base(mnemonic, machInst, flags, fuType)
+		public IntImmOp (string mnemonic, MachineInstruction machineInstruction, Flag flags, FunctionalUnit.Types fuType) : base(mnemonic, machineInstruction, flags, fuType)
 		{
-			this.Imm = (short)machInst[BitField.INTIMM];
+			this.Imm = (short)machineInstruction[BitField.INTIMM];
 			
-			this.ZextImm = 0x0000FFFF & machInst[BitField.INTIMM];
+			this.ZextImm = 0x0000FFFF & machineInstruction[BitField.INTIMM];
 			
-			this.SextImm = BitHelper.Sext (machInst[BitField.INTIMM], 16);
+			this.SextImm = BitHelper.Sext (machineInstruction[BitField.INTIMM], 16);
 		}
 
 		public short Imm { get; private set; }
@@ -3220,56 +3222,56 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Add : IntOp
 	{
-		public Add (MachInst machInst) : base("add", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
+		public Add (MachineInstruction machineInstruction) : base("add", machineInstruction, Flag.IntegerComputation, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RD]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.IntRegs[this[BitField.RD]] = (uint)((int)thread.Regs.IntRegs[this[BitField.RS]] + (int)thread.Regs.IntRegs[this[BitField.RT]]);
-			Logger.Warn (LogCategory.Instruction, "Add: overflow trap not implemented.");
+			Logger.Warn (Logger.Categories.Instruction, "Add: overflow trap not implemented.");
 		}
 	}
 
 	public sealed class Addi : IntImmOp
 	{
-		public Addi (MachInst machInst) : base("addi", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Immediate, FunctionalUnitType.IntALU)
+		public Addi (MachineInstruction machineInstruction) : base("addi", machineInstruction, Flag.IntegerComputation | Flag.Immediate, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.IntRegs[this[BitField.RT]] = (uint)((int)thread.Regs.IntRegs[this[BitField.RS]] + this.SextImm);
-			Logger.Warn (LogCategory.Instruction, "Addi: overflow trap not implemented.");
+			Logger.Warn (Logger.Categories.Instruction, "Addi: overflow trap not implemented.");
 		}
 	}
 
 	public sealed class Addiu : IntImmOp
 	{
-		public Addiu (MachInst machInst) : base("addiu", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Immediate, FunctionalUnitType.IntALU)
+		public Addiu (MachineInstruction machineInstruction) : base("addiu", machineInstruction, Flag.IntegerComputation | Flag.Immediate, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.IntRegs[this[BitField.RT]] = (uint)((int)thread.Regs.IntRegs[this[BitField.RS]] + this.SextImm);
 		}
@@ -3277,18 +3279,18 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Addu : IntOp
 	{
-		public Addu (MachInst machInst) : base("addu", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
+		public Addu (MachineInstruction machineInstruction) : base("addu", machineInstruction, Flag.IntegerComputation, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RD]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.IntRegs[this[BitField.RD]] = (uint)((int)thread.Regs.IntRegs[this[BitField.RS]] + (int)thread.Regs.IntRegs[this[BitField.RT]]);
 		}
@@ -3296,38 +3298,38 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Sub : IntOp
 	{
-		public Sub (MachInst machInst) : base("sub", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
+		public Sub (MachineInstruction machineInstruction) : base("sub", machineInstruction, Flag.IntegerComputation, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RD]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.IntRegs[this[BitField.RD]] = (uint)((int)thread.Regs.IntRegs[this[BitField.RS]] - (int)thread.Regs.IntRegs[this[BitField.RT]]);
-			Logger.Warn (LogCategory.Instruction, "Sub: overflow trap not implemented.");
+			Logger.Warn (Logger.Categories.Instruction, "Sub: overflow trap not implemented.");
 		}
 	}
 
 	public sealed class Subu : IntOp
 	{
-		public Subu (MachInst machInst) : base("subu", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
+		public Subu (MachineInstruction machineInstruction) : base("subu", machineInstruction, Flag.IntegerComputation, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RD]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.IntRegs[this[BitField.RD]] = (uint)((int)thread.Regs.IntRegs[this[BitField.RS]] - (int)thread.Regs.IntRegs[this[BitField.RT]]);
 		}
@@ -3335,18 +3337,18 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class And : IntOp
 	{
-		public And (MachInst machInst) : base("and", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
+		public And (MachineInstruction machineInstruction) : base("and", machineInstruction, Flag.IntegerComputation, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RD]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.IntRegs[this[BitField.RD]] = thread.Regs.IntRegs[this[BitField.RS]] & thread.Regs.IntRegs[this[BitField.RT]];
 		}
@@ -3354,17 +3356,17 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Andi : IntImmOp
 	{
-		public Andi (MachInst machInst) : base("andi", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Immediate, FunctionalUnitType.IntALU)
+		public Andi (MachineInstruction machineInstruction) : base("andi", machineInstruction, Flag.IntegerComputation | Flag.Immediate, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.IntRegs[this[BitField.RT]] = thread.Regs.IntRegs[this[BitField.RS]] & this.ZextImm;
 		}
@@ -3372,18 +3374,18 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Nor : IntOp
 	{
-		public Nor (MachInst machInst) : base("nor", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
+		public Nor (MachineInstruction machineInstruction) : base("nor", machineInstruction, Flag.IntegerComputation, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RD]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.IntRegs[this[BitField.RD]] = ~(thread.Regs.IntRegs[this[BitField.RS]] | thread.Regs.IntRegs[this[BitField.RT]]);
 		}
@@ -3391,18 +3393,18 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Or : IntOp
 	{
-		public Or (MachInst machInst) : base("or", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
+		public Or (MachineInstruction machineInstruction) : base("or", machineInstruction, Flag.IntegerComputation, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RD]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.IntRegs[this[BitField.RD]] = thread.Regs.IntRegs[this[BitField.RS]] | thread.Regs.IntRegs[this[BitField.RT]];
 		}
@@ -3410,17 +3412,17 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Ori : IntImmOp
 	{
-		public Ori (MachInst machInst) : base("ori", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Immediate, FunctionalUnitType.IntALU)
+		public Ori (MachineInstruction machineInstruction) : base("ori", machineInstruction, Flag.IntegerComputation | Flag.Immediate, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.IntRegs[this[BitField.RT]] = thread.Regs.IntRegs[this[BitField.RS]] | this.ZextImm;
 		}
@@ -3428,18 +3430,18 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Xor : IntOp
 	{
-		public Xor (MachInst machInst) : base("xor", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
+		public Xor (MachineInstruction machineInstruction) : base("xor", machineInstruction, Flag.IntegerComputation, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RD]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.IntRegs[this[BitField.RD]] = thread.Regs.IntRegs[this[BitField.RS]] ^ thread.Regs.IntRegs[this[BitField.RT]];
 		}
@@ -3447,17 +3449,17 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Xori : IntImmOp
 	{
-		public Xori (MachInst machInst) : base("xori", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Immediate, FunctionalUnitType.IntALU)
+		public Xori (MachineInstruction machineInstruction) : base("xori", machineInstruction, Flag.IntegerComputation | Flag.Immediate, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.IntRegs[this[BitField.RT]] = thread.Regs.IntRegs[this[BitField.RS]] ^ this.ZextImm;
 		}
@@ -3465,18 +3467,18 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Slt : IntOp
 	{
-		public Slt (MachInst machInst) : base("slt", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
+		public Slt (MachineInstruction machineInstruction) : base("slt", machineInstruction, Flag.IntegerComputation, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RD]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.IntRegs[this[BitField.RD]] = (int)thread.Regs.IntRegs[this[BitField.RS]] < (int)thread.Regs.IntRegs[this[BitField.RT]] ? 1u : 0;
 		}
@@ -3484,17 +3486,17 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Slti : IntImmOp
 	{
-		public Slti (MachInst machInst) : base("slti", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Immediate, FunctionalUnitType.IntALU)
+		public Slti (MachineInstruction machineInstruction) : base("slti", machineInstruction, Flag.IntegerComputation | Flag.Immediate, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.IntRegs[this[BitField.RT]] = (int)thread.Regs.IntRegs[this[BitField.RS]] < this.SextImm ? 1u : 0;
 		}
@@ -3502,17 +3504,17 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Sltiu : IntImmOp
 	{
-		public Sltiu (MachInst machInst) : base("sltiu", machInst, StaticInstFlag.IntegerComputation | StaticInstFlag.Immediate, FunctionalUnitType.IntALU)
+		public Sltiu (MachineInstruction machineInstruction) : base("sltiu", machineInstruction, Flag.IntegerComputation | Flag.Immediate, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.IntRegs[this[BitField.RT]] = (uint)thread.Regs.IntRegs[this[BitField.RS]] < this.ZextImm ? 1u : 0;
 		}
@@ -3520,18 +3522,18 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Sltu : IntOp
 	{
-		public Sltu (MachInst machInst) : base("sltu", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
+		public Sltu (MachineInstruction machineInstruction) : base("sltu", machineInstruction, Flag.IntegerComputation, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RD]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.IntRegs[this[BitField.RD]] = (uint)thread.Regs.IntRegs[this[BitField.RS]] < (uint)thread.Regs.IntRegs[this[BitField.RT]] ? 1u : 0;
 		}
@@ -3539,36 +3541,36 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Lui : IntImmOp
 	{
-		public Lui (MachInst machInst) : base("lui", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
+		public Lui (MachineInstruction machineInstruction) : base("lui", machineInstruction, Flag.IntegerComputation, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.IntRegs[this[BitField.RT]] = (uint)(this.Imm << 16);
 		}
 	}
 
-	public sealed class Divu : StaticInst
+	public sealed class Divu : StaticInstruction
 	{
-		public Divu (MachInst machInst) : base("divu", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntDivide)
+		public Divu (MachineInstruction machineInstruction) : base("divu", machineInstruction, Flag.IntegerComputation, FunctionalUnit.Types.IntDivide)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Lo));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Hi));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Misc, RegisterConstants.MISC_REG_LO));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Misc, RegisterConstants.MISC_REG_HI));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			ulong rs = 0;
 			ulong rt = 0;
@@ -3589,21 +3591,21 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public sealed class Div : StaticInst
+	public sealed class Div : StaticInstruction
 	{
-		public Div (MachInst machInst) : base("div", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntDivide)
+		public Div (MachineInstruction machineInstruction) : base("div", machineInstruction, Flag.IntegerComputation, FunctionalUnit.Types.IntDivide)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Lo));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Hi));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Misc, RegisterConstants.MISC_REG_LO));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Misc, RegisterConstants.MISC_REG_HI));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			long rs = 0;
 			long rt = 0;
@@ -3624,93 +3626,93 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public sealed class Mflo : StaticInst
+	public sealed class Mflo : StaticInstruction
 	{
-		public Mflo (MachInst machInst) : base("mflo", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
+		public Mflo (MachineInstruction machineInstruction) : base("mflo", machineInstruction, Flag.IntegerComputation, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Lo));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Misc, RegisterConstants.MISC_REG_LO));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RD]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.IntRegs[this[BitField.RD]] = thread.Regs.MiscRegs.Lo;
 		}
 	}
 
-	public sealed class Mfhi : StaticInst
+	public sealed class Mfhi : StaticInstruction
 	{
-		public Mfhi (MachInst machInst) : base("mfhi", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
+		public Mfhi (MachineInstruction machineInstruction) : base("mfhi", machineInstruction, Flag.IntegerComputation, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Hi));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Misc, RegisterConstants.MISC_REG_HI));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RD]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.IntRegs[this[BitField.RD]] = thread.Regs.MiscRegs.Hi;
 		}
 	}
 
-	public sealed class Mtlo : StaticInst
+	public sealed class Mtlo : StaticInstruction
 	{
-		public Mtlo (MachInst machInst) : base("mtlo", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
+		public Mtlo (MachineInstruction machineInstruction) : base("mtlo", machineInstruction, Flag.IntegerComputation, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Lo));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RD]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Misc, RegisterConstants.MISC_REG_LO));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.MiscRegs.Lo = thread.Regs.IntRegs[this[BitField.RD]];
 		}
 	}
 
-	public sealed class Mthi : StaticInst
+	public sealed class Mthi : StaticInstruction
 	{
-		public Mthi (MachInst machInst) : base("mthi", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
+		public Mthi (MachineInstruction machineInstruction) : base("mthi", machineInstruction, Flag.IntegerComputation, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RD]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Hi));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RD]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Misc, RegisterConstants.MISC_REG_HI));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			thread.Regs.MiscRegs.Hi = thread.Regs.IntRegs[this[BitField.RD]];
 		}
 	}
 
-	public sealed class Mult : StaticInst
+	public sealed class Mult : StaticInstruction
 	{
-		public Mult (MachInst machInst) : base("mult", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
+		public Mult (MachineInstruction machineInstruction) : base("mult", machineInstruction, Flag.IntegerComputation, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Lo));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Hi));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Misc, RegisterConstants.MISC_REG_LO));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Misc, RegisterConstants.MISC_REG_HI));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			long rs = 0;
 			long rt = 0;
@@ -3728,21 +3730,21 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public class Multu : StaticInst
+	public class Multu : StaticInstruction
 	{
-		public Multu (MachInst machInst) : base("multu", machInst, StaticInstFlag.IntegerComputation, FunctionalUnitType.IntALU)
+		public Multu (MachineInstruction machineInstruction) : base("multu", machineInstruction, Flag.IntegerComputation, FunctionalUnit.Types.IntALU)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Lo));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Hi));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Misc, RegisterConstants.MISC_REG_LO));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Misc, RegisterConstants.MISC_REG_HI));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			ulong rs = 0;
 			ulong rt = 0;
@@ -3760,47 +3762,47 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public abstract class FloatOp : StaticInst
+	public abstract class FloatOp : StaticInstruction
 	{
-		public FloatOp (string mnemonic, MachInst machInst, StaticInstFlag flags, FunctionalUnitType fuType) : base(mnemonic, machInst, flags, fuType)
+		public FloatOp (string mnemonic, MachineInstruction machineInstruction, Flag flags, FunctionalUnit.Types fuType) : base(mnemonic, machineInstruction, flags, fuType)
 		{
 		}
 	}
 
 	public abstract class FloatBinaryOp : FloatOp
 	{
-		public FloatBinaryOp (string mnemonic, MachInst machInst, StaticInstFlag flags, FunctionalUnitType fuType) : base(mnemonic, machInst, flags, fuType)
+		public FloatBinaryOp (string mnemonic, MachineInstruction machineInstruction, Flag flags, FunctionalUnit.Types fuType) : base(mnemonic, machineInstruction, flags, fuType)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Float, this[BitField.FS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Float, this[BitField.FT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Float, this[BitField.FD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Float, this[BitField.FS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Float, this[BitField.FT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Float, this[BitField.FD]));
 		}
 	}
 
 	public abstract class FloatUnaryOp : FloatOp
 	{
-		public FloatUnaryOp (string mnemonic, MachInst machInst, StaticInstFlag flags, FunctionalUnitType fuType) : base(mnemonic, machInst, flags, fuType)
+		public FloatUnaryOp (string mnemonic, MachineInstruction machineInstruction, Flag flags, FunctionalUnit.Types fuType) : base(mnemonic, machineInstruction, flags, fuType)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Float, this[BitField.FS]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Float, this[BitField.FD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Float, this[BitField.FS]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Float, this[BitField.FD]));
 		}
 	}
 
 	public sealed class Add_d : FloatBinaryOp
 	{
-		public Add_d (MachInst machInst) : base("add_d", machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatAdd)
+		public Add_d (MachineInstruction machineInstruction) : base("add_d", machineInstruction, Flag.FloatComputation, FunctionalUnit.Types.FloatAdd)
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			double fs = thread.Regs.FloatRegs.GetDouble (this[BitField.FS]);
 			double ft = thread.Regs.FloatRegs.GetDouble (this[BitField.FT]);
@@ -3813,11 +3815,11 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Sub_d : FloatBinaryOp
 	{
-		public Sub_d (MachInst machInst) : base("sub_d", machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatAdd)
+		public Sub_d (MachineInstruction machineInstruction) : base("sub_d", machineInstruction, Flag.FloatComputation, FunctionalUnit.Types.FloatAdd)
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			double fs = thread.Regs.FloatRegs.GetDouble (this[BitField.FS]);
 			double ft = thread.Regs.FloatRegs.GetDouble (this[BitField.FT]);
@@ -3830,11 +3832,11 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Mul_d : FloatBinaryOp
 	{
-		public Mul_d (MachInst machInst) : base("mul_d", machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatMultiply)
+		public Mul_d (MachineInstruction machineInstruction) : base("mul_d", machineInstruction, Flag.FloatComputation, FunctionalUnit.Types.FloatMultiply)
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			double fs = thread.Regs.FloatRegs.GetDouble (this[BitField.FS]);
 			double ft = thread.Regs.FloatRegs.GetDouble (this[BitField.FT]);
@@ -3847,11 +3849,11 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Div_d : FloatBinaryOp
 	{
-		public Div_d (MachInst machInst) : base("div_d", machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatDivide)
+		public Div_d (MachineInstruction machineInstruction) : base("div_d", machineInstruction, Flag.FloatComputation, FunctionalUnit.Types.FloatDivide)
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			double fs = thread.Regs.FloatRegs.GetDouble (this[BitField.FS]);
 			double ft = thread.Regs.FloatRegs.GetDouble (this[BitField.FT]);
@@ -3864,11 +3866,11 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Sqrt_d : FloatUnaryOp
 	{
-		public Sqrt_d (MachInst machInst) : base("sqrt_d", machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatSquareRoot)
+		public Sqrt_d (MachineInstruction machineInstruction) : base("sqrt_d", machineInstruction, Flag.FloatComputation, FunctionalUnit.Types.FloatSquareRoot)
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			double fs = thread.Regs.FloatRegs.GetDouble (this[BitField.FS]);
 			
@@ -3880,11 +3882,11 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Abs_d : FloatUnaryOp
 	{
-		public Abs_d (MachInst machInst) : base("abs_d", machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatCompare)
+		public Abs_d (MachineInstruction machineInstruction) : base("abs_d", machineInstruction, Flag.FloatComputation, FunctionalUnit.Types.FloatCompare)
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			double fs = thread.Regs.FloatRegs.GetDouble (this[BitField.FS]);
 			
@@ -3896,11 +3898,11 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Neg_d : FloatUnaryOp
 	{
-		public Neg_d (MachInst machInst) : base("neg_d", machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatCompare)
+		public Neg_d (MachineInstruction machineInstruction) : base("neg_d", machineInstruction, Flag.FloatComputation, FunctionalUnit.Types.FloatCompare)
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			double fs = thread.Regs.FloatRegs.GetDouble (this[BitField.FS]);
 			
@@ -3912,11 +3914,11 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Mov_d : FloatUnaryOp
 	{
-		public Mov_d (MachInst machInst) : base("mov_d", machInst, StaticInstFlag.None, FunctionalUnitType.None)
+		public Mov_d (MachineInstruction machineInstruction) : base("mov_d", machineInstruction, Flag.None, FunctionalUnit.Types.None)
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			double fs = thread.Regs.FloatRegs.GetDouble (this[BitField.FS]);
 			double fd = fs;
@@ -3927,11 +3929,11 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Add_s : FloatBinaryOp
 	{
-		public Add_s (MachInst machInst) : base("add_s", machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatAdd)
+		public Add_s (MachineInstruction machineInstruction) : base("add_s", machineInstruction, Flag.FloatComputation, FunctionalUnit.Types.FloatAdd)
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			float fs = thread.Regs.FloatRegs.GetFloat (this[BitField.FS]);
 			float ft = thread.Regs.FloatRegs.GetFloat (this[BitField.FT]);
@@ -3944,11 +3946,11 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Sub_s : FloatBinaryOp
 	{
-		public Sub_s (MachInst machInst) : base("sub_s", machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatAdd)
+		public Sub_s (MachineInstruction machineInstruction) : base("sub_s", machineInstruction, Flag.FloatComputation, FunctionalUnit.Types.FloatAdd)
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			float fs = thread.Regs.FloatRegs.GetFloat (this[BitField.FS]);
 			float ft = thread.Regs.FloatRegs.GetFloat (this[BitField.FT]);
@@ -3961,11 +3963,11 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Mul_s : FloatBinaryOp
 	{
-		public Mul_s (MachInst machInst) : base("mul_s", machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatMultiply)
+		public Mul_s (MachineInstruction machineInstruction) : base("mul_s", machineInstruction, Flag.FloatComputation, FunctionalUnit.Types.FloatMultiply)
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			float fs = thread.Regs.FloatRegs.GetFloat (this[BitField.FS]);
 			float ft = thread.Regs.FloatRegs.GetFloat (this[BitField.FT]);
@@ -3978,11 +3980,11 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Div_s : FloatBinaryOp
 	{
-		public Div_s (MachInst machInst) : base("div_s", machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatDivide)
+		public Div_s (MachineInstruction machineInstruction) : base("div_s", machineInstruction, Flag.FloatComputation, FunctionalUnit.Types.FloatDivide)
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			float fs = thread.Regs.FloatRegs.GetFloat (this[BitField.FS]);
 			float ft = thread.Regs.FloatRegs.GetFloat (this[BitField.FT]);
@@ -3995,11 +3997,11 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Sqrt_s : FloatUnaryOp
 	{
-		public Sqrt_s (MachInst machInst) : base("sqrt_s", machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatSquareRoot)
+		public Sqrt_s (MachineInstruction machineInstruction) : base("sqrt_s", machineInstruction, Flag.FloatComputation, FunctionalUnit.Types.FloatSquareRoot)
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			float fs = thread.Regs.FloatRegs.GetFloat (this[BitField.FS]);
 			
@@ -4011,11 +4013,11 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Abs_s : FloatUnaryOp
 	{
-		public Abs_s (MachInst machInst) : base("abs_s", machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatCompare)
+		public Abs_s (MachineInstruction machineInstruction) : base("abs_s", machineInstruction, Flag.FloatComputation, FunctionalUnit.Types.FloatCompare)
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			float fs = thread.Regs.FloatRegs.GetFloat (this[BitField.FS]);
 			
@@ -4027,11 +4029,11 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Neg_s : FloatUnaryOp
 	{
-		public Neg_s (MachInst machInst) : base("neg_s", machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatCompare)
+		public Neg_s (MachineInstruction machineInstruction) : base("neg_s", machineInstruction, Flag.FloatComputation, FunctionalUnit.Types.FloatCompare)
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			float fs = thread.Regs.FloatRegs.GetFloat (this[BitField.FS]);
 			
@@ -4043,11 +4045,11 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Mov_s : FloatUnaryOp
 	{
-		public Mov_s (MachInst machInst) : base("mov_s", machInst, StaticInstFlag.None, FunctionalUnitType.None)
+		public Mov_s (MachineInstruction machineInstruction) : base("mov_s", machineInstruction, Flag.None, FunctionalUnit.Types.None)
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			float fs = thread.Regs.FloatRegs.GetFloat (this[BitField.FS]);
 			float fd = fs;
@@ -4058,24 +4060,24 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public abstract class FloatConvertOp : FloatOp
 	{
-		public FloatConvertOp (string mnemonic, MachInst machInst) : base(mnemonic, machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatConvert)
+		public FloatConvertOp (string mnemonic, MachineInstruction machineInstruction) : base(mnemonic, machineInstruction, Flag.FloatComputation, FunctionalUnit.Types.FloatConvert)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Float, this[BitField.FS]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Float, this[BitField.FD]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Float, this[BitField.FS]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Float, this[BitField.FD]));
 		}
 	}
 
 	public sealed class Cvt_d_s : FloatConvertOp
 	{
-		public Cvt_d_s (MachInst machInst) : base("cvt_d_s", machInst)
+		public Cvt_d_s (MachineInstruction machineInstruction) : base("cvt_d_s", machineInstruction)
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			float fs = thread.Regs.FloatRegs.GetFloat (this[BitField.FS]);
 			double fd = (double)fs;
@@ -4086,11 +4088,11 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Cvt_w_s : FloatConvertOp
 	{
-		public Cvt_w_s (MachInst machInst) : base("cvt_w_s", machInst)
+		public Cvt_w_s (MachineInstruction machineInstruction) : base("cvt_w_s", machineInstruction)
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			float fs = thread.Regs.FloatRegs.GetFloat (this[BitField.FS]);
 			uint fd = (uint)fs;
@@ -4101,11 +4103,11 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Cvt_l_s : FloatConvertOp
 	{
-		public Cvt_l_s (MachInst machInst) : base("cvt_l_s", machInst)
+		public Cvt_l_s (MachineInstruction machineInstruction) : base("cvt_l_s", machineInstruction)
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			float fs = thread.Regs.FloatRegs.GetFloat (this[BitField.FS]);
 			ulong fd = (ulong)fs;
@@ -4116,11 +4118,11 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Cvt_s_d : FloatConvertOp
 	{
-		public Cvt_s_d (MachInst machInst) : base("cvt_s_d", machInst)
+		public Cvt_s_d (MachineInstruction machineInstruction) : base("cvt_s_d", machineInstruction)
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			double fs = thread.Regs.FloatRegs.GetDouble (this[BitField.FS]);
 			float fd = (float)fs;
@@ -4131,11 +4133,11 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Cvt_w_d : FloatConvertOp
 	{
-		public Cvt_w_d (MachInst machInst) : base("cvt_w_d", machInst)
+		public Cvt_w_d (MachineInstruction machineInstruction) : base("cvt_w_d", machineInstruction)
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			double fs = thread.Regs.FloatRegs.GetDouble (this[BitField.FS]);
 			uint fd = (uint)fs;
@@ -4146,11 +4148,11 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Cvt_l_d : FloatConvertOp
 	{
-		public Cvt_l_d (MachInst machInst) : base("cvt_l_d", machInst)
+		public Cvt_l_d (MachineInstruction machineInstruction) : base("cvt_l_d", machineInstruction)
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			double fs = thread.Regs.FloatRegs.GetDouble (this[BitField.FS]);
 			ulong fd = (ulong)fs;
@@ -4161,11 +4163,11 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Cvt_s_w : FloatConvertOp
 	{
-		public Cvt_s_w (MachInst machInst) : base("cvt_s_w", machInst)
+		public Cvt_s_w (MachineInstruction machineInstruction) : base("cvt_s_w", machineInstruction)
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			uint fs = thread.Regs.FloatRegs.GetUint (this[BitField.FS]);
 			float fd = (float)fs;
@@ -4176,11 +4178,11 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Cvt_d_w : FloatConvertOp
 	{
-		public Cvt_d_w (MachInst machInst) : base("cvt_d_w", machInst)
+		public Cvt_d_w (MachineInstruction machineInstruction) : base("cvt_d_w", machineInstruction)
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			uint fs = thread.Regs.FloatRegs.GetUint (this[BitField.FS]);
 			double fd = (double)fs;
@@ -4191,11 +4193,11 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Cvt_s_l : FloatConvertOp
 	{
-		public Cvt_s_l (MachInst machInst) : base("cvt_s_l", machInst)
+		public Cvt_s_l (MachineInstruction machineInstruction) : base("cvt_s_l", machineInstruction)
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			ulong fs = thread.Regs.FloatRegs.GetUlong (this[BitField.FS]);
 			float fd = (float)fs;
@@ -4206,11 +4208,11 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Cvt_d_l : FloatConvertOp
 	{
-		public Cvt_d_l (MachInst machInst) : base("cvt_d_l", machInst)
+		public Cvt_d_l (MachineInstruction machineInstruction) : base("cvt_d_l", machineInstruction)
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			ulong fs = thread.Regs.FloatRegs.GetUlong (this[BitField.FS]);
 			double fd = (double)fs;
@@ -4219,28 +4221,28 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public abstract class FloatCompareOp : StaticInst
+	public abstract class FloatCompareOp : StaticInstruction
 	{
-		public FloatCompareOp (string mnemonic, MachInst machInst, StaticInstFlag flags, FunctionalUnitType fuType) : base(mnemonic, machInst, flags, fuType)
+		public FloatCompareOp (string mnemonic, MachineInstruction machineInstruction, Flag flags, FunctionalUnit.Types fuType) : base(mnemonic, machineInstruction, flags, fuType)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Float, this[BitField.FS]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Float, this[BitField.FT]));
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Fcsr));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Fcsr));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Float, this[BitField.FS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Float, this[BitField.FT]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Misc, RegisterConstants.MISC_REG_FCSR));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Misc, RegisterConstants.MISC_REG_FCSR));
 		}
 	}
 
 	public abstract class C_cond_d : FloatCompareOp
 	{
-		public C_cond_d (string mnemonic, MachInst machInst) : base(mnemonic, machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatCompare)
+		public C_cond_d (string mnemonic, MachineInstruction machineInstruction) : base(mnemonic, machineInstruction, Flag.FloatComputation, FunctionalUnit.Types.FloatCompare)
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			double fs = thread.Regs.FloatRegs.GetDouble (this[BitField.FS]);
 			double ft = thread.Regs.FloatRegs.GetDouble (this[BitField.FT]);
@@ -4272,11 +4274,11 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public abstract class C_cond_s : FloatCompareOp
 	{
-		public C_cond_s (string mnemonic, MachInst machInst) : base(mnemonic, machInst, StaticInstFlag.FloatComputation, FunctionalUnitType.FloatCompare)
+		public C_cond_s (string mnemonic, MachineInstruction machineInstruction) : base(mnemonic, machineInstruction, Flag.FloatComputation, FunctionalUnit.Types.FloatCompare)
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			float fs = thread.Regs.FloatRegs.GetFloat (this[BitField.FS]);
 			float ft = thread.Regs.FloatRegs.GetFloat (this[BitField.FT]);
@@ -4308,236 +4310,236 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class C_f_d : C_cond_d
 	{
-		public C_f_d (MachInst machInst) : base("c_f_d", machInst)
+		public C_f_d (MachineInstruction machineInstruction) : base("c_f_d", machineInstruction)
 		{
 		}
 	}
 
 	public sealed class C_un_d : C_cond_d
 	{
-		public C_un_d (MachInst machInst) : base("c_un_d", machInst)
+		public C_un_d (MachineInstruction machineInstruction) : base("c_un_d", machineInstruction)
 		{
 		}
 	}
 
 	public sealed class C_eq_d : C_cond_d
 	{
-		public C_eq_d (MachInst machInst) : base("c_eq_d", machInst)
+		public C_eq_d (MachineInstruction machineInstruction) : base("c_eq_d", machineInstruction)
 		{
 		}
 	}
 
 	public sealed class C_ueq_d : C_cond_d
 	{
-		public C_ueq_d (MachInst machInst) : base("c_ueq_d", machInst)
+		public C_ueq_d (MachineInstruction machineInstruction) : base("c_ueq_d", machineInstruction)
 		{
 		}
 	}
 
 	public sealed class C_olt_d : C_cond_d
 	{
-		public C_olt_d (MachInst machInst) : base("c_olt_d", machInst)
+		public C_olt_d (MachineInstruction machineInstruction) : base("c_olt_d", machineInstruction)
 		{
 		}
 	}
 
 	public sealed class C_ult_d : C_cond_d
 	{
-		public C_ult_d (MachInst machInst) : base("c_ult_d", machInst)
+		public C_ult_d (MachineInstruction machineInstruction) : base("c_ult_d", machineInstruction)
 		{
 		}
 	}
 
 	public sealed class C_ole_d : C_cond_d
 	{
-		public C_ole_d (MachInst machInst) : base("c_ole_d", machInst)
+		public C_ole_d (MachineInstruction machineInstruction) : base("c_ole_d", machineInstruction)
 		{
 		}
 	}
 
 	public sealed class C_ule_d : C_cond_d
 	{
-		public C_ule_d (MachInst machInst) : base("c_ule_d", machInst)
+		public C_ule_d (MachineInstruction machineInstruction) : base("c_ule_d", machineInstruction)
 		{
 		}
 	}
 
 	public sealed class C_sf_d : C_cond_d
 	{
-		public C_sf_d (MachInst machInst) : base("c_sf_d", machInst)
+		public C_sf_d (MachineInstruction machineInstruction) : base("c_sf_d", machineInstruction)
 		{
 		}
 	}
 
 	public sealed class C_ngle_d : C_cond_d
 	{
-		public C_ngle_d (MachInst machInst) : base("c_ngle_d", machInst)
+		public C_ngle_d (MachineInstruction machineInstruction) : base("c_ngle_d", machineInstruction)
 		{
 		}
 	}
 
 	public sealed class C_seq_d : C_cond_d
 	{
-		public C_seq_d (MachInst machInst) : base("c_seq_d", machInst)
+		public C_seq_d (MachineInstruction machineInstruction) : base("c_seq_d", machineInstruction)
 		{
 		}
 	}
 
 	public sealed class C_ngl_d : C_cond_d
 	{
-		public C_ngl_d (MachInst machInst) : base("c_ngl_d", machInst)
+		public C_ngl_d (MachineInstruction machineInstruction) : base("c_ngl_d", machineInstruction)
 		{
 		}
 	}
 
 	public sealed class C_lt_d : C_cond_d
 	{
-		public C_lt_d (MachInst machInst) : base("c_lt_d", machInst)
+		public C_lt_d (MachineInstruction machineInstruction) : base("c_lt_d", machineInstruction)
 		{
 		}
 	}
 
 	public sealed class C_nge_d : C_cond_d
 	{
-		public C_nge_d (MachInst machInst) : base("c_nge_d", machInst)
+		public C_nge_d (MachineInstruction machineInstruction) : base("c_nge_d", machineInstruction)
 		{
 		}
 	}
 
 	public sealed class C_le_d : C_cond_d
 	{
-		public C_le_d (MachInst machInst) : base("c_le_d", machInst)
+		public C_le_d (MachineInstruction machineInstruction) : base("c_le_d", machineInstruction)
 		{
 		}
 	}
 
 	public sealed class C_ngt_d : C_cond_d
 	{
-		public C_ngt_d (MachInst machInst) : base("c_ngt_d", machInst)
+		public C_ngt_d (MachineInstruction machineInstruction) : base("c_ngt_d", machineInstruction)
 		{
 		}
 	}
 
 	public sealed class C_f_s : C_cond_s
 	{
-		public C_f_s (MachInst machInst) : base("c_f_s", machInst)
+		public C_f_s (MachineInstruction machineInstruction) : base("c_f_s", machineInstruction)
 		{
 		}
 	}
 
 	public sealed class C_un_s : C_cond_s
 	{
-		public C_un_s (MachInst machInst) : base("c_un_s", machInst)
+		public C_un_s (MachineInstruction machineInstruction) : base("c_un_s", machineInstruction)
 		{
 		}
 	}
 
 	public sealed class C_eq_s : C_cond_s
 	{
-		public C_eq_s (MachInst machInst) : base("c_eq_s", machInst)
+		public C_eq_s (MachineInstruction machineInstruction) : base("c_eq_s", machineInstruction)
 		{
 		}
 	}
 
 	public sealed class C_ueq_s : C_cond_s
 	{
-		public C_ueq_s (MachInst machInst) : base("c_ueq_s", machInst)
+		public C_ueq_s (MachineInstruction machineInstruction) : base("c_ueq_s", machineInstruction)
 		{
 		}
 	}
 
 	public sealed class C_olt_s : C_cond_s
 	{
-		public C_olt_s (MachInst machInst) : base("c_olt_s", machInst)
+		public C_olt_s (MachineInstruction machineInstruction) : base("c_olt_s", machineInstruction)
 		{
 		}
 	}
 
 	public sealed class C_ult_s : C_cond_s
 	{
-		public C_ult_s (MachInst machInst) : base("c_ult_s", machInst)
+		public C_ult_s (MachineInstruction machineInstruction) : base("c_ult_s", machineInstruction)
 		{
 		}
 	}
 
 	public sealed class C_ole_s : C_cond_s
 	{
-		public C_ole_s (MachInst machInst) : base("c_ole_s", machInst)
+		public C_ole_s (MachineInstruction machineInstruction) : base("c_ole_s", machineInstruction)
 		{
 		}
 	}
 
 	public sealed class C_ule_s : C_cond_s
 	{
-		public C_ule_s (MachInst machInst) : base("c_ule_s", machInst)
+		public C_ule_s (MachineInstruction machineInstruction) : base("c_ule_s", machineInstruction)
 		{
 		}
 	}
 
 	public sealed class C_sf_s : C_cond_s
 	{
-		public C_sf_s (MachInst machInst) : base("c_sf_s", machInst)
+		public C_sf_s (MachineInstruction machineInstruction) : base("c_sf_s", machineInstruction)
 		{
 		}
 	}
 
 	public sealed class C_ngle_s : C_cond_s
 	{
-		public C_ngle_s (MachInst machInst) : base("c_ngle_s", machInst)
+		public C_ngle_s (MachineInstruction machineInstruction) : base("c_ngle_s", machineInstruction)
 		{
 		}
 	}
 
 	public sealed class C_seq_s : C_cond_s
 	{
-		public C_seq_s (MachInst machInst) : base("c_seq_s", machInst)
+		public C_seq_s (MachineInstruction machineInstruction) : base("c_seq_s", machineInstruction)
 		{
 		}
 	}
 
 	public sealed class C_ngl_s : C_cond_s
 	{
-		public C_ngl_s (MachInst machInst) : base("c_ngl_s", machInst)
+		public C_ngl_s (MachineInstruction machineInstruction) : base("c_ngl_s", machineInstruction)
 		{
 		}
 	}
 
 	public sealed class C_lt_s : C_cond_s
 	{
-		public C_lt_s (MachInst machInst) : base("c_lt_s", machInst)
+		public C_lt_s (MachineInstruction machineInstruction) : base("c_lt_s", machineInstruction)
 		{
 		}
 	}
 
 	public sealed class C_nge_s : C_cond_s
 	{
-		public C_nge_s (MachInst machInst) : base("c_nge_s", machInst)
+		public C_nge_s (MachineInstruction machineInstruction) : base("c_nge_s", machineInstruction)
 		{
 		}
 	}
 
 	public sealed class C_le_s : C_cond_s
 	{
-		public C_le_s (MachInst machInst) : base("c_le_s", machInst)
+		public C_le_s (MachineInstruction machineInstruction) : base("c_le_s", machineInstruction)
 		{
 		}
 	}
 
 	public sealed class C_ngt_s : C_cond_s
 	{
-		public C_ngt_s (MachInst machInst) : base("c_ngt_s", machInst)
+		public C_ngt_s (MachineInstruction machineInstruction) : base("c_ngt_s", machineInstruction)
 		{
 		}
 	}
 
-	public abstract class MemoryOp : StaticInst
+	public abstract class MemoryOp : StaticInstruction
 	{
-		public MemoryOp (string mnemonic, MachInst machInst, StaticInstFlag flags, FunctionalUnitType fuType) : base(mnemonic, machInst, flags, fuType)
+		public MemoryOp (string mnemonic, MachineInstruction machineInstruction, Flag flags, FunctionalUnit.Types fuType) : base(mnemonic, machineInstruction, flags, fuType)
 		{
-			this.Displacement = BitHelper.Sext (machInst[BitField.OFFSET], 16);
+			this.Displacement = BitHelper.Sext (machineInstruction[BitField.OFFSET], 16);
 		}
 
-		public virtual uint Ea (Thread thread)
+		public virtual uint Ea (IThread thread)
 		{
 			uint ea = (uint)(thread.Regs.IntRegs[this[BitField.RS]] + this.Displacement);
 			return ea;
@@ -4550,8 +4552,8 @@ namespace MinCai.Simulators.Flexim.Architecture
 			
 			this.SetupEaDeps ();
 			
-			this.EaODeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Ea));
-			this.MemIDeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Ea));
+			this.EaODeps.Add (new RegisterDependency (RegisterDependency.Types.Misc, RegisterConstants.MISC_REG_EA));
+			this.MemIDeps.Add (new RegisterDependency (RegisterDependency.Types.Misc, RegisterConstants.MISC_REG_EA));
 			
 			this.SetupMemDeps ();
 		}
@@ -4577,21 +4579,21 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Lb : MemoryOp
 	{
-		public Lb (MachInst machInst) : base("lb", machInst, StaticInstFlag.Memory | StaticInstFlag.Load | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.ReadPort)
+		public Lb (MachineInstruction machineInstruction) : base("lb", machineInstruction, Flag.Memory | Flag.Load | Flag.DisplacedAddressing, FunctionalUnit.Types.ReadPort)
 		{
 		}
 
 		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
 		}
 
 		protected override void SetupMemDeps ()
 		{
-			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.MemODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		unsafe public override void Execute (Thread thread)
+		unsafe public override void Execute (IThread thread)
 		{
 			byte mem = 0;
 			thread.Mem.ReadByte (this.Ea (thread), (byte*)&mem);
@@ -4601,21 +4603,21 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Lbu : MemoryOp
 	{
-		public Lbu (MachInst machInst) : base("lbu", machInst, StaticInstFlag.Memory | StaticInstFlag.Load | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.ReadPort)
+		public Lbu (MachineInstruction machineInstruction) : base("lbu", machineInstruction, Flag.Memory | Flag.Load | Flag.DisplacedAddressing, FunctionalUnit.Types.ReadPort)
 		{
 		}
 
 		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
 		}
 
 		protected override void SetupMemDeps ()
 		{
-			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.MemODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		unsafe public override void Execute (Thread thread)
+		unsafe public override void Execute (IThread thread)
 		{
 			byte mem = 0;
 			thread.Mem.ReadByte (this.Ea (thread), &mem);
@@ -4625,21 +4627,21 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Lh : MemoryOp
 	{
-		public Lh (MachInst machInst) : base("lh", machInst, StaticInstFlag.Memory | StaticInstFlag.Load | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.ReadPort)
+		public Lh (MachineInstruction machineInstruction) : base("lh", machineInstruction, Flag.Memory | Flag.Load | Flag.DisplacedAddressing, FunctionalUnit.Types.ReadPort)
 		{
 		}
 
 		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
 		}
 
 		protected override void SetupMemDeps ()
 		{
-			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.MemODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		unsafe public override void Execute (Thread thread)
+		unsafe public override void Execute (IThread thread)
 		{
 			short mem = 0;
 			thread.Mem.ReadHalfWord (this.Ea (thread), (ushort*)&mem);
@@ -4649,21 +4651,21 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Lhu : MemoryOp
 	{
-		public Lhu (MachInst machInst) : base("lhu", machInst, StaticInstFlag.Memory | StaticInstFlag.Load | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.ReadPort)
+		public Lhu (MachineInstruction machineInstruction) : base("lhu", machineInstruction, Flag.Memory | Flag.Load | Flag.DisplacedAddressing, FunctionalUnit.Types.ReadPort)
 		{
 		}
 
 		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
 		}
 
 		protected override void SetupMemDeps ()
 		{
-			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.MemODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		unsafe public override void Execute (Thread thread)
+		unsafe public override void Execute (IThread thread)
 		{
 			ushort mem = 0;
 			thread.Mem.ReadHalfWord (this.Ea (thread), &mem);
@@ -4673,21 +4675,21 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Lw : MemoryOp
 	{
-		public Lw (MachInst machInst) : base("lw", machInst, StaticInstFlag.Memory | StaticInstFlag.Load | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.ReadPort)
+		public Lw (MachineInstruction machineInstruction) : base("lw", machineInstruction, Flag.Memory | Flag.Load | Flag.DisplacedAddressing, FunctionalUnit.Types.ReadPort)
 		{
 		}
 
 		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
 		}
 
 		protected override void SetupMemDeps ()
 		{
-			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.MemODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		unsafe public override void Execute (Thread thread)
+		unsafe public override void Execute (IThread thread)
 		{
 			int mem = 0;
 			thread.Mem.ReadWord (this.Ea (thread), (uint*)&mem);
@@ -4697,29 +4699,29 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Lwl : MemoryOp
 	{
-		public Lwl (MachInst machInst) : base("lwl", machInst, StaticInstFlag.Memory | StaticInstFlag.Load | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.ReadPort)
+		public Lwl (MachineInstruction machineInstruction) : base("lwl", machineInstruction, Flag.Memory | Flag.Load | Flag.DisplacedAddressing, FunctionalUnit.Types.ReadPort)
 		{
 		}
 
 		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
 		}
 
 		protected override void SetupMemDeps ()
 		{
-			this.MemIDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
-			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.MemIDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
+			this.MemODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		public override uint Ea (Thread thread)
+		public override uint Ea (IThread thread)
 		{
 			uint addr = (uint)(thread.Regs.IntRegs[this[BitField.RS]] + this.Displacement);
 			uint ea = addr & ~3u;
 			return ea;
 		}
 
-		unsafe public override void Execute (Thread thread)
+		unsafe public override void Execute (IThread thread)
 		{
 			uint addr = (uint)(thread.Regs.IntRegs[this[BitField.RS]] + this.Displacement);
 			
@@ -4740,29 +4742,29 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Lwr : MemoryOp
 	{
-		public Lwr (MachInst machInst) : base("lwr", machInst, StaticInstFlag.Memory | StaticInstFlag.Load | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.ReadPort)
+		public Lwr (MachineInstruction machineInstruction) : base("lwr", machineInstruction, Flag.Memory | Flag.Load | Flag.DisplacedAddressing, FunctionalUnit.Types.ReadPort)
 		{
 		}
 
 		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
 		}
 
 		protected override void SetupMemDeps ()
 		{
-			this.MemIDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
-			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.MemIDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
+			this.MemODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		public override uint Ea (Thread thread)
+		public override uint Ea (IThread thread)
 		{
 			uint addr = (uint)(thread.Regs.IntRegs[this[BitField.RS]] + this.Displacement);
 			uint ea = addr & ~3u;
 			return ea;
 		}
 
-		unsafe public override void Execute (Thread thread)
+		unsafe public override void Execute (IThread thread)
 		{
 			uint addr = (uint)(thread.Regs.IntRegs[this[BitField.RS]] + this.Displacement);
 			
@@ -4783,21 +4785,21 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Ll : MemoryOp
 	{
-		public Ll (MachInst machInst) : base("ll", machInst, StaticInstFlag.Memory | StaticInstFlag.Load | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.ReadPort)
+		public Ll (MachineInstruction machineInstruction) : base("ll", machineInstruction, Flag.Memory | Flag.Load | Flag.DisplacedAddressing, FunctionalUnit.Types.ReadPort)
 		{
 		}
 
 		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
 		}
 
 		protected override void SetupMemDeps ()
 		{
-			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.MemODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		unsafe public override void Execute (Thread thread)
+		unsafe public override void Execute (IThread thread)
 		{
 			uint mem = 0;
 			thread.Mem.ReadWord (this.Ea (thread), &mem);
@@ -4807,21 +4809,21 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Lwc1 : MemoryOp
 	{
-		public Lwc1 (MachInst machInst) : base("lwc1", machInst, StaticInstFlag.Memory | StaticInstFlag.Load | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.ReadPort)
+		public Lwc1 (MachineInstruction machineInstruction) : base("lwc1", machineInstruction, Flag.Memory | Flag.Load | Flag.DisplacedAddressing, FunctionalUnit.Types.ReadPort)
 		{
 		}
 
 		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
 		}
 
 		protected override void SetupMemDeps ()
 		{
-			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.Float, this[BitField.FT]));
+			this.MemODeps.Add (new RegisterDependency (RegisterDependency.Types.Float, this[BitField.FT]));
 		}
 
-		unsafe public override void Execute (Thread thread)
+		unsafe public override void Execute (IThread thread)
 		{
 			uint mem = 0;
 			thread.Mem.ReadWord (this.Ea (thread), &mem);
@@ -4831,21 +4833,21 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Ldc1 : MemoryOp
 	{
-		public Ldc1 (MachInst machInst) : base("ldc1", machInst, StaticInstFlag.Memory | StaticInstFlag.Load | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.ReadPort)
+		public Ldc1 (MachineInstruction machineInstruction) : base("ldc1", machineInstruction, Flag.Memory | Flag.Load | Flag.DisplacedAddressing, FunctionalUnit.Types.ReadPort)
 		{
 		}
 
 		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
 		}
 
 		protected override void SetupMemDeps ()
 		{
-			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.Float, this[BitField.FT]));
+			this.MemODeps.Add (new RegisterDependency (RegisterDependency.Types.Float, this[BitField.FT]));
 		}
 
-		unsafe public override void Execute (Thread thread)
+		unsafe public override void Execute (IThread thread)
 		{
 			ulong mem = 0;
 			thread.Mem.ReadDoubleWord (this.Ea (thread), &mem);
@@ -4855,21 +4857,21 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Sb : MemoryOp
 	{
-		public Sb (MachInst machInst) : base("sb", machInst, StaticInstFlag.Memory | StaticInstFlag.Store | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.WritePort)
+		public Sb (MachineInstruction machineInstruction) : base("sb", machineInstruction, Flag.Memory | Flag.Store | Flag.DisplacedAddressing, FunctionalUnit.Types.WritePort)
 		{
 		}
 
 		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
 		}
 
 		protected override void SetupMemDeps ()
 		{
-			this.MemIDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.MemIDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			byte mem = (byte)BitHelper.Bits (thread.Regs.IntRegs[this[BitField.RT]], 7, 0);
 			thread.Mem.WriteByte (this.Ea (thread), mem);
@@ -4878,21 +4880,21 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Sh : MemoryOp
 	{
-		public Sh (MachInst machInst) : base("sh", machInst, StaticInstFlag.Memory | StaticInstFlag.Store | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.WritePort)
+		public Sh (MachineInstruction machineInstruction) : base("sh", machineInstruction, Flag.Memory | Flag.Store | Flag.DisplacedAddressing, FunctionalUnit.Types.WritePort)
 		{
 		}
 
 		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
 		}
 
 		protected override void SetupMemDeps ()
 		{
-			this.MemIDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.MemIDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			ushort mem = (ushort)BitHelper.Bits (thread.Regs.IntRegs[this[BitField.RT]], 15, 0);
 			thread.Mem.WriteHalfWord (this.Ea (thread), mem);
@@ -4901,21 +4903,21 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Sw : MemoryOp
 	{
-		public Sw (MachInst machInst) : base("sw", machInst, StaticInstFlag.Memory | StaticInstFlag.Store | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.WritePort)
+		public Sw (MachineInstruction machineInstruction) : base("sw", machineInstruction, Flag.Memory | Flag.Store | Flag.DisplacedAddressing, FunctionalUnit.Types.WritePort)
 		{
 		}
 
 		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
 		}
 
 		protected override void SetupMemDeps ()
 		{
-			this.MemIDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.MemIDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			uint mem = thread.Regs.IntRegs[this[BitField.RT]];
 			thread.Mem.WriteWord (this.Ea (thread), mem);
@@ -4924,28 +4926,28 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Swl : MemoryOp
 	{
-		public Swl (MachInst machInst) : base("swl", machInst, StaticInstFlag.Memory | StaticInstFlag.Store | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.WritePort)
+		public Swl (MachineInstruction machineInstruction) : base("swl", machineInstruction, Flag.Memory | Flag.Store | Flag.DisplacedAddressing, FunctionalUnit.Types.WritePort)
 		{
 		}
 
 		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
 		}
 
 		protected override void SetupMemDeps ()
 		{
-			this.MemIDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.MemIDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		public override uint Ea (Thread thread)
+		public override uint Ea (IThread thread)
 		{
 			uint addr = (uint)(thread.Regs.IntRegs[this[BitField.RS]] + this.Displacement);
 			uint ea = addr & ~3u;
 			return ea;
 		}
 
-		unsafe public override void Execute (Thread thread)
+		unsafe public override void Execute (IThread thread)
 		{
 			uint addr = (uint)(thread.Regs.IntRegs[this[BitField.RS]] + this.Displacement);
 			
@@ -4967,28 +4969,28 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Swr : MemoryOp
 	{
-		public Swr (MachInst machInst) : base("swr", machInst, StaticInstFlag.Memory | StaticInstFlag.Store | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.WritePort)
+		public Swr (MachineInstruction machineInstruction) : base("swr", machineInstruction, Flag.Memory | Flag.Store | Flag.DisplacedAddressing, FunctionalUnit.Types.WritePort)
 		{
 		}
 
 		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
 		}
 
 		protected override void SetupMemDeps ()
 		{
-			this.MemIDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.MemIDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		public override uint Ea (Thread thread)
+		public override uint Ea (IThread thread)
 		{
 			uint addr = (uint)(thread.Regs.IntRegs[this[BitField.RS]] + this.Displacement);
 			uint ea = addr & ~3u;
 			return ea;
 		}
 
-		unsafe public override void Execute (Thread thread)
+		unsafe public override void Execute (IThread thread)
 		{
 			uint addr = (uint)(thread.Regs.IntRegs[this[BitField.RS]] + this.Displacement);
 			
@@ -5009,22 +5011,22 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Sc : MemoryOp
 	{
-		public Sc (MachInst machInst) : base("sc", machInst, StaticInstFlag.Memory | StaticInstFlag.Store | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.WritePort)
+		public Sc (MachineInstruction machineInstruction) : base("sc", machineInstruction, Flag.Memory | Flag.Store | Flag.DisplacedAddressing, FunctionalUnit.Types.WritePort)
 		{
 		}
 
 		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
 		protected override void SetupMemDeps ()
 		{
-			this.MemODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.MemODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			uint rt = thread.Regs.IntRegs[this[BitField.RT]];
 			thread.Mem.WriteWord (this.Ea (thread), rt);
@@ -5034,21 +5036,21 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Swc1 : MemoryOp
 	{
-		public Swc1 (MachInst machInst) : base("swc1", machInst, StaticInstFlag.Memory | StaticInstFlag.Store | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.WritePort)
+		public Swc1 (MachineInstruction machineInstruction) : base("swc1", machineInstruction, Flag.Memory | Flag.Store | Flag.DisplacedAddressing, FunctionalUnit.Types.WritePort)
 		{
 		}
 
 		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
 		}
 
 		protected override void SetupMemDeps ()
 		{
-			this.MemIDeps.Add (new RegisterDependency (RegisterDependencyType.Float, this[BitField.FT]));
+			this.MemIDeps.Add (new RegisterDependency (RegisterDependency.Types.Float, this[BitField.FT]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			uint ft = thread.Regs.FloatRegs.GetUint (this[BitField.FT]);
 			thread.Mem.WriteWord (this.Ea (thread), ft);
@@ -5057,47 +5059,47 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Sdc1 : MemoryOp
 	{
-		public Sdc1 (MachInst machInst) : base("sdc1", machInst, StaticInstFlag.Memory | StaticInstFlag.Store | StaticInstFlag.DisplacedAddressing, FunctionalUnitType.WritePort)
+		public Sdc1 (MachineInstruction machineInstruction) : base("sdc1", machineInstruction, Flag.Memory | Flag.Store | Flag.DisplacedAddressing, FunctionalUnit.Types.WritePort)
 		{
 		}
 
 		protected override void SetupEaDeps ()
 		{
-			this.EaIdeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RS]));
+			this.EaIdeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RS]));
 		}
 
 		protected override void SetupMemDeps ()
 		{
-			this.MemIDeps.Add (new RegisterDependency (RegisterDependencyType.Float, this[BitField.FT]));
+			this.MemIDeps.Add (new RegisterDependency (RegisterDependency.Types.Float, this[BitField.FT]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			ulong ft = thread.Regs.FloatRegs.GetUlong (this[BitField.FT]);
 			thread.Mem.WriteDoubleWord (this.Ea (thread), ft);
 		}
 	}
 
-	public abstract class CP1Control : StaticInst
+	public abstract class CP1Control : StaticInstruction
 	{
-		public CP1Control (string mnemonic, MachInst machInst, StaticInstFlag flags, FunctionalUnitType fuType) : base(mnemonic, machInst, flags, fuType)
+		public CP1Control (string mnemonic, MachineInstruction machineInstruction, Flag flags, FunctionalUnit.Types fuType) : base(mnemonic, machineInstruction, flags, fuType)
 		{
 		}
 	}
 
 	public sealed class Mfc1 : CP1Control
 	{
-		public Mfc1 (MachInst machInst) : base("mfc1", machInst, StaticInstFlag.None, FunctionalUnitType.None)
+		public Mfc1 (MachineInstruction machineInstruction) : base("mfc1", machineInstruction, Flag.None, FunctionalUnit.Types.None)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Float, this[BitField.FS]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Float, this[BitField.FS]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			uint fs = thread.Regs.FloatRegs.GetUint (this[BitField.FS]);
 			thread.Regs.IntRegs[this[BitField.RT]] = fs;
@@ -5106,17 +5108,17 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Cfc1 : CP1Control
 	{
-		public Cfc1 (MachInst machInst) : base("cfc1", machInst, StaticInstFlag.None, FunctionalUnitType.None)
+		public Cfc1 (MachineInstruction machineInstruction) : base("cfc1", machineInstruction, Flag.None, FunctionalUnit.Types.None)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Fcsr));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Misc, RegisterConstants.MISC_REG_FCSR));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			uint fcsr = thread.Regs.MiscRegs.Fcsr;
 			
@@ -5131,17 +5133,17 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Mtc1 : CP1Control
 	{
-		public Mtc1 (MachInst machInst) : base("mtc1", machInst, StaticInstFlag.None, FunctionalUnitType.None)
+		public Mtc1 (MachineInstruction machineInstruction) : base("mtc1", machineInstruction, Flag.None, FunctionalUnit.Types.None)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Float, this[BitField.FS]));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Float, this[BitField.FS]));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			uint rt = thread.Regs.IntRegs[this[BitField.RT]];
 			thread.Regs.FloatRegs.SetUint (rt, this[BitField.FS]);
@@ -5150,17 +5152,17 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public sealed class Ctc1 : CP1Control
 	{
-		public Ctc1 (MachInst machInst) : base("ctc1", machInst, StaticInstFlag.None, FunctionalUnitType.None)
+		public Ctc1 (MachineInstruction machineInstruction) : base("ctc1", machineInstruction, Flag.None, FunctionalUnit.Types.None)
 		{
 		}
 
 		protected override void SetupDeps ()
 		{
-			this.IDeps.Add (new RegisterDependency (RegisterDependencyType.Integer, this[BitField.RT]));
-			this.ODeps.Add (new RegisterDependency (RegisterDependencyType.Misc, (uint)MiscRegNums.Fcsr));
+			this.IDeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
+			this.ODeps.Add (new RegisterDependency (RegisterDependency.Types.Misc, RegisterConstants.MISC_REG_FCSR));
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 			uint rt = thread.Regs.IntRegs[this[BitField.RT]];
 			
@@ -5170,9 +5172,9 @@ namespace MinCai.Simulators.Flexim.Architecture
 		}
 	}
 
-	public sealed class Nop : StaticInst
+	public sealed class Nop : StaticInstruction
 	{
-		public Nop (MachInst machInst) : base("nop", machInst, StaticInstFlag.None, FunctionalUnitType.None)
+		public Nop (MachineInstruction machineInstruction) : base("nop", machineInstruction, Flag.None, FunctionalUnit.Types.None)
 		{
 		}
 
@@ -5180,14 +5182,14 @@ namespace MinCai.Simulators.Flexim.Architecture
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
 		}
 	}
 
-	public sealed class FailUnimplemented : StaticInst
+	public class Unimplemented : StaticInstruction
 	{
-		public FailUnimplemented (string mnemonic, MachInst machInst) : base(mnemonic, machInst, StaticInstFlag.None, FunctionalUnitType.None)
+		public Unimplemented (string mnemonic, MachineInstruction machineInstruction) : base(mnemonic, machineInstruction, Flag.None, FunctionalUnit.Types.None)
 		{
 		}
 
@@ -5195,16 +5197,43 @@ namespace MinCai.Simulators.Flexim.Architecture
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
-			Fault fault = new UnimplFault (string.Format ("[{0:s}] machInst: 0x{1:x8}, mnemonic: \"{2:s}\"", this, this.MachInst.Data, this.Mnemonic));
-			fault.Invoke (thread);
+			Logger.Panicf (Logger.Categories.Instruction, "Unimplemented instruction [machineInstruction: 0x{0:x8}, mnemonic: \"{1:s}] detected @ PC 0x{2:x8}", this.MachineInstruction.Data, this.Mnemonic, thread.Regs.Pc);
 		}
 	}
 
-	public sealed class CP0Unimplemented : StaticInst
+	public sealed class FailUnimplemented : Unimplemented
 	{
-		public CP0Unimplemented (string mnemonic, MachInst machInst) : base(mnemonic, machInst, StaticInstFlag.None, FunctionalUnitType.None)
+		public FailUnimplemented (string mnemonic, MachineInstruction machineInstruction) : base(mnemonic, machineInstruction)
+		{
+		}
+	}
+
+	public sealed class CP0Unimplemented : Unimplemented
+	{
+		public CP0Unimplemented (string mnemonic, MachineInstruction machineInstruction) : base(mnemonic, machineInstruction)
+		{
+		}
+	}
+
+	public sealed class CP1Unimplemented : Unimplemented
+	{
+		public CP1Unimplemented (string mnemonic, MachineInstruction machineInstruction) : base(mnemonic, machineInstruction)
+		{
+		}
+	}
+
+	public sealed class CP2Unimplemented : Unimplemented
+	{
+		public CP2Unimplemented (string mnemonic, MachineInstruction machineInstruction) : base(mnemonic, machineInstruction)
+		{
+		}
+	}
+
+	public sealed class Unknown : StaticInstruction
+	{
+		public Unknown (MachineInstruction machineInstruction) : base("unknown", machineInstruction, Flag.None, FunctionalUnit.Types.None)
 		{
 		}
 
@@ -5212,142 +5241,9 @@ namespace MinCai.Simulators.Flexim.Architecture
 		{
 		}
 
-		public override void Execute (Thread thread)
+		public override void Execute (IThread thread)
 		{
-			Fault fault = new UnimplFault (string.Format ("[{0:s}] machInst: 0x{1:x8}, mnemonic: \"{2:s}\"", this, this.MachInst.Data, this.Mnemonic));
-			fault.Invoke (thread);
-		}
-	}
-
-	public sealed class CP1Unimplemented : StaticInst
-	{
-		public CP1Unimplemented (string mnemonic, MachInst machInst) : base(mnemonic, machInst, StaticInstFlag.None, FunctionalUnitType.None)
-		{
-		}
-
-		protected override void SetupDeps ()
-		{
-		}
-
-		public override void Execute (Thread thread)
-		{
-			Fault fault = new UnimplFault (string.Format ("[{0:s}] machInst: 0x{1:x8}, mnemonic: \"{2:s}\"", this, this.MachInst.Data, this.Mnemonic));
-			fault.Invoke (thread);
-		}
-	}
-
-	public sealed class CP2Unimplemented : StaticInst
-	{
-		public CP2Unimplemented (string mnemonic, MachInst machInst) : base(mnemonic, machInst, StaticInstFlag.None, FunctionalUnitType.None)
-		{
-		}
-
-		protected override void SetupDeps ()
-		{
-		}
-
-		public override void Execute (Thread thread)
-		{
-			Fault fault = new UnimplFault (string.Format ("[{0:s}] machInst: 0x{1:x8}, mnemonic: \"{2:s}\"", this, this.MachInst.Data, this.Mnemonic));
-			fault.Invoke (thread);
-		}
-	}
-
-	public sealed class WarnUnimplemented : StaticInst
-	{
-		public WarnUnimplemented (string mnemonic, MachInst machInst) : base(mnemonic, machInst, StaticInstFlag.None, FunctionalUnitType.None)
-		{
-		}
-
-		protected override void SetupDeps ()
-		{
-		}
-
-		public override void Execute (Thread thread)
-		{
-			Fault fault = new UnimplFault (string.Format ("[{0:s}] machInst: 0x{1:x8}, mnemonic: \"{2:s}\"", this, this.MachInst.Data, this.Mnemonic));
-			fault.Invoke (thread);
-		}
-	}
-
-	public sealed class Unknown : StaticInst
-	{
-		public Unknown (MachInst machInst) : base("unknown", machInst, StaticInstFlag.None, FunctionalUnitType.None)
-		{
-		}
-
-		protected override void SetupDeps ()
-		{
-		}
-
-		public override void Execute (Thread thread)
-		{
-			Fault fault = new ReservedInstructionFault ();
-			fault.Invoke (thread);
-		}
-	}
-
-	public abstract class Trap : StaticInst
-	{
-		public Trap (string mnemonic, MachInst machInst) : base(mnemonic, machInst, StaticInstFlag.None, FunctionalUnitType.None)
-		{
-		}
-
-		protected override void SetupDeps ()
-		{
-		}
-	}
-
-	public abstract class TrapImm : StaticInst
-	{
-		public TrapImm (string mnemonic, MachInst machInst) : base(mnemonic, machInst, StaticInstFlag.None, FunctionalUnitType.None)
-		{
-			this.Imm = (short)machInst[BitField.INTIMM];
-		}
-
-		protected override void SetupDeps ()
-		{
-		}
-
-		protected short Imm { get; set; }
-	}
-
-	public abstract class Fault
-	{
-		public Fault ()
-		{
-		}
-
-		protected abstract string Name { get; }
-
-		public void Invoke (Thread thread)
-		{
-			Logger.Panicf (LogCategory.Instruction, "{0:s} detected @ PC 0x{1:x8}", this.Name, thread.Regs.Pc);
-		}
-	}
-
-	public sealed class UnimplFault : Fault
-	{
-		public UnimplFault (string text)
-		{
-			this.Text = text;
-		}
-
-		protected override string Name {
-			get { return string.Format ("UnimplFault ({0:s})\n", this.Text); }
-		}
-
-		public string Text { get; private set; }
-	}
-
-	public sealed class ReservedInstructionFault : Fault
-	{
-		public ReservedInstructionFault ()
-		{
-		}
-
-		protected override string Name {
-			get { return "ReservedInstructionFault"; }
+			Logger.Panicf (Logger.Categories.Instruction, "{0:s} detected @ PC 0x{1:x8}", "Unknown instruction", thread.Regs.Pc);
 		}
 	}
 }

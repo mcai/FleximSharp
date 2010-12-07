@@ -34,600 +34,6 @@ using Mono.Unix.Native;
 
 namespace MinCai.Simulators.Flexim.OperatingSystem
 {
-	public sealed class ElfReaderException : Exception
-	{
-		public ElfReaderException (string message) : base(message)
-		{
-		}
-	}
-
-	public abstract class ElfFormatEntity
-	{
-		public ElfFormatEntity (ElfFile elfFile)
-		{
-			this.ElfFile = elfFile;
-		}
-
-		public ElfFile ElfFile { get; private set; }
-
-		protected byte[] ReadBytes (BinaryReader reader, int count)
-		{
-			return reader.ReadBytes (count);
-		}
-
-		protected string ReadString (BinaryReader reader, int count)
-		{
-			StringBuilder str = new StringBuilder ();
-			
-			byte[] bytes = reader.ReadBytes (count);
-			
-			for (int i = 0; i < count; i++)
-				str.Append ((char)bytes[i]);
-			
-			return str.ToString ();
-		}
-
-		protected ushort ReadElf32Half (BinaryReader reader)
-		{
-			byte b1 = reader.ReadByte ();
-			byte b2 = reader.ReadByte ();
-			
-			ushort result = 0;
-			
-			if (ElfFile.Identification.Ei_data == ElfIdentification.Ei_Data.ElfData2Msb) {
-				result = (ushort)((b1 << 8) | b2);
-			} else {
-				result = (ushort)((b2 << 8) | b1);
-			}
-			
-			return result;
-		}
-
-		protected byte ReadByte (BinaryReader reader)
-		{
-			return reader.ReadByte ();
-		}
-
-		protected uint ReadElf32Word (BinaryReader reader)
-		{
-			byte b1 = reader.ReadByte ();
-			byte b2 = reader.ReadByte ();
-			byte b3 = reader.ReadByte ();
-			byte b4 = reader.ReadByte ();
-			
-			uint result = 0;
-			
-			if (ElfFile.Identification.Ei_data == ElfIdentification.Ei_Data.ElfData2Msb) {
-				result = (uint)(b1 << 24) | (uint)(b2 << 16) | (uint)(b3 << 8) | (uint)(b4);
-			} else {
-				result = (uint)(b4 << 24) | (uint)(b3 << 16) | (uint)(b2 << 8) | (uint)(b1);
-			}
-			
-			return result;
-		}
-
-		protected uint ReadElf32Off (BinaryReader reader)
-		{
-			return this.ReadElf32Word (reader);
-		}
-
-		protected uint ReadElf32Addr (BinaryReader reader)
-		{
-			return this.ReadElf32Word (reader);
-		}
-	}
-
-	public sealed class ElfHeader : ElfFormatEntity
-	{
-		public enum E_Type : ushort
-		{
-			ET_NONE = 0,
-			ET_REL = 1,
-			ET_EXEC = 2,
-			ET_DYN = 3,
-			ET_CORE = 4,
-			ET_LOPROC = 0xff00,
-			ET_HIPROC = 0xffff
-		}
-
-		public enum E_Machine : ushort
-		{
-			EM_NONE = 0,
-			EM_M32 = 1,
-			EM_SPARC = 2,
-			EM_386 = 3,
-			EM_68K = 4,
-			EM_88K = 5,
-			EM_486 = 6,
-			EM_860 = 7,
-			EM_MIPS = 8
-		}
-
-		public enum E_Version : uint
-		{
-			EV_NONE = 0,
-			EV_CURRENT = 1
-		}
-
-		public ElfHeader (ElfFile elfFile) : base(elfFile)
-		{
-		}
-
-		public void Read ()
-		{
-			this.E_type = (E_Type)this.ReadElf32Half (this.ElfFile.Reader);
-			
-			this.E_machine = (E_Machine)this.ReadElf32Half (this.ElfFile.Reader);
-			this.E_version = (E_Version)this.ReadElf32Word (this.ElfFile.Reader);
-			this.E_entry = this.ReadElf32Addr (this.ElfFile.Reader);
-			this.E_phoff = this.ReadElf32Off (this.ElfFile.Reader);
-			this.E_shoff = this.ReadElf32Off (this.ElfFile.Reader);
-			this.E_flags = this.ReadElf32Word (this.ElfFile.Reader);
-			
-			this.E_ehsize = this.ReadElf32Half (this.ElfFile.Reader);
-			this.E_phentsize = this.ReadElf32Half (this.ElfFile.Reader);
-			this.E_phnum = this.ReadElf32Half (this.ElfFile.Reader);
-			this.E_shentsize = this.ReadElf32Half (this.ElfFile.Reader);
-			this.E_shnum = this.ReadElf32Half (this.ElfFile.Reader);
-			this.E_shstrndx = this.ReadElf32Half (this.ElfFile.Reader);
-		}
-
-		public override string ToString ()
-		{
-			return string.Format ("[ElfHeader: E_type={0}, E_machine=0x{1:x8}, E_version={2}, E_entry=0x{3:x8}, E_phoff=0x{4:x8}, E_shoff=0x{5:x8}, E_flags=0x{6:x8}, E_ehsize=0x{7:x8}, E_phentsize=0x{8:x8}, E_phnum={9}, E_shentsize=0x{10:x8}, E_shnum={11}, E_shstrndx=0x{12:x8}]", this.E_type, this.E_machine, this.E_version, this.E_entry, this.E_phoff, this.E_shoff, this.E_flags, this.E_ehsize, this.E_phentsize,
-			this.E_phnum, this.E_shentsize, this.E_shnum, this.E_shstrndx);
-		}
-
-		public E_Type E_type { get; private set; }
-		public E_Machine E_machine { get; private set; }
-		public E_Version E_version { get; private set; }
-		public uint E_entry { get; private set; }
-		public uint E_phoff { get; private set; }
-		public uint E_shoff { get; private set; }
-		public uint E_flags { get; private set; }
-		public ushort E_ehsize { get; private set; }
-		public ushort E_phentsize { get; private set; }
-		public ushort E_phnum { get; private set; }
-		public ushort E_shentsize { get; private set; }
-		public ushort E_shnum { get; private set; }
-		public ushort E_shstrndx { get; private set; }
-	}
-
-	public sealed class ElfIdentification
-	{
-		public enum Ei_Class : uint
-		{
-			ElfClassNone,
-			ElfClass32,
-			ElfClass64
-		}
-
-		public enum Ei_Data : uint
-		{
-			ElfDataNone,
-			ElfData2Lsb,
-			ElfData2Msb
-		}
-
-		public void Read (BinaryReader reader)
-		{
-			byte[] e_ident = reader.ReadBytes (16);
-			
-			bool isElfFile = e_ident[0] == 0x7f && e_ident[1] == (byte)'E' && e_ident[2] == (byte)'L' && e_ident[3] == (byte)'F';
-			
-			if (!isElfFile)
-				throw new Exception ();
-			
-			this.Ei_class = e_ident[4] == 1 ? Ei_Class.ElfClass32 : e_ident[4] == 2 ? Ei_Class.ElfClass64 : Ei_Class.ElfClassNone;
-			
-			this.Ei_data = e_ident[5] == 1 ? Ei_Data.ElfData2Lsb : e_ident[5] == 2 ? Ei_Data.ElfData2Msb : Ei_Data.ElfDataNone;
-			
-			this.Ei_version = (int)e_ident[6];
-		}
-
-		public override string ToString ()
-		{
-			return string.Format ("[ElfIdentification: Ei_class={0}, Ei_data={1}, Ei_version={2}]", this.Ei_class, this.Ei_data, this.Ei_version);
-		}
-
-		public Ei_Class Ei_class { get; private set; }
-		public Ei_Data Ei_data { get; private set; }
-		public int Ei_version { get; private set; }
-	}
-
-	public sealed class ElfProgramHeader : ElfFormatEntity
-	{
-		public enum P_Type : uint
-		{
-			PT_NULL = 0,
-			PT_LOAD = 1,
-			PT_DYNAMIC = 2,
-			PT_INTERP = 3,
-			PT_NOTE = 4,
-			PT_SHLIB = 5,
-			PT_PHDR = 6,
-			PT_LOPROC = 0x70000000,
-			PT_HIPROC = 0x7fffffff
-		}
-
-		public ElfProgramHeader (ElfFile elfFile) : base(elfFile)
-		{
-		}
-
-		public void Read ()
-		{
-			this.P_type = (P_Type)this.ReadElf32Word (ElfFile.Reader);
-			this.P_offset = this.ReadElf32Off (ElfFile.Reader);
-			this.P_vaddr = this.ReadElf32Addr (ElfFile.Reader);
-			this.P_paddr = this.ReadElf32Addr (ElfFile.Reader);
-			this.P_filesz = this.ReadElf32Word (ElfFile.Reader);
-			this.P_memsz = this.ReadElf32Word (ElfFile.Reader);
-			this.P_flags = this.ReadElf32Word (ElfFile.Reader);
-			this.P_align = this.ReadElf32Word (ElfFile.Reader);
-			
-			long position = this.ElfFile.Reader.BaseStream.Position;
-			
-			this.ElfFile.Reader.BaseStream.Seek (P_offset, 0);
-			
-			this.Content = this.ElfFile.Reader.ReadBytes ((int)P_filesz);
-			
-			this.ElfFile.Reader.BaseStream.Seek (position, 0);
-		}
-
-		public override string ToString ()
-		{
-			return string.Format ("[ElfProgramHeader: P_type={0}, P_offset=0x{1:x8}, P_vaddr=0x{2:x8}, P_paddr=0x{3:x8}, P_filesz=0x{4:x8}, P_memsz=0x{5:x8}, P_flags=0x{6:x8}, P_align=0x{7:x8}, Content=0x{8:x8}]", this.P_type, this.P_offset, this.P_vaddr, this.P_paddr, this.P_filesz, this.P_memsz, this.P_flags, this.P_align, this.Content);
-		}
-
-		public P_Type P_type { get; private set; }
-		public uint P_offset { get; private set; }
-		public uint P_vaddr { get; private set; }
-		public uint P_paddr { get; private set; }
-		public uint P_filesz { get; private set; }
-		public uint P_memsz { get; private set; }
-		public uint P_flags { get; private set; }
-		public uint P_align { get; private set; }
-		public byte[] Content { get; private set; }
-	}
-
-	public sealed class ElfSectionHeader : ElfFormatEntity
-	{
-		public enum Sh_Type : uint
-		{
-			SHT_NULL = 0,
-			SHT_PROGBITS = 1,
-			SHT_SYMTAB = 2,
-			SHT_STRTAB = 3,
-			SHT_RELA = 4,
-			SHT_HASH = 5,
-			SHT_DYNAMIC = 6,
-			SHT_NOTE = 7,
-			SHT_NOBITS = 8,
-			SHT_REL = 9,
-			SHT_SHLIB = 10,
-			SHT_DYNSYM = 11,
-			SHT_LOPROC = 0x70000000,
-			SHT_HIGPROC = 0x7fffffff,
-			SHT_LOUSER = 0x80000000,
-			SHT_HIUSER = 0xffffffff
-		}
-
-		public enum Sh_Flags : uint
-		{
-			SHF_WRITE = 0x1,
-			SHF_ALLOC = 0x2,
-			SHF_EXECINSTR = 0x4
-		}
-
-		public ElfSectionHeader (ElfFile elfFile) : base(elfFile)
-		{
-		}
-
-		public void Read ()
-		{
-			this.Sh_name = this.ReadElf32Word (this.ElfFile.Reader);
-			this.Sh_type = (Sh_Type)this.ReadElf32Word (this.ElfFile.Reader);
-			this.Sh_flags = (Sh_Flags)this.ReadElf32Word (this.ElfFile.Reader);
-			this.Sh_addr = this.ReadElf32Word (this.ElfFile.Reader);
-			this.Sh_offset = this.ReadElf32Word (this.ElfFile.Reader);
-			this.Sh_size = this.ReadElf32Word (this.ElfFile.Reader);
-			this.Sh_link = this.ReadElf32Word (this.ElfFile.Reader);
-			this.Sh_info = this.ReadElf32Word (this.ElfFile.Reader);
-			this.Sh_addralign = this.ReadElf32Word (this.ElfFile.Reader);
-			this.Sh_entsize = this.ReadElf32Word (this.ElfFile.Reader);
-			
-			long position = this.ElfFile.Reader.BaseStream.Position;
-			
-			this.ElfFile.Reader.BaseStream.Seek (this.Sh_offset, 0);
-			
-			this.Content = this.ElfFile.Reader.ReadBytes ((int)this.Sh_size);
-			
-			this.ElfFile.Reader.BaseStream.Seek (position, 0);
-		}
-
-		public override string ToString ()
-		{
-			return string.Format ("[ElfSectionHeader: Name={0}, Sh_type={1}, Sh_flags={2}, Sh_addr=0x{3:x8}, Sh_offset=0x{4:x8}, Sh_size={5}, Sh_link={6}, Sh_info={7}, Sh_addralign={8}, Sh_entsize={9}}]", this.Name, this.Sh_type, this.Sh_flags, this.Sh_addr, this.Sh_offset, this.Sh_size, this.Sh_link, this.Sh_info, this.Sh_addralign,
-			this.Sh_entsize);
-		}
-
-		public string Name {
-			get { return this.ElfFile.GetNameFromMainStringTable (this.Sh_name); }
-		}
-
-		public ElfFormatEntity AssociatedEntity { get; set; }
-
-		public uint Sh_name { get; private set; }
-		public Sh_Type Sh_type { get; private set; }
-		public Sh_Flags Sh_flags { get; private set; }
-		public uint Sh_addr { get; private set; }
-		public uint Sh_offset { get; private set; }
-		public uint Sh_size { get; private set; }
-		public uint Sh_link { get; private set; }
-		public uint Sh_info { get; private set; }
-		public uint Sh_addralign { get; private set; }
-		public uint Sh_entsize { get; private set; }
-
-		public byte[] Content { get; private set; }
-	}
-
-	public sealed class ElfStringTable : ElfFormatEntity
-	{
-		public ElfStringTable (ElfSectionHeader section) : base(section.ElfFile)
-		{
-			this.SectionHeader = section;
-			
-			if (section.Sh_type != ElfSectionHeader.Sh_Type.SHT_STRTAB)
-				throw new ElfReaderException ("Section is not a string table");
-		}
-
-		public String GetString (uint index)
-		{
-			StringBuilder str = new StringBuilder ();
-			for (uint i = index; this.RawData[i] != '\0'; i++)
-				str.Append ((char)this.RawData[i]);
-			
-			return str.ToString ();
-		}
-
-		public void Read ()
-		{
-			long position = this.ElfFile.Reader.BaseStream.Position;
-			
-			this.ElfFile.Reader.BaseStream.Seek (this.SectionHeader.Sh_offset, 0);
-			
-			this.RawData = this.ElfFile.Reader.ReadBytes ((int)this.SectionHeader.Sh_size);
-			
-			this.ElfFile.Reader.BaseStream.Seek (position, 0);
-		}
-
-		private ElfSectionHeader SectionHeader { get; set; }
-		private byte[] RawData { get; set; }
-	}
-
-	public sealed class ElfSymbolTable : ElfFormatEntity
-	{
-		public ElfSymbolTable (ElfSectionHeader section) : base(section.ElfFile)
-		{
-			this.SectionHeader = section;
-			this.Entries = new List<ElfSymbolTableEntry> ();
-		}
-
-		public void Read ()
-		{
-			long position = this.ElfFile.Reader.BaseStream.Position;
-			
-			this.ElfFile.Reader.BaseStream.Seek (this.SectionHeader.Sh_offset, 0);
-			
-			uint entryCount = this.SectionHeader.Sh_size / this.SectionHeader.Sh_entsize;
-			
-			for (int i = 0; i < entryCount; i++) {
-				ElfSymbolTableEntry entry = new ElfSymbolTableEntry (this.ElfFile);
-				
-				entry.Read ();
-				
-				this.Entries.Add (entry);
-			}
-			
-			this.ElfFile.Reader.BaseStream.Seek (position, 0);
-		}
-
-		public ElfSectionHeader SectionHeader { get; private set; }
-		public List<ElfSymbolTableEntry> Entries { get; private set; }
-	}
-
-	public sealed class ElfSymbolTableEntry : ElfFormatEntity
-	{
-		public enum SymbolBinding : uint
-		{
-			STB_LOCAL = 0,
-			STB_GLOBAL = 1,
-			STB_WEAK = 2,
-			STB_LOPROC = 13,
-			STB_HIPROC = 15
-		}
-
-		public enum SymbolType : uint
-		{
-			STT_NOTYPE = 0,
-			STT_OBJECT = 1,
-			STT_FUNC = 2,
-			STT_SECTION = 3,
-			STT_FILE = 4,
-			STT_LOPROC = 13,
-			STT_HIPROC = 15
-		}
-
-		public ElfSymbolTableEntry (ElfFile elfFile) : base(elfFile)
-		{
-		}
-
-		public void Read ()
-		{
-			this.St_name = this.ReadElf32Word (this.ElfFile.Reader);
-			this.St_value = this.ReadElf32Addr (this.ElfFile.Reader);
-			this.St_size = this.ReadElf32Word (this.ElfFile.Reader);
-			this.St_info = this.ReadByte (this.ElfFile.Reader);
-			this.St_other = this.ReadByte (this.ElfFile.Reader);
-			this.St_shndx = this.ReadElf32Half (this.ElfFile.Reader);
-		}
-
-		public override string ToString ()
-		{
-			return string.Format ("[ElfSymbolTableEntry: Name={0}, Binding={1}, Type={2}, St_value={3}, St_size={4}, St_info={5}, St_other={6}, St_shndx={7}]", this.Name, this.Binding, this.Type, this.St_value, this.St_size, this.St_info, this.St_other, this.St_shndx);
-		}
-
-		public string Name {
-			get { return this.ElfFile.GetNameFromSymbolStringTable (this.St_name); }
-		}
-
-		public SymbolBinding Binding {
-			get { return (SymbolBinding)Elf32_St_Bind (this.St_info); }
-		}
-
-		public SymbolType Type {
-			get { return (SymbolType)Elf32_St_Type (this.St_info); }
-		}
-
-		public uint St_name { get; private set; }
-		public uint St_value { get; private set; }
-		public uint St_size { get; private set; }
-		public byte St_info { get; private set; }
-		public byte St_other { get; private set; }
-		public ushort St_shndx { get; private set; }
-
-		public static uint Elf32_St_Bind (uint i)
-		{
-			return (i >> 4);
-		}
-
-		public static uint Elf32_St_Type (uint i)
-		{
-			return (i & 0xF);
-		}
-
-		public static uint Elf32_St_Info (uint b, uint t)
-		{
-			return ((b << 4) + (t & 0xF));
-		}
-	}
-
-	public sealed class ElfFile
-	{
-		public ElfFile (BinaryReader reader)
-		{
-			this.Reader = reader;
-			this.SectionHeaders = new List<ElfSectionHeader> ();
-			this.ProgramHeaders = new List<ElfProgramHeader> ();
-		}
-
-		public string GetNameFromMainStringTable (uint index)
-		{
-			if (this.StringTable == null)
-				return "table not set";
-			else
-				return this.StringTable.GetString (index);
-		}
-
-		public String GetNameFromSymbolStringTable (uint index)
-		{
-			if (this.StringTable == null)
-				return "table not set";
-			else
-				return this.SymbolStringTable.GetString (index);
-		}
-
-		public void Read ()
-		{
-			this.Identification = new ElfIdentification ();
-			this.Identification.Read (Reader);
-			
-			this.Header = new ElfHeader (this);
-			this.Header.Read ();
-			
-			Debug.Assert (this.Identification.Ei_class == ElfIdentification.Ei_Class.ElfClass32, "Only 32 bit binary is supported.");
-			Debug.Assert (this.Identification.Ei_data == ElfIdentification.Ei_Data.ElfData2Lsb, "Only little-endian binary is supported..");
-			Debug.Assert (this.Header.E_machine == ElfHeader.E_Machine.EM_MIPS, "Only MIPS binary is supported.");
-			
-			this.Reader.BaseStream.Seek ((long)this.Header.E_shoff, 0);
-			
-			for (int i = 0; i < this.Header.E_shnum; i++) {
-				ElfSectionHeader sectionHeader = new ElfSectionHeader (this);
-				sectionHeader.Read ();
-				
-				this.SectionHeaders.Add (sectionHeader);
-				
-				if (sectionHeader.Sh_type == ElfSectionHeader.Sh_Type.SHT_SYMTAB) {
-					this.SymbolTable = new ElfSymbolTable (sectionHeader);
-					this.SymbolTable.Read ();
-					
-					sectionHeader.AssociatedEntity = this.SymbolTable;
-				} else if (sectionHeader.Sh_type == ElfSectionHeader.Sh_Type.SHT_STRTAB) {
-					ElfStringTable stringTable = new ElfStringTable (sectionHeader);
-					stringTable.Read ();
-					
-					sectionHeader.AssociatedEntity = stringTable;
-				}
-			}
-			
-			this.StringTable = this.SectionHeaders[this.Header.E_shstrndx].AssociatedEntity as ElfStringTable;
-			
-			foreach (var sectionHeader in this.SectionHeaders) {
-				if (sectionHeader.Name == ".strtab") {
-					this.SymbolStringTable = sectionHeader.AssociatedEntity as ElfStringTable;
-				}
-			}
-			
-			this.Reader.BaseStream.Seek ((long)this.Header.E_phoff, 0);
-			
-			for (int i = 0; i < this.Header.E_phnum; i++) {
-				ElfProgramHeader programHeader = new ElfProgramHeader (this);
-				programHeader.Read ();
-				
-				this.ProgramHeaders.Add (programHeader);
-			}
-		}
-
-		public BinaryReader Reader { get; private set; }
-		public ElfIdentification Identification { get; private set; }
-		public ElfHeader Header { get; private set; }
-		public List<ElfSectionHeader> SectionHeaders { get; private set; }
-		public List<ElfProgramHeader> ProgramHeaders { get; private set; }
-		public ElfStringTable StringTable { get; private set; }
-		public ElfStringTable SymbolStringTable { get; private set; }
-		public ElfSymbolTable SymbolTable { get; private set; }
-
-		public static ElfFile OpenAndProcessFile (string filename)
-		{
-			FileStream stream = null;
-			BinaryReader reader = null;
-			ElfFile elfFile = null;
-			
-			try {
-				stream = File.Open (Processor.WorkDirectory + Path.DirectorySeparatorChar + filename, FileMode.Open);
-				reader = new BinaryReader (stream);
-				
-				elfFile = ProcessFile (reader);
-			} finally {
-				if (reader != null)
-					reader.Close ();
-				
-				if (stream != null)
-					stream.Close ();
-			}
-			
-			return elfFile;
-		}
-
-		private static ElfFile ProcessFile (BinaryReader reader)
-		{
-			ElfFile file = new ElfFile (reader);
-			file.Read ();
-			
-			return file;
-		}
-	}
-
 	public sealed class Process
 	{
 		public Process (string cwd, List<string> args)
@@ -648,7 +54,7 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 
 		public void Load (Thread thread)
 		{
-			ElfFile file = ElfFile.OpenAndProcessFile (this.Args[0]);
+			ElfFile file = ElfFile.Create (Processor.WorkDirectory, this.Args[0]);
 			this.LoadInternal (thread, file);
 		}
 
@@ -669,7 +75,7 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			foreach (var shdr in file.SectionHeaders) {
 				if (shdr.Sh_type == ElfSectionHeader.Sh_Type.SHT_PROGBITS || shdr.Sh_type == ElfSectionHeader.Sh_Type.SHT_NOBITS) {
 					if (shdr.Sh_size > 0 && ((shdr.Sh_flags & ElfSectionHeader.Sh_Flags.SHF_ALLOC) != 0)) {
-//						Logger.Infof (LogCategory.PROCESS, "Loading {0:s} ({1:d} bytes) at address 0x{2:x8}", shdr.Name, shdr.Sh_size, shdr.Sh_addr);
+//						Logger.Infof (Logger.Categories.PROCESS, "Loading {0:s} ({1:d} bytes) at address 0x{2:x8}", shdr.Name, shdr.Sh_size, shdr.Sh_addr);
 						
 						MemoryAccessType perm = MemoryAccessType.Init | MemoryAccessType.Read;
 						
@@ -692,7 +98,7 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 						}
 					}
 				} else if (shdr.Sh_type == ElfSectionHeader.Sh_Type.SHT_DYNAMIC || shdr.Sh_type == ElfSectionHeader.Sh_Type.SHT_DYNSYM) {
-					Logger.Fatal (LogCategory.Elf, "dynamic linking is not supported");
+					Logger.Fatal (Logger.Categories.Elf, "dynamic linking is not supported");
 				}
 			}
 			
@@ -742,7 +148,7 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			}
 			
 			if (stackPtr + Marshal.SizeOf (typeof(uint)) >= STACK_BASE) {
-				Logger.Fatal (LogCategory.Process, "Environment overflow. Need to increase MAX_ENVIRON.");
+				Logger.Fatal (Logger.Categories.Process, "Environment overflow. Need to increase MAX_ENVIRON.");
 			}
 			
 			uint abrk = dataBase + dataSize + MemoryConstants.PAGE_SIZE;
@@ -777,7 +183,7 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 		public uint Ppid { get; private set; }
 	}
 
-	public static class SyscallEmulation
+	internal static class SyscallEmulation
 	{
 		private enum TargetOpenFlags : int
 		{
@@ -843,7 +249,7 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			public void DoSyscall (Thread thread)
 			{
 				if (this.Action == null) {
-					Logger.Fatalf (LogCategory.Syscall, "syscall {0:s} has not been implemented yet.", this.Name);
+					Logger.Fatalf (Logger.Categories.Syscall, "syscall {0:s} has not been implemented yet.", this.Name);
 				}
 				
 				int retVal = this.Action (this, thread);
@@ -1124,7 +530,7 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			if (syscallIndex >= 0 && syscallIndex < SyscallDescs.Count && SyscallDescs.ContainsKey ((uint)syscallIndex)) {
 				SyscallDescs[(uint)syscallIndex].DoSyscall (thread);
 			} else {
-				Logger.Warnf (LogCategory.Syscall, "Syscall {0:d} ({1:d}) out of range", callNum, syscallIndex);
+				Logger.Warnf (Logger.Categories.Syscall, "Syscall {0:d} ({1:d}) out of range", callNum, syscallIndex);
 				thread.SetSyscallReturn ((-(int)Errno.EINVAL));
 			}
 		}
@@ -1191,7 +597,7 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			}
 			
 			if (tgtFlags != 0) {
-				Logger.Fatalf (LogCategory.Syscall, "Syscall: open: cannot decode flags 0x{0:x8}", tgtFlags);
+				Logger.Fatalf (Logger.Categories.Syscall, "Syscall: open: cannot decode flags 0x{0:x8}", tgtFlags);
 			}
 			
 			StringBuilder sb = new StringBuilder ();
@@ -1325,7 +731,7 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 
 		private static int InvalidArgImpl (SyscallDesc desc, Thread thread)
 		{
-			Logger.Warnf (LogCategory.Syscall, "syscall {0:s} is ignored.", desc.Name);
+			Logger.Warnf (Logger.Categories.Syscall, "syscall {0:s} is ignored.", desc.Name);
 			return -(int)Errno.EINVAL;
 		}
 

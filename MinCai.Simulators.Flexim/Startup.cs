@@ -30,9 +30,9 @@ namespace MinCai.Simulators.Flexim.Startup
 	{
 		public static int Main (string[] args)
 		{
-			Logger.Info (LogCategory.Simulator, "Flexim# - A modular and highly extensible multicore simulator written in C#/Mono.");
-			Logger.Info (LogCategory.Simulator, "Copyright © 2010 Min Cai (itecgo@163.com).");
-			Logger.Info (LogCategory.Simulator, "");
+			Logger.Info (Logger.Categories.Simulator, "Flexim# - A modular and highly extensible multicore simulator written in C#/Mono.");
+			Logger.Info (Logger.Categories.Simulator, "Copyright © 2010 Min Cai (itecgo@163.com).");
+			Logger.Info (Logger.Categories.Simulator, "");
 			
 //			string simulationTitle = "WCETBench-fir-1x1";
 			//string simulationTitle = "WCETBench-fir-2x1";
@@ -44,9 +44,9 @@ namespace MinCai.Simulators.Flexim.Startup
 			
 			Simulation simulation = Simulation.LoadXML (Processor.WorkDirectory + Path.DirectorySeparatorChar + "simulations", simulationTitle + ".xml");
 			
-			Logger.Infof (LogCategory.Simulator, "run simulation(title={0:s})", simulationTitle);
+			Logger.Infof (Logger.Categories.Simulator, "run simulation(title={0:s})", simulationTitle);
 			
-			simulation.Execute (delegate(Processor simulator) { });
+			simulation.Execute ();
 			
 			Simulation.SaveXML (simulation);
 			

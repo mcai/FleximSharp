@@ -23,10 +23,13 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using MinCai.Simulators.Flexim.Architecture;
+using MinCai.Simulators.Flexim.Microarchitecture;
 using MinCai.Simulators.Flexim.Common;
 using MinCai.Simulators.Flexim.Interop;
 using MinCai.Simulators.Flexim.MemoryHierarchy;
-using MinCai.Simulators.Flexim.Microarchitecture;
+
+using Process = MinCai.Simulators.Flexim.OperatingSystem.Process;
 
 namespace MinCai.Simulators.Flexim.Interop
 {
@@ -1111,6 +1114,106 @@ namespace MinCai.Simulators.Flexim.Interop
 		public double CyclesPerSecond { get; set; }
 	}
 
+	public interface IProcessor
+	{
+		void Run ();
+
+		bool CanRun { get; }
+		MemoryManagementUnit MMU { get; }
+		List<ICore> Cores { get; }
+		MemorySystem MemorySystem { get; }
+		Simulation Simulation { get; }
+		ProcessorConfig Config {get;}
+		ulong CurrentCycle { get; }
+		int ActiveThreadCount { get; set; }
+	}
+
+	public interface ICore : ICycleProvider
+	{
+		void Fetch ();
+		void RegisterRename ();
+		void Dispatch ();
+		void Wakeup ();
+		void Selection ();
+		void Writeback ();
+		void RefreshLoadStoreQueue ();
+		void Commit ();
+
+		Sequencer SeqI { get; set; }
+		CoherentCacheNode L1I { get; set; }
+		Sequencer SeqD { get; set; }
+		CoherentCacheNode L1D { get; set; }
+
+		uint Num { get; }
+
+		IProcessor Processor { get; }
+		List<IThread> Threads { get; }
+
+		uint DecodeWidth { get; }
+		uint IssueWidth { get; }
+
+		FunctionalUnitPool FuPool { get; }
+
+		PhysicalRegisterFile IntRegFile { get; }
+		PhysicalRegisterFile FpRegFile { get; }
+		PhysicalRegisterFile MiscRegFile { get; }
+
+		InstructionSetArchitecture Isa { get; }
+
+		ReadyQueue ReadyQueue { get; }
+		WaitingQueue WaitingQueue { get; }
+		OoOEventQueue OoOEventQueue { get; }
+	}
+
+	public interface IThread
+	{
+		void Fetch ();
+		void RefreshLoadStoreQueue ();
+		void Commit ();
+
+		uint GetSyscallArg (int i);
+		void SetSyscallArg (int i, uint val);
+		void SetSyscallReturn (int returnVal);
+		void Syscall (uint callNum);
+		void Halt (int exitCode);
+
+		//To be refactored
+		DynamicInstruction DecodeAndExecute ();
+		ReorderBufferEntry GetNextReorderBufferEntryToDispatch ();
+		void RecoverReorderBuffer (ReorderBufferEntry branchReorderBufferEntry);
+
+		string Name { get; }
+		uint Num { get; }
+
+		uint MemoryMapId { get; }
+
+		Thread.ThreadState State { get; }
+
+		ICore Core { get; }
+
+		Process Process { get; }
+		Memory Mem { get; }
+		CombinedRegisterFile Regs { get; }
+
+		uint FetchPc { get; set; }
+		uint FetchNpc { get; set; }
+		uint FetchNnpc { get; set; }
+
+		IBranchPredictor Bpred { get; set; }
+
+		RegisterRenameTable RenameTable { get; }
+
+		uint CommitWidth { get; }
+
+		DecodeBuffer DecodeBuffer { get; }
+		ReorderBuffer ReorderBuffer { get; }
+		LoadStoreQueue LoadStoreQueue { get; }
+
+		bool IsSpeculative { get; set; }
+
+		ContextStat Stat { get; }
+	}
+
 	public sealed class Simulation
 	{
 		public sealed class Serializer : XmlConfigFileSerializer<Simulation>
@@ -1165,10 +1268,10 @@ namespace MinCai.Simulators.Flexim.Interop
 			this.Stat = new SimulationStat (architectureConfig.Processor.Cores.Count, architectureConfig.Processor.NumThreadsPerCore);
 		}
 
-		public void Execute (Action<Processor> simulatorInitAction)
+		public void Execute ()
 		{
 			this.BeforeRun ();
-			this.Run (simulatorInitAction);
+			this.Run ();
 			this.AfterRun ();
 		}
 
@@ -1178,13 +1281,10 @@ namespace MinCai.Simulators.Flexim.Interop
 			this.Stat.Reset ();
 		}
 
-		private void Run (Action<Processor> simulatorInitAction)
+		private void Run ()
 		{
-			Processor simulator = new Processor (this);
-			
-			simulatorInitAction (simulator);
-			
-			simulator.Run ();
+			Processor processor = new Processor (this);
+			processor.Run ();
 		}
 
 		public void Abort ()
