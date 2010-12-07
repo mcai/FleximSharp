@@ -53,6 +53,7 @@
     <Compile Include="Microarchitecture.cs" />
     <Compile Include="MemoryHierarchy.cs" />
     <Compile Include="OperatingSystem.cs" />
+    <Compile Include="Instructions.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
 </Project>
