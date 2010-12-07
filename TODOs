@@ -3,3 +3,6 @@
 3. Multi-level cache hierarchy configuration.
 4. benchmarking.
 5. performance optimization.
+6. thread state maintanence.
+7. predicate-based uniform pipeline shared resource scheduling.
+8. bpred refactoring, simple variant first, like in SMTSIM.

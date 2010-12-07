@@ -23,13 +23,15 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using MinCai.Simulators.Flexim.Architecture;
 using MinCai.Simulators.Flexim.Common;
 using MinCai.Simulators.Flexim.MemoryHierarchy;
-using MinCai.Simulators.Flexim.OperatingSystem;
 using MinCai.Simulators.Flexim.Microarchitecture;
+using MinCai.Simulators.Flexim.OperatingSystem;
 using Mono.Unix.Native;
 
 namespace MinCai.Simulators.Flexim.OperatingSystem
@@ -183,8 +185,9 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 		public uint Ppid { get; private set; }
 	}
 
-	internal static class SyscallEmulation
+	static internal class SyscallEmulation
 	{
+		[Flags]
 		private enum TargetOpenFlags : int
 		{
 			O_RDONLY = 0,
@@ -233,32 +236,22 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			public string extraJustInCase;
 		}
 
-		private sealed class SyscallDesc
+		[AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
+		private sealed class SyscallAttribute : Attribute
 		{
-			public SyscallDesc (string name, uint num) : this(name, num, null)
-			{
-			}
-
-			public SyscallDesc (string name, uint num, Func<SyscallDesc, Thread, int> action)
+			public SyscallAttribute (string name, uint num)
 			{
 				this.Name = name;
 				this.Num = num;
-				this.Action = action;
 			}
 
-			public void DoSyscall (Thread thread)
+			public override string ToString ()
 			{
-				if (this.Action == null) {
-					Logger.Fatalf (Logger.Categories.Syscall, "syscall {0:s} has not been implemented yet.", this.Name);
-				}
-				
-				int retVal = this.Action (this, thread);
-				thread.SetSyscallReturn (retVal);
+				return string.Format ("[SyscallAttribute: Name={0}, Num={1}]", Name, Num);
 			}
 
 			public string Name { get; set; }
 			public uint Num { get; set; }
-			public Func<SyscallDesc, Thread, int> Action { get; set; }
 		}
 
 		static SyscallEmulation ()
@@ -274,275 +267,46 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			OpenFlagMappings.Add (new OpenFlagMapping ((int)TargetOpenFlags.O_EXCL, (int)OpenFlags.O_EXCL));
 			OpenFlagMappings.Add (new OpenFlagMapping ((int)TargetOpenFlags.O_NOCTTY, (int)OpenFlags.O_NOCTTY));
 			OpenFlagMappings.Add (new OpenFlagMapping (0x2000, 0));
-			
-			SyscallDescs = new Dictionary<uint, SyscallDesc> ();
-			
-			InitSyscallDescs ();
-		}
-
-		private static void InitSyscallDescs ()
-		{
-			uint index = 0;
-			
-			Register ("syscall", index++);
-			Register ("exit", index++, ExitImpl);
-			Register ("fork", index++, InvalidArgImpl);
-			Register ("read", index++, ReadImpl);
-			Register ("write", index++, WriteImpl);
-			Register ("open", index++, OpenImpl);
-			Register ("close", index++, CloseImpl);
-			Register ("waitpid", index++, InvalidArgImpl);
-			Register ("creat", index++, InvalidArgImpl);
-			Register ("link", index++, InvalidArgImpl);
-			Register ("unlink", index++, InvalidArgImpl);
-			Register ("execve", index++, InvalidArgImpl);
-			Register ("chdir", index++, InvalidArgImpl);
-			Register ("time", index++, InvalidArgImpl);
-			Register ("mknod", index++, InvalidArgImpl);
-			Register ("chmod", index++, InvalidArgImpl);
-			Register ("lchown", index++, InvalidArgImpl);
-			Register ("break", index++, InvalidArgImpl);
-			Register ("oldstat", index++, InvalidArgImpl);
-			Register ("lseek", index++, LseekImpl);
-			Register ("getpid", index++, GetpidImpl);
-			Register ("mount", index++, InvalidArgImpl);
-			Register ("umount", index++, InvalidArgImpl);
-			Register ("setuid", index++, InvalidArgImpl);
-			Register ("getuid", index++, GetuidImpl);
-			Register ("stime", index++, InvalidArgImpl);
-			Register ("ptrace", index++, InvalidArgImpl);
-			Register ("alarm", index++, InvalidArgImpl);
-			Register ("oldfstat", index++, InvalidArgImpl);
-			Register ("pause", index++, InvalidArgImpl);
-			Register ("utime", index++, InvalidArgImpl);
-			Register ("stty", index++, InvalidArgImpl);
-			Register ("gtty", index++, InvalidArgImpl);
-			Register ("access", index++, InvalidArgImpl);
-			Register ("nice", index++, InvalidArgImpl);
-			Register ("ftime", index++, InvalidArgImpl);
-			Register ("sync", index++, InvalidArgImpl);
-			Register ("kill", index++, InvalidArgImpl);
-			Register ("rename", index++, InvalidArgImpl);
-			Register ("mkdir", index++, InvalidArgImpl);
-			Register ("rmdir", index++, InvalidArgImpl);
-			Register ("dup", index++, InvalidArgImpl);
-			Register ("pipe", index++, InvalidArgImpl);
-			Register ("times", index++, InvalidArgImpl);
-			Register ("prof", index++, InvalidArgImpl);
-			Register ("brk", index++, BrkImpl);
-			Register ("setgid", index++, InvalidArgImpl);
-			Register ("getgid", index++, GetgidImpl);
-			Register ("signal", index++, InvalidArgImpl);
-			Register ("geteuid", index++, GeteuidImpl);
-			Register ("getegid", index++, GetegidImpl);
-			Register ("acct", index++, InvalidArgImpl);
-			Register ("umount2", index++, InvalidArgImpl);
-			Register ("lock", index++, InvalidArgImpl);
-			Register ("ioctl", index++, InvalidArgImpl);
-			Register ("fcntl", index++, InvalidArgImpl);
-			Register ("mpx", index++, InvalidArgImpl);
-			Register ("setpgid", index++, InvalidArgImpl);
-			Register ("ulimit", index++, InvalidArgImpl);
-			Register ("oldolduname", index++, InvalidArgImpl);
-			Register ("umask", index++, InvalidArgImpl);
-			Register ("chroot", index++, InvalidArgImpl);
-			Register ("ustat", index++, InvalidArgImpl);
-			Register ("dup2", index++, InvalidArgImpl);
-			Register ("getppid", index++, InvalidArgImpl);
-			Register ("getpgrp", index++, InvalidArgImpl);
-			Register ("setsid", index++, InvalidArgImpl);
-			Register ("sigaction", index++, InvalidArgImpl);
-			Register ("sgetmask", index++, InvalidArgImpl);
-			Register ("ssetmask", index++, InvalidArgImpl);
-			Register ("setreuid", index++, InvalidArgImpl);
-			Register ("setregid", index++, InvalidArgImpl);
-			Register ("sigsuspend", index++, InvalidArgImpl);
-			Register ("sigpending", index++, InvalidArgImpl);
-			Register ("sethostname", index++, InvalidArgImpl);
-			Register ("setrlimit", index++, InvalidArgImpl);
-			Register ("getrlimit", index++, InvalidArgImpl);
-			Register ("getrusage", index++, InvalidArgImpl);
-			Register ("gettimeofday", index++, InvalidArgImpl);
-			Register ("settimeofday", index++, InvalidArgImpl);
-			Register ("getgroups", index++, InvalidArgImpl);
-			Register ("setgroups", index++, InvalidArgImpl);
-			Register ("select", index++, InvalidArgImpl);
-			Register ("symlink", index++, InvalidArgImpl);
-			Register ("oldlstat", index++, InvalidArgImpl);
-			Register ("readlink", index++, InvalidArgImpl);
-			Register ("uselib", index++, InvalidArgImpl);
-			Register ("swapon", index++, InvalidArgImpl);
-			Register ("reboot", index++, InvalidArgImpl);
-			Register ("readdir", index++, InvalidArgImpl);
-			Register ("mmap", index++, InvalidArgImpl);
-			Register ("munmap", index++, InvalidArgImpl);
-			Register ("truncate", index++, InvalidArgImpl);
-			Register ("ftruncate", index++, InvalidArgImpl);
-			Register ("fchmod", index++, InvalidArgImpl);
-			Register ("fchown", index++, InvalidArgImpl);
-			Register ("getpriority", index++, InvalidArgImpl);
-			Register ("setpriority", index++, InvalidArgImpl);
-			Register ("profil", index++, InvalidArgImpl);
-			Register ("statfs", index++, InvalidArgImpl);
-			Register ("fstatfs", index++, InvalidArgImpl);
-			Register ("ioperm", index++, InvalidArgImpl);
-			Register ("socketcall", index++, InvalidArgImpl);
-			Register ("syslog", index++, InvalidArgImpl);
-			Register ("setitimer", index++, InvalidArgImpl);
-			Register ("getitimer", index++, InvalidArgImpl);
-			Register ("stat", index++, InvalidArgImpl);
-			Register ("lstat", index++, InvalidArgImpl);
-			Register ("fstat", index++, FstatImpl);
-			Register ("olduname", index++, InvalidArgImpl);
-			Register ("iopl", index++, InvalidArgImpl);
-			Register ("vhangup", index++, InvalidArgImpl);
-			Register ("idle", index++, InvalidArgImpl);
-			Register ("vm86old", index++, InvalidArgImpl);
-			Register ("wait4", index++, InvalidArgImpl);
-			Register ("swapoff", index++, InvalidArgImpl);
-			Register ("sysinfo", index++, InvalidArgImpl);
-			Register ("ipc", index++, InvalidArgImpl);
-			Register ("fsync", index++, InvalidArgImpl);
-			Register ("sigreturn", index++, InvalidArgImpl);
-			Register ("clone", index++, InvalidArgImpl);
-			Register ("setdomainname", index++, InvalidArgImpl);
-			Register ("uname", index++, UnameImpl);
-			Register ("modify_ldt", index++, InvalidArgImpl);
-			Register ("adjtimex", index++, InvalidArgImpl);
-			Register ("mprotect", index++, InvalidArgImpl);
-			Register ("sigprocmask", index++, InvalidArgImpl);
-			Register ("create_module", index++, InvalidArgImpl);
-			Register ("init_module", index++, InvalidArgImpl);
-			Register ("delete_module", index++, InvalidArgImpl);
-			Register ("get_kernel_syms", index++, InvalidArgImpl);
-			Register ("quotactl", index++, InvalidArgImpl);
-			Register ("getpgid", index++, InvalidArgImpl);
-			Register ("fchdir", index++, InvalidArgImpl);
-			Register ("bdflush", index++, InvalidArgImpl);
-			Register ("sysfs", index++, InvalidArgImpl);
-			Register ("personality", index++, InvalidArgImpl);
-			Register ("afs_syscall", index++, InvalidArgImpl);
-			Register ("setfsuid", index++, InvalidArgImpl);
-			Register ("setfsgid", index++, InvalidArgImpl);
-			Register ("_llseek", index++, LlseekImpl);
-			Register ("getdents", index++, InvalidArgImpl);
-			Register ("_newselect", index++, InvalidArgImpl);
-			Register ("flock", index++, InvalidArgImpl);
-			Register ("msync", index++, InvalidArgImpl);
-			Register ("readv", index++, InvalidArgImpl);
-			Register ("writev", index++, InvalidArgImpl);
-			Register ("getsid", index++, InvalidArgImpl);
-			Register ("fdatasync", index++, InvalidArgImpl);
-			Register ("_sysctl", index++, InvalidArgImpl);
-			Register ("mlock", index++, InvalidArgImpl);
-			Register ("munlock", index++, InvalidArgImpl);
-			Register ("mlockall", index++, InvalidArgImpl);
-			Register ("munlockall", index++, InvalidArgImpl);
-			Register ("sched_setparam", index++, InvalidArgImpl);
-			Register ("sched_getparam", index++, InvalidArgImpl);
-			Register ("sched_setscheduler", index++, InvalidArgImpl);
-			Register ("sched_getscheduler", index++, InvalidArgImpl);
-			Register ("sched_yield", index++, InvalidArgImpl);
-			Register ("sched_get_priority_max", index++, InvalidArgImpl);
-			Register ("sched_get_priority_min", index++, InvalidArgImpl);
-			Register ("sched_rr_get_interval", index++, InvalidArgImpl);
-			Register ("nanosleep", index++, InvalidArgImpl);
-			Register ("mremap", index++, InvalidArgImpl);
-			Register ("setresuid", index++, InvalidArgImpl);
-			Register ("getresuid", index++, InvalidArgImpl);
-			Register ("vm86", index++, InvalidArgImpl);
-			Register ("query_module", index++, InvalidArgImpl);
-			Register ("poll", index++, InvalidArgImpl);
-			Register ("nfsservctl", index++, InvalidArgImpl);
-			Register ("setresgid", index++, InvalidArgImpl);
-			Register ("getresgid", index++, InvalidArgImpl);
-			Register ("prctl", index++, InvalidArgImpl);
-			Register ("rt_sigreturn", index++, InvalidArgImpl);
-			Register ("rt_sigaction", index++, InvalidArgImpl);
-			Register ("rt_sigprocmask", index++, InvalidArgImpl);
-			Register ("rt_sigpending", index++, InvalidArgImpl);
-			Register ("rt_sigtimedwait", index++, InvalidArgImpl);
-			Register ("rt_sigqueueinfo", index++, InvalidArgImpl);
-			Register ("rt_sigsuspend", index++, InvalidArgImpl);
-			Register ("pread", index++, InvalidArgImpl);
-			Register ("pwrite", index++, InvalidArgImpl);
-			Register ("chown", index++, InvalidArgImpl);
-			Register ("getcwd", index++, InvalidArgImpl);
-			Register ("capget", index++, InvalidArgImpl);
-			Register ("capset", index++, InvalidArgImpl);
-			Register ("sigalstack", index++, InvalidArgImpl);
-			Register ("sendfile", index++, InvalidArgImpl);
-			Register ("getpmsg", index++, InvalidArgImpl);
-			Register ("putpmsg", index++, InvalidArgImpl);
-			Register ("vfork", index++, InvalidArgImpl);
-			Register ("ugetrlimit", index++, InvalidArgImpl);
-			Register ("mmap2", index++, InvalidArgImpl);
-			Register ("truncate64", index++, InvalidArgImpl);
-			Register ("ftruncate64", index++, InvalidArgImpl);
-			Register ("stat64", index++, InvalidArgImpl);
-			Register ("lstat64", index++, InvalidArgImpl);
-			Register ("fstat64", index++, InvalidArgImpl);
-			Register ("lchown32", index++, InvalidArgImpl);
-			Register ("getuid32", index++, InvalidArgImpl);
-			Register ("getgid32", index++, InvalidArgImpl);
-			Register ("geteuid32", index++, InvalidArgImpl);
-			Register ("getegid32", index++, InvalidArgImpl);
-			Register ("setreuid32", index++, InvalidArgImpl);
-			Register ("setregid32", index++, InvalidArgImpl);
-			Register ("getgroups32", index++, InvalidArgImpl);
-			Register ("setgroups32", index++, InvalidArgImpl);
-			Register ("fchown32", index++, InvalidArgImpl);
-			Register ("setresuid32", index++, InvalidArgImpl);
-			Register ("getresuid32", index++, InvalidArgImpl);
-			Register ("setresgid32", index++, InvalidArgImpl);
-			Register ("getresgid32", index++, InvalidArgImpl);
-			Register ("chown32", index++, InvalidArgImpl);
-			Register ("setuid32", index++, InvalidArgImpl);
-			Register ("setgid32", index++, InvalidArgImpl);
-			Register ("setfsuid32", index++, InvalidArgImpl);
-			Register ("setfsgid32", index++, InvalidArgImpl);
-			Register ("pivot_root", index++, InvalidArgImpl);
-			Register ("mincore", index++, InvalidArgImpl);
-			Register ("madvise", index++, InvalidArgImpl);
-			Register ("getdents64", index++, InvalidArgImpl);
-			Register ("fcntl64", index++, InvalidArgImpl);
-		}
-
-		private static void Register (string name, uint num)
-		{
-			Register (new SyscallDesc (name, num));
-		}
-
-		private static void Register (string name, uint num, Func<SyscallDesc, Thread, int> action)
-		{
-			Register (new SyscallDesc (name, num, action));
-		}
-
-		private static void Register (SyscallDesc desc)
-		{
-			SyscallDescs[desc.Num] = desc;
 		}
 
 		public static void DoSyscall (uint callNum, Thread thread)
 		{
 			int syscallIndex = (int)(callNum - 4000);
 			
-			if (syscallIndex >= 0 && syscallIndex < SyscallDescs.Count && SyscallDescs.ContainsKey ((uint)syscallIndex)) {
-				SyscallDescs[(uint)syscallIndex].DoSyscall (thread);
-			} else {
-				Logger.Warnf (Logger.Categories.Syscall, "Syscall {0:d} ({1:d}) out of range", callNum, syscallIndex);
+			if (!FindAndCallSyscallImpl ((uint)syscallIndex, thread)) {
+				Logger.Warnf (Logger.Categories.Syscall, "Syscall {0:d} ({1:d}) not implemented", callNum, syscallIndex);
 				thread.SetSyscallReturn ((-(int)Errno.EINVAL));
 			}
 		}
 
-		private static int ExitImpl (SyscallDesc desc, Thread thread)
+		private static bool FindAndCallSyscallImpl (uint callNum, Thread thread)
+		{
+			foreach (var method in typeof(SyscallEmulation).GetMethods (BindingFlags.Static | BindingFlags.NonPublic)) {
+				if (method.IsStatic && method.IsDefined (typeof(SyscallAttribute), false)) {
+					SyscallAttribute attr = method.GetCustomAttributes (typeof(SyscallAttribute), false).SingleOrDefault () as SyscallAttribute;
+					
+					if (attr.Num == callNum) {
+						int retVal = (int)method.Invoke (null, new object[] { thread });
+						thread.SetSyscallReturn (retVal);
+						
+						return true;
+					}
+				}
+			}
+			
+			return false;
+		}
+
+		[Syscall("exit", 1)]
+		private static int ExitImpl (Thread thread)
 		{
 			Console.WriteLine ("exiting...");
 			thread.Halt ((int)(thread.GetSyscallArg (0) & 0xff));
 			return 1;
 		}
 
-		unsafe private static int ReadImpl (SyscallDesc desc, Thread thread)
+		[Syscall("read", 3)]
+		unsafe private static int ReadImpl (Thread thread)
 		{
 			int fd = (int)thread.GetSyscallArg (0);
 			uint bufAddr = thread.GetSyscallArg (1);
@@ -560,7 +324,8 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			return ret;
 		}
 
-		unsafe private static int WriteImpl (SyscallDesc desc, Thread thread)
+		[Syscall("write", 4)]
+		unsafe private static int WriteImpl (Thread thread)
 		{
 			int fd = (int)thread.GetSyscallArg (0);
 			uint bufAddr = thread.GetSyscallArg (1);
@@ -576,7 +341,8 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			return ret;
 		}
 
-		unsafe private static int OpenImpl (SyscallDesc desc, Thread thread)
+		[Syscall("open", 5)]
+		unsafe private static int OpenImpl (Thread thread)
 		{
 			char[] path = new char[MAX_BUFFER_SIZE];
 			
@@ -608,14 +374,16 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			return fd;
 		}
 
-		private static int CloseImpl (SyscallDesc desc, Thread thread)
+		[Syscall("close", 6)]
+		private static int CloseImpl (Thread thread)
 		{
 			int fd = (int)thread.GetSyscallArg (0);
 			int ret = (int)Syscall.close (fd);
 			return ret;
 		}
 
-		private static int LseekImpl (SyscallDesc desc, Thread thread)
+		[Syscall("lseek", 19)]
+		private static int LseekImpl (Thread thread)
 		{
 			int fd = (int)thread.GetSyscallArg (0);
 			int offset = (int)thread.GetSyscallArg (1);
@@ -625,17 +393,20 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			return ret;
 		}
 
-		private static int GetpidImpl (SyscallDesc desc, Thread thread)
+		[Syscall("getpid", 20)]
+		private static int GetpidImpl (Thread thread)
 		{
 			return (int)thread.Process.Pid;
 		}
 
-		private static int GetuidImpl (SyscallDesc desc, Thread thread)
+		[Syscall("getuid", 24)]
+		private static int GetuidImpl (Thread thread)
 		{
 			return (int)thread.Process.Uid;
 		}
 
-		private static int BrkImpl (SyscallDesc desc, Thread thread)
+		[Syscall("brk", 45)]
+		private static int BrkImpl (Thread thread)
 		{
 			uint newbrk = thread.GetSyscallArg (0);
 			uint oldbrk = thread.Process.Brk;
@@ -658,22 +429,26 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			return (int)thread.Process.Brk;
 		}
 
-		private static int GetgidImpl (SyscallDesc desc, Thread thread)
+		[Syscall("getgid", 47)]
+		private static int GetgidImpl (Thread thread)
 		{
 			return (int)thread.Process.Gid;
 		}
 
-		private static int GeteuidImpl (SyscallDesc desc, Thread thread)
+		[Syscall("geteuid", 49)]
+		private static int GeteuidImpl (Thread thread)
 		{
 			return (int)thread.Process.Euid;
 		}
 
-		private static int GetegidImpl (SyscallDesc desc, Thread thread)
+		[Syscall("getegid", 50)]
+		private static int GetegidImpl (Thread thread)
 		{
 			return (int)thread.Process.Egid;
 		}
 
-		unsafe private static int FstatImpl (SyscallDesc desc, Thread thread)
+		[Syscall("fstat", 108)]
+		unsafe private static int FstatImpl (Thread thread)
 		{
 			int fd = (int)thread.GetSyscallArg (0);
 			uint bufAddr = thread.GetSyscallArg (1);
@@ -685,7 +460,8 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			return ret;
 		}
 
-		unsafe private static int UnameImpl (SyscallDesc desc, Thread thread)
+		[Syscall("uname", 122)]
+		unsafe private static int UnameImpl (Thread thread)
 		{
 			Utsname un = new Utsname ();
 			un.sysname = "Linux";
@@ -704,7 +480,8 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			return 0;
 		}
 
-		private static int LlseekImpl (SyscallDesc desc, Thread thread)
+		[Syscall("_llseek", 140)]
+		private static int LlseekImpl (Thread thread)
 		{
 			int fd = (int)thread.GetSyscallArg (0);
 			uint offsetHigh = thread.GetSyscallArg (1);
@@ -729,14 +506,7 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			return ret;
 		}
 
-		private static int InvalidArgImpl (SyscallDesc desc, Thread thread)
-		{
-			Logger.Warnf (Logger.Categories.Syscall, "syscall {0:s} is ignored.", desc.Name);
-			return -(int)Errno.EINVAL;
-		}
-
 		private static List<OpenFlagMapping> OpenFlagMappings;
-		private static Dictionary<uint, SyscallDesc> SyscallDescs { get; set; }
 
 		private static uint MAX_BUFFER_SIZE = 1024;
 	}

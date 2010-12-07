@@ -620,6 +620,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 
 	public abstract class StaticInstruction
 	{
+		[Flags]
 		public enum Flag : uint
 		{
 			None = 0x00000000,

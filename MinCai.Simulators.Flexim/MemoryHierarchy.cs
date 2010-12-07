@@ -37,7 +37,8 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 		public static uint PAGE_MASK = PAGE_SIZE - 1;
 		public static uint PAGE_COUNT = 1 << 10;
 	}
-
+	
+	[Flags]
 	public enum MemoryAccessType : uint
 	{
 		None = 0x00,
