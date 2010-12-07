@@ -1,5 +1,5 @@
 /*
- * Main.cs
+ * Startup.cs
  * 
  * Copyright © 2010 Min Cai (itecgo@163.com). 
  * 
@@ -37,9 +37,9 @@ namespace MinCai.Simulators.Flexim.Startup
 //			string simulationTitle = "WCETBench-fir-1x1";
 			//string simulationTitle = "WCETBench-fir-2x1";
 			//string simulationTitle = "Olden_Custom1-em3d_original-1x1";
-//				string simulationTitle = "Olden_Custom1-mst_original-1x1";
+				string simulationTitle = "Olden_Custom1-mst_original-1x1";
 			//string simulationTitle = "Olden_Custom1-mst_original-2x1";
-			string simulationTitle = "Olden_Custom1-mst_original-2x2";
+//			string simulationTitle = "Olden_Custom1-mst_original-2x2";
 			//string simulationTitle = "Olden_Custom1-mst_original-Olden_Custom1_em3d_original-2x1";
 			
 			Simulation simulation = Simulation.LoadXML (Processor.WorkDirectory + Path.DirectorySeparatorChar + "simulations", simulationTitle + ".xml");

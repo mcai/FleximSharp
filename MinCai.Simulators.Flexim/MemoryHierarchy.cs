@@ -1,5 +1,5 @@
 /*
- * Mem.cs
+ * MemoryHierarchy.cs
  * 
  * Copyright © 2010 Min Cai (itecgo@163.com). 
  * 
@@ -22,6 +22,8 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
+using System.Runtime.InteropServices;
 using MinCai.Simulators.Flexim.Common;
 using MinCai.Simulators.Flexim.Interop;
 using MinCai.Simulators.Flexim.MemoryHierarchy;
@@ -79,91 +81,74 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 	{
 		public Memory ()
 		{
-			this.safe = true;
-			
 			this.pages = new Dictionary<uint, MemoryPage> ();
 		}
-
-		unsafe public void InitByte (uint addr, byte data)
+		
+		public void InitBlock (uint addr, int size, byte[] data)
 		{
-			this.Access (addr, 1, &data, MemoryAccessType.Init);
+			this.Access (addr, (int)size, ref data, MemoryAccessType.Init);
 		}
-
-		unsafe public void InitHalfWord (uint addr, ushort data)
+		
+		public void WriteByte(uint addr, byte data)
 		{
-			this.Access (addr, 2, (byte*)&data, MemoryAccessType.Init);
+			byte[] data1 = new byte[]{data};
+			this.Access(addr, 1, ref data1, MemoryAccessType.Write);
 		}
-
-		unsafe public void InitWord (uint addr, uint data)
+		
+		public void WriteHalfWord(uint addr, ushort data)
 		{
-			this.Access (addr, 4, (byte*)&data, MemoryAccessType.Init);
+			byte[] data1 = BitConverter.GetBytes(data);
+			this.Access(addr, 2, ref data1, MemoryAccessType.Write);
 		}
-
-		unsafe public void InitDoubleWord (uint addr, ulong data)
+		
+		public void WriteWord(uint addr, uint data)
 		{
-			this.Access (addr, 8, (byte*)&data, MemoryAccessType.Init);
+			byte[] data1 = BitConverter.GetBytes(data);
+			this.Access(addr, 4, ref data1, MemoryAccessType.Write);
 		}
-
-		unsafe public void InitString (uint addr, char* str)
+		
+		public void WriteDoubleWord(uint addr, ulong data)
 		{
-			this.Access (addr, (int)(PtrHelper.Strlen (str) + 1), (byte*)str, MemoryAccessType.Init);
+			byte[] data1 = BitConverter.GetBytes(data);
+			this.Access(addr, 8, ref data1, MemoryAccessType.Write);
 		}
-
-		unsafe public void InitBlock (uint addr, uint size, byte* p)
+		
+		public void WriteBlock(uint addr, uint size, byte[] data)
 		{
-			for (uint i = 0; i < size; i++) {
-				this.InitByte (addr + i, *(p + i));
-			}
+			this.Access (addr, (int)size, ref data, MemoryAccessType.Write);
 		}
-
-		unsafe public void WriteByte (uint addr, byte data)
+		
+		public byte ReadByte(uint addr)
 		{
-			this.Access (addr, 1, &data, MemoryAccessType.Write);
+			byte[] data = new byte[1];
+			this.Access(addr, 1, ref data, MemoryAccessType.Read);
+			return data[0];
 		}
-
-		unsafe public void WriteHalfWord (uint addr, ushort data)
+		
+		public ushort ReadHalfWord(uint addr)
 		{
-			this.Access (addr, 2, (byte*)&data, MemoryAccessType.Write);
+			byte[] data = new byte[2];
+			this.Access(addr, 2, ref data, MemoryAccessType.Read);
+			return BitConverter.ToUInt16(data, 0);
 		}
-
-		unsafe public void WriteWord (uint addr, uint data)
+		
+		public uint ReadWord(uint addr)
 		{
-			this.Access (addr, 4, (byte*)&data, MemoryAccessType.Write);
+			byte[] data = new byte[4];
+			this.Access(addr, 4, ref data, MemoryAccessType.Read);
+			return BitConverter.ToUInt32(data, 0);
 		}
-
-		unsafe public void WriteDoubleWord (uint addr, ulong data)
+		
+		public ulong ReadDoubleWord(uint addr)
 		{
-			this.Access (addr, 8, (byte*)&data, MemoryAccessType.Write);
+			byte[] data = new byte[8];
+			this.Access(addr, 8, ref data, MemoryAccessType.Read);
+			return BitConverter.ToUInt64(data, 0);
 		}
 
 		unsafe public void WriteString (uint addr, char* str)
 		{
 			this.Access (addr, (int)(PtrHelper.Strlen (str) + 1), (byte*)str, MemoryAccessType.Write);
-		}
-
-		unsafe public void WriteBlock (uint addr, uint size, byte* data)
-		{
-			this.Access (addr, (int)size, data, MemoryAccessType.Write);
-		}
-
-		unsafe public void ReadByte (uint addr, byte* data)
-		{
-			this.Access (addr, 1, data, MemoryAccessType.Read);
-		}
-
-		unsafe public void ReadHalfWord (uint addr, ushort* data)
-		{
-			this.Access (addr, 2, (byte*)data, MemoryAccessType.Read);
-		}
-
-		unsafe public void ReadWord (uint addr, uint* data)
-		{
-			this.Access (addr, 4, (byte*)data, MemoryAccessType.Read);
-		}
-
-		unsafe public void ReadDoubleWord (uint addr, ulong* data)
-		{
-			this.Access (addr, 8, (byte*)data, MemoryAccessType.Read);
 		}
 
 		unsafe public int ReadString (uint addr, int size, char* str)
@@ -176,41 +161,72 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			}
 			return i;
 		}
-
-		unsafe public void ReadBlock (uint addr, int size, byte* p)
+		
+		public byte[] ReadBlock(uint addr, int size)
 		{
-			this.Access (addr, size, p, MemoryAccessType.Read);
+			byte[] data = new byte[size];
+			this.Access(addr, size, ref data, MemoryAccessType.Read);
+			return data;
 		}
-
-		unsafe public void Zero (uint addr, int size)
+		
+		public void Zero(uint addr, int size)
 		{
-			byte zero = 0;
-			while (size-- > 0) {
-				this.Access (addr++, 0, &zero, MemoryAccessType.Write);
+			byte[] dataToZero = Enumerable.Repeat<byte>(0, size).ToArray();
+			this.Access(addr, size, ref dataToZero, MemoryAccessType.Write);
+		}
+		
+		private void Access (uint addr, int size, ref byte[] buf, MemoryAccessType access)
+		{
+			uint bufOffset = 0;
+			
+			while (size > 0) {
+				uint offset = this.GetOffset (addr);
+				int chunksize = Math.Min (size, (int)(MemoryConstants.PAGE_SIZE - offset));
+				this.AccessPageBoundary (addr, chunksize, ref buf, bufOffset, access);
+				
+				size -= chunksize;
+				bufOffset += (uint)chunksize;
+				addr += (uint)chunksize;
 			}
 		}
 
-		public uint GetTag (uint addr)
+		unsafe private void Access (uint addr, int size, byte* buf, MemoryAccessType access)
 		{
-			return addr & ~(MemoryConstants.PAGE_SIZE - 1);
+			while (size > 0) {
+				uint offset = this.GetOffset (addr);
+				int chunksize = Math.Min (size, (int)(MemoryConstants.PAGE_SIZE - offset));
+				this.AccessPageBoundary (addr, chunksize, buf, access);
+				
+				size -= chunksize;
+				buf += chunksize;
+				addr += (uint)chunksize;
+			}
 		}
 
-		public uint GetOffset (uint addr)
+		public void Map (uint addr, int size, MemoryAccessType permission)
 		{
-			return addr & (MemoryConstants.PAGE_SIZE - 1);
+			for (uint tag = this.GetTag (addr); tag <= this.GetTag ((uint)(addr + size - 1)); tag += MemoryConstants.PAGE_SIZE) {
+				MemoryPage page = this.GetPage (tag);
+				if (page == null) {
+					page = this.AddPage (tag, permission);
+					page.Permission |= permission;
+				}
+			}
 		}
 
-		public uint GetIndex (uint addr)
+		public void Unmap (uint addr, int size)
 		{
-			return (addr >> (int)MemoryConstants.LOG_PAGE_SIZE) % MemoryConstants.PAGE_COUNT;
+			Debug.Assert (IsAligned (addr));
+			Debug.Assert (IsAligned ((uint)size));
+			
+			for (uint tag = GetTag (addr); tag <= GetTag ((uint)(addr + size - 1)); tag += MemoryConstants.PAGE_SIZE) {
+				if (this.GetPage (tag) != null) {
+					this.RemovePage (tag);
+				}
+			}
 		}
 
-		public bool IsAligned (uint addr)
-		{
-			return this.GetOffset (addr) == 0;
-		}
-
-		public MemoryPage GetPage (uint addr)
+		private MemoryPage GetPage (uint addr)
 		{
 			uint tag = this.GetTag (addr);
 			uint index = this.GetIndex (addr);
@@ -231,7 +247,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			return page;
 		}
 
-		public MemoryPage AddPage (uint addr, MemoryAccessType permission)
+		private MemoryPage AddPage (uint addr, MemoryAccessType permission)
 		{
 			uint tag = GetTag (addr);
 			uint index = GetIndex (addr);
@@ -248,7 +264,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			return page;
 		}
 
-		public void RemovePage (uint addr)
+		private void RemovePage (uint addr)
 		{
 			uint tag = this.GetTag (addr);
 			uint index = this.GetIndex (addr);
@@ -275,55 +291,15 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			page = null;
 		}
 
-		unsafe public void Copy (uint dest, uint src, int size)
-		{
-			Debug.Assert (IsAligned (dest));
-			Debug.Assert (IsAligned (src));
-			Debug.Assert (IsAligned ((uint)size));
-			if ((src < dest && src + size > dest) || (dest < src && dest + size > src))
-				Logger.Fatal (Logger.Categories.Memory, "mem_copy: cannot copy overlapping regions");
-			
-			while (size > 0) {
-				MemoryPage pageDest = this.GetPage (dest);
-				MemoryPage pageSrc = this.GetPage (src);
-				Debug.Assert (pageSrc != null && pageDest != null);
-				Array.Copy (pageSrc.Data, pageDest.Data, MemoryConstants.PAGE_SIZE);
-				src += MemoryConstants.PAGE_SIZE;
-				dest += MemoryConstants.PAGE_SIZE;
-				size -= (int)MemoryConstants.PAGE_SIZE;
-			}
-		}
-
 		unsafe private void AccessPageBoundary (uint addr, int size, byte* buf, MemoryAccessType access)
 		{
 			MemoryPage page = this.GetPage (addr);
 			
-			if (page == null && !this.safe) {
-				switch (access) {
-				case MemoryAccessType.Read:
-				case MemoryAccessType.Execute:
-					Logger.Warnf (Logger.Categories.Memory, "Memory.accessPageBoundary: unsafe reading 0x{0:x8}", addr);
-					PtrHelper.Memset (buf, 0, size);
-					return;
-				
-				case MemoryAccessType.Write:
-				case MemoryAccessType.Init:
-					Logger.Warnf (Logger.Categories.Memory, "Memory.accessPageBoundary: unsafe writing 0x{0:x8}", addr);
-					page = AddPage (addr, MemoryAccessType.Read | MemoryAccessType.Write | MemoryAccessType.Execute | MemoryAccessType.Init);
-					break;
-				default:
-					Logger.Panic (Logger.Categories.Memory, "Memory.accessPageBoundary: unknown access");
-					break;
-				}
+			if (page == null) {
+				throw new SegmentationFaultException (addr);
 			}
-			
-			if (this.safe) {
-				if (page == null) {
-					throw new SegmentationFaultException (addr);
-				}
-				if ((page.Permission & access) != access) {
-					Logger.Fatalf (Logger.Categories.Memory, "Memory.accessPageBoundary: permission denied at 0x{0:x8}, page.Permission: 0x{1:x8}, access: 0x{2:x8}", addr, page.Permission, access);
-				}
+			if ((page.Permission & access) != access) {
+				Logger.Fatalf (Logger.Categories.Memory, "Memory.accessPageBoundary: permission denied at 0x{0:x8}, page.Permission: 0x{1:x8}, access: 0x{2:x8}", addr, page.Permission, access);
 			}
 			
 			uint offset = this.GetOffset (addr);
@@ -346,114 +322,32 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			}
 		}
 
-		unsafe public void Access (uint addr, int size, byte* buf, MemoryAccessType access)
+		private void AccessPageBoundary (uint addr, int size, ref byte[] buf, uint bufOffset, MemoryAccessType access)
 		{
-			while (size > 0) {
-				uint offset = this.GetOffset (addr);
-				int chunksize = Math.Min (size, (int)(MemoryConstants.PAGE_SIZE - offset));
-				this.AccessPageBoundary (addr, chunksize, buf, access);
-				
-				size -= chunksize;
-				buf += chunksize;
-				addr += (uint)chunksize;
+			MemoryPage page = this.GetPage (addr);
+			
+			if (page == null) {
+				throw new SegmentationFaultException (addr);
 			}
-		}
-
-		public uint MapSpace (uint addr, int size)
-		{
-			Debug.Assert (IsAligned (addr));
-			Debug.Assert (IsAligned ((uint)size));
-			
-			uint tagStart = addr;
-			uint tagEnd = addr;
-			
-			for (;;) {
-				if (tagEnd == 0) {
-					return uint.MaxValue;
-				}
-				
-				if (this.GetPage (tagEnd) != null) {
-					tagEnd += MemoryConstants.PAGE_SIZE;
-					tagStart = tagEnd;
-					continue;
-				}
-				
-				if (tagEnd - tagStart + MemoryConstants.PAGE_SIZE == size)
-					break;
-				
-				Debug.Assert (tagEnd - tagStart + MemoryConstants.PAGE_SIZE < size);
-				
-				tagEnd += MemoryConstants.PAGE_SIZE;
+			if ((page.Permission & access) != access) {
+				Logger.Fatalf (Logger.Categories.Memory, "Memory.accessPageBoundary: permission denied at 0x{0:x8}, page.Permission: 0x{1:x8}, access: 0x{2:x8}", addr, page.Permission, access);
 			}
 			
-			return tagStart;
-		}
-
-		public uint MapSpaceDown (uint addr, int size)
-		{
-			Debug.Assert (IsAligned (addr));
-			Debug.Assert (IsAligned ((uint)size));
+			uint offset = this.GetOffset (addr);
+			Debug.Assert (offset + size <= MemoryConstants.PAGE_SIZE);
 			
-			uint tagStart = addr;
-			uint tagEnd = addr;
-			
-			for (;;) {
-				if (tagStart == 0) {
-					return uint.MaxValue;
-				}
-				
-				if (this.GetPage (tagStart) != null) {
-					tagStart += MemoryConstants.PAGE_SIZE;
-					tagEnd = tagStart;
-					continue;
-				}
-				
-				if (tagEnd - tagStart + MemoryConstants.PAGE_SIZE == size)
-					break;
-				
-				Debug.Assert (tagEnd - tagStart + MemoryConstants.PAGE_SIZE < size);
-				
-				tagEnd -= MemoryConstants.PAGE_SIZE;
-			}
-			
-			return tagStart;
-		}
-
-		public void Map (uint addr, int size, MemoryAccessType permission)
-		{
-//			Logger.Infof(Logger.Categories.MEMORY, "Memory.Map(), addr: 0x{0:x8} ~ 0x{1:x8}, size: {2:d}, permission: 0x{3:x8}", addr, addr + size, size, permission);
-			
-			for (uint tag = this.GetTag (addr); tag <= this.GetTag ((uint)(addr + size - 1)); tag += MemoryConstants.PAGE_SIZE) {
-				MemoryPage page = this.GetPage (tag);
-				if (page == null) {
-					page = this.AddPage (tag, permission);
-					page.Permission |= permission;
-				}
-			}
-		}
-
-		public void Unmap (uint addr, int size)
-		{
-			Debug.Assert (IsAligned (addr));
-			Debug.Assert (IsAligned ((uint)size));
-			
-			for (uint tag = GetTag (addr); tag <= GetTag ((uint)(addr + size - 1)); tag += MemoryConstants.PAGE_SIZE) {
-				if (this.GetPage (tag) != null) {
-					this.RemovePage (tag);
-				}
-			}
-		}
-
-		public void Protect (uint addr, int size, MemoryAccessType permission)
-		{
-			Debug.Assert (IsAligned (addr));
-			Debug.Assert (IsAligned ((uint)size));
-			
-			for (uint tag = GetTag (addr); tag <= GetTag ((uint)(addr + size - 1)); tag += MemoryConstants.PAGE_SIZE) {
-				MemoryPage page = this.GetPage (tag);
-				if (page != null) {
-					page.Permission = permission;
-				}
+			switch (access) {
+			case MemoryAccessType.Read:
+			case MemoryAccessType.Execute:
+				Array.Copy(page.Data, offset, buf, bufOffset, size);
+				break;
+			case MemoryAccessType.Write:
+			case MemoryAccessType.Init:
+				Array.Copy(buf, bufOffset, page.Data, offset, size);
+				break;
+			default:
+				Logger.Panic (Logger.Categories.Memory, "Memory.accessPageBoundary: unknown access");
+				break;
 			}
 		}
 
@@ -473,7 +367,25 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 		private ulong mappedSpace = 0;
 		private ulong maxMappedSpace = 0;
 
-		private bool safe { get; set; }
+		public static uint GetTag (uint addr)
+		{
+			return addr & ~(MemoryConstants.PAGE_SIZE - 1);
+		}
+
+		public static uint GetOffset (uint addr)
+		{
+			return addr & (MemoryConstants.PAGE_SIZE - 1);
+		}
+
+		public static uint GetIndex (uint addr)
+		{
+			return (addr >> (int)MemoryConstants.LOG_PAGE_SIZE) % MemoryConstants.PAGE_COUNT;
+		}
+
+		public static bool IsAligned (uint addr)
+		{
+			return GetOffset (addr) == 0;
+		}
 	}
 
 	public sealed class MemoryManagementUnit

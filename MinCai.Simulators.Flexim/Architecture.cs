@@ -1,5 +1,5 @@
 /*
- * Isa.cs
+ * Architecture.cs
  * 
  * Copyright © 2010 Min Cai (itecgo@163.com). 
  * 
@@ -571,13 +571,12 @@ namespace MinCai.Simulators.Flexim.Architecture
 			this.DecodedStaticInstructions = new Dictionary<uint, StaticInstruction> ();
 		}
 
-		unsafe public StaticInstruction Decode (uint pc, Memory mem)
+		public StaticInstruction Decode (uint pc, Memory mem)
 		{
 			if (this.DecodedStaticInstructions.ContainsKey (pc)) {
 				return this.DecodedStaticInstructions[pc];
 			} else {
-				uint data = 0;
-				mem.ReadWord (pc, &data);
+				uint data = mem.ReadWord(pc);
 				
 				MachineInstruction machineInstruction = new MachineInstruction (data);
 				
@@ -4594,11 +4593,10 @@ namespace MinCai.Simulators.Flexim.Architecture.Instructions
 			this.MemODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		unsafe public override void Execute (IThread thread)
+		public override void Execute (IThread thread)
 		{
-			byte mem = 0;
-			thread.Mem.ReadByte (this.Ea (thread), (byte*)&mem);
-			thread.Regs.IntRegs[this[BitField.RT]] = mem;
+			sbyte mem = (sbyte)thread.Mem.ReadByte(this.Ea(thread));
+			thread.Regs.IntRegs[this[BitField.RT]] = (uint)mem;
 		}
 	}
 
@@ -4618,10 +4616,9 @@ namespace MinCai.Simulators.Flexim.Architecture.Instructions
 			this.MemODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		unsafe public override void Execute (IThread thread)
+		public override void Execute (IThread thread)
 		{
-			byte mem = 0;
-			thread.Mem.ReadByte (this.Ea (thread), &mem);
+			byte mem = thread.Mem.ReadByte(this.Ea(thread));
 			thread.Regs.IntRegs[this[BitField.RT]] = mem;
 		}
 	}
@@ -4642,10 +4639,9 @@ namespace MinCai.Simulators.Flexim.Architecture.Instructions
 			this.MemODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		unsafe public override void Execute (IThread thread)
+		public override void Execute (IThread thread)
 		{
-			short mem = 0;
-			thread.Mem.ReadHalfWord (this.Ea (thread), (ushort*)&mem);
+			short mem = (short)thread.Mem.ReadHalfWord(this.Ea(thread));
 			thread.Regs.IntRegs[this[BitField.RT]] = (uint)mem;
 		}
 	}
@@ -4666,10 +4662,9 @@ namespace MinCai.Simulators.Flexim.Architecture.Instructions
 			this.MemODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		unsafe public override void Execute (IThread thread)
+		public override void Execute (IThread thread)
 		{
-			ushort mem = 0;
-			thread.Mem.ReadHalfWord (this.Ea (thread), &mem);
+			ushort mem = thread.Mem.ReadHalfWord(this.Ea(thread));
 			thread.Regs.IntRegs[this[BitField.RT]] = mem;
 		}
 	}
@@ -4690,10 +4685,9 @@ namespace MinCai.Simulators.Flexim.Architecture.Instructions
 			this.MemODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		unsafe public override void Execute (IThread thread)
+		public override void Execute (IThread thread)
 		{
-			int mem = 0;
-			thread.Mem.ReadWord (this.Ea (thread), (uint*)&mem);
+			int mem = (int)thread.Mem.ReadWord(this.Ea(thread));
 			thread.Regs.IntRegs[this[BitField.RT]] = (uint)mem;
 		}
 	}
@@ -4722,17 +4716,14 @@ namespace MinCai.Simulators.Flexim.Architecture.Instructions
 			return ea;
 		}
 
-		unsafe public override void Execute (IThread thread)
+		public override void Execute (IThread thread)
 		{
 			uint addr = (uint)(thread.Regs.IntRegs[this[BitField.RS]] + this.Displacement);
 			
 			uint ea = addr & ~3u;
 			uint byte_offset = addr & 3;
 			
-			uint mem = 0;
-			
-			thread.Mem.ReadWord (ea, &mem);
-			
+			uint mem = thread.Mem.ReadWord(ea);
 			uint mem_shift = 24 - 8 * byte_offset;
 			
 			uint rt = (mem << (int)mem_shift) | (thread.Regs.IntRegs[this[BitField.RT]] & BitHelper.Mask ((int)mem_shift));
@@ -4765,17 +4756,14 @@ namespace MinCai.Simulators.Flexim.Architecture.Instructions
 			return ea;
 		}
 
-		unsafe public override void Execute (IThread thread)
+		public override void Execute (IThread thread)
 		{
 			uint addr = (uint)(thread.Regs.IntRegs[this[BitField.RS]] + this.Displacement);
 			
 			uint ea = addr & ~3u;
 			uint byte_offset = addr & 3;
 			
-			uint mem = 0;
-			
-			thread.Mem.ReadWord (ea, &mem);
-			
+			uint mem = thread.Mem.ReadWord(ea);
 			uint mem_shift = 8 * byte_offset;
 			
 			uint rt = (thread.Regs.IntRegs[this[BitField.RT]] & (BitHelper.Mask ((int)mem_shift) << (int)(32 - mem_shift))) | (mem >> (int)mem_shift);
@@ -4800,10 +4788,9 @@ namespace MinCai.Simulators.Flexim.Architecture.Instructions
 			this.MemODeps.Add (new RegisterDependency (RegisterDependency.Types.Integer, this[BitField.RT]));
 		}
 
-		unsafe public override void Execute (IThread thread)
+		public override void Execute (IThread thread)
 		{
-			uint mem = 0;
-			thread.Mem.ReadWord (this.Ea (thread), &mem);
+			uint mem = thread.Mem.ReadWord(this.Ea(thread));
 			thread.Regs.IntRegs[this[BitField.RT]] = mem;
 		}
 	}
@@ -4824,10 +4811,9 @@ namespace MinCai.Simulators.Flexim.Architecture.Instructions
 			this.MemODeps.Add (new RegisterDependency (RegisterDependency.Types.Float, this[BitField.FT]));
 		}
 
-		unsafe public override void Execute (IThread thread)
+		public override void Execute (IThread thread)
 		{
-			uint mem = 0;
-			thread.Mem.ReadWord (this.Ea (thread), &mem);
+			uint mem = thread.Mem.ReadWord(this.Ea(thread));
 			thread.Regs.FloatRegs.SetUint (mem, this[BitField.FT]);
 		}
 	}
@@ -4848,10 +4834,9 @@ namespace MinCai.Simulators.Flexim.Architecture.Instructions
 			this.MemODeps.Add (new RegisterDependency (RegisterDependency.Types.Float, this[BitField.FT]));
 		}
 
-		unsafe public override void Execute (IThread thread)
+		public override void Execute (IThread thread)
 		{
-			ulong mem = 0;
-			thread.Mem.ReadDoubleWord (this.Ea (thread), &mem);
+			ulong mem = thread.Mem.ReadDoubleWord(this.Ea(thread));
 			thread.Regs.FloatRegs.SetUlong (mem, this[BitField.FT]);
 		}
 	}
@@ -4948,17 +4933,14 @@ namespace MinCai.Simulators.Flexim.Architecture.Instructions
 			return ea;
 		}
 
-		unsafe public override void Execute (IThread thread)
+		public override void Execute (IThread thread)
 		{
 			uint addr = (uint)(thread.Regs.IntRegs[this[BitField.RS]] + this.Displacement);
 			
 			uint ea = addr & ~3u;
 			uint byte_offset = addr & 3;
 			
-			uint mem = 0;
-			
-			thread.Mem.ReadWord (ea, &mem);
-			
+			uint mem = thread.Mem.ReadWord(ea);
 			uint reg_shift = 24 - 8 * byte_offset;
 			uint mem_shift = 32 - reg_shift;
 			
@@ -4991,17 +4973,14 @@ namespace MinCai.Simulators.Flexim.Architecture.Instructions
 			return ea;
 		}
 
-		unsafe public override void Execute (IThread thread)
+		public override void Execute (IThread thread)
 		{
 			uint addr = (uint)(thread.Regs.IntRegs[this[BitField.RS]] + this.Displacement);
 			
 			uint ea = addr & ~3u;
 			uint byte_offset = addr & 3;
 			
-			uint mem = 0;
-			
-			thread.Mem.ReadWord (ea, &mem);
-			
+			uint mem = thread.Mem.ReadWord(ea);
 			uint reg_shift = 8 * byte_offset;
 			
 			mem = thread.Regs.IntRegs[this[BitField.RT]] << (int)reg_shift | (mem & (BitHelper.Mask ((int)reg_shift)));

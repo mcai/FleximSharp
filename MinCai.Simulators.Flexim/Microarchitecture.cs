@@ -1,5 +1,5 @@
 /*
- * Cpu.cs
+ * Microarchitecture.cs
  * 
  * Copyright © 2010 Min Cai (itecgo@163.com). 
  * 

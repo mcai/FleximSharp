@@ -1,5 +1,5 @@
 /*
- * Kernel.cs
+ * OperatingSystem.cs
  * 
  * Copyright © 2010 Min Cai (itecgo@163.com). 
  * 
@@ -92,11 +92,10 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 						thread.Mem.Map (shdr.Sh_addr, (int)shdr.Sh_size, perm);
 						
 						if (shdr.Sh_type == ElfSectionHeader.Sh_Type.SHT_NOBITS) {
-							thread.Mem.Zero (shdr.Sh_addr, (int)shdr.Sh_size);
+							thread.Mem.Zero(shdr.Sh_addr, (int)shdr.Sh_size);
+							
 						} else {
-							fixed (byte* buf = &shdr.Content[0]) {
-								thread.Mem.InitBlock (shdr.Sh_addr, shdr.Sh_size, buf);
-							}
+							thread.Mem.InitBlock(shdr.Sh_addr, (int)shdr.Sh_size, shdr.Content);
 						}
 					}
 				} else if (shdr.Sh_type == ElfSectionHeader.Sh_Type.SHT_DYNAMIC || shdr.Sh_type == ElfSectionHeader.Sh_Type.SHT_DYNSYM) {
@@ -106,13 +105,8 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			
 			this.ProgramEntry = file.Header.E_entry;
 			
-			const uint STACK_BASE = 0xc0000000;
-			const uint MMAP_BASE = 0xd4000000;
-			const uint MAX_ENVIRON = (16 * 1024);
-			const uint STACK_SIZE = (1024 * 1024);
-			
 			thread.Mem.Map (STACK_BASE - STACK_SIZE, (int)STACK_SIZE, MemoryAccessType.Read | MemoryAccessType.Write);
-			thread.Mem.Zero (STACK_BASE - STACK_SIZE, (int)STACK_SIZE);
+			thread.Mem.Zero(STACK_BASE - STACK_SIZE, (int)STACK_SIZE);
 			
 			stackPtr = STACK_BASE - MAX_ENVIRON;
 			
@@ -132,21 +126,23 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			for (int i = 0; i < this.Argc; i++) {
 				thread.Mem.WriteWord ((uint)(argAddr + i * Marshal.SizeOf (typeof(uint))), stackPtr);
 				
-				char* arg = (char*)Marshal.StringToHGlobalAnsi (this.Args[i]);
-				thread.Mem.WriteString (stackPtr, arg);
-				Marshal.FreeHGlobal ((IntPtr)arg);
+				char* arg = (char*)Marshal.StringToHGlobalAnsi (this.Args[i]); //TODO: remove unsafe
 				
+				thread.Mem.WriteString (stackPtr, arg);
 				stackPtr += (uint)(PtrHelper.Strlen (arg) + 1);
+				
+				Marshal.FreeHGlobal ((IntPtr)arg);
 			}
 			
 			for (int i = 0; i < this.Envs.Count; i++) {
 				thread.Mem.WriteWord ((uint)(envAddr + i * Marshal.SizeOf (typeof(uint))), stackPtr);
 				
-				char* e = (char*)Marshal.StringToHGlobalAnsi (this.Envs[i]);
-				thread.Mem.WriteString (stackPtr, e);
-				Marshal.FreeHGlobal ((IntPtr)e);
+				char* e = (char*)Marshal.StringToHGlobalAnsi (this.Envs[i]); //TODO: remove unsafe
 				
+				thread.Mem.WriteString (stackPtr, e);
 				stackPtr += (uint)(PtrHelper.Strlen (e) + 1);
+				
+				Marshal.FreeHGlobal ((IntPtr)e);
 			}
 			
 			if (stackPtr + Marshal.SizeOf (typeof(uint)) >= STACK_BASE) {
@@ -171,7 +167,7 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			get { return (uint)this.Args.Count; }
 		}
 
-		unsafe public List<string> Envs { get; private set; }
+		public List<string> Envs { get; private set; }
 
 		public uint Brk { get; set; }
 		public uint MmapBrk { get; private set; }
@@ -183,6 +179,11 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 		public uint Egid { get; private set; }
 		public uint Pid { get; private set; }
 		public uint Ppid { get; private set; }
+			
+		private static uint STACK_BASE = 0xc0000000;
+		private static uint MMAP_BASE = 0xd4000000;
+		private static uint MAX_ENVIRON = 16 * 1024;
+		private static uint STACK_SIZE = 1024 * 1024;
 	}
 
 	static internal class SyscallEmulation
@@ -306,37 +307,42 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 		}
 
 		[Syscall("read", 3)]
-		unsafe private static int ReadImpl (Thread thread)
+		private static int ReadImpl (Thread thread)
 		{
 			int fd = (int)thread.GetSyscallArg (0);
 			uint bufAddr = thread.GetSyscallArg (1);
 			uint count = thread.GetSyscallArg (2);
 			
-			IntPtr buf = Syscall.malloc (count);
+			IntPtr buf = Marshal.AllocHGlobal ((int)count);
 			
 			int ret = (int)Syscall.read (fd, buf, count);
 			if (ret > 0) {
-				thread.Mem.WriteBlock (bufAddr, (uint)ret, (byte*)buf);
+				byte[] dataToWrite = new byte[ret];
+				Marshal.Copy(buf, dataToWrite, 0, ret);
+				
+				thread.Mem.WriteBlock(bufAddr, (uint)ret, dataToWrite);
 			}
 			
-			Syscall.free (buf);
+			Marshal.FreeHGlobal (buf);
 			
 			return ret;
 		}
 
 		[Syscall("write", 4)]
-		unsafe private static int WriteImpl (Thread thread)
+		private static int WriteImpl (Thread thread)
 		{
 			int fd = (int)thread.GetSyscallArg (0);
 			uint bufAddr = thread.GetSyscallArg (1);
 			uint count = thread.GetSyscallArg (2);
 			
-			IntPtr buf = Syscall.malloc (count);
+			byte[] dataToWrite = thread.Mem.ReadBlock(bufAddr, (int)count);
 			
-			thread.Mem.ReadBlock (bufAddr, (int)count, (byte*)buf);
+			IntPtr buf = Marshal.AllocHGlobal((int)count);
+			Marshal.Copy(dataToWrite, 0, buf, (int)count);
+			
 			int ret = (int)Syscall.write (fd, buf, count);
 			
-			Syscall.free (buf);
+			Marshal.FreeHGlobal (buf);
 			
 			return ret;
 		}
@@ -351,7 +357,7 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			uint mode = thread.GetSyscallArg (2);
 			
 			fixed (char* pathPtr = &path[0]) {
-				thread.Mem.ReadString (addr, (int)MAX_BUFFER_SIZE, pathPtr);
+				thread.Mem.ReadString (addr, (int)MAX_BUFFER_SIZE, pathPtr); //TODO: remove unsafe
 			}
 			
 			int hostFlags = 0;
@@ -448,20 +454,32 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 		}
 
 		[Syscall("fstat", 108)]
-		unsafe private static int FstatImpl (Thread thread)
+		private static int FstatImpl (Thread thread)
 		{
 			int fd = (int)thread.GetSyscallArg (0);
 			uint bufAddr = thread.GetSyscallArg (1);
-			Mono.Unix.Native.Stat buf = new Mono.Unix.Native.Stat ();
-			int ret = Syscall.fstat (fd, out buf);
+			Mono.Unix.Native.Stat stat = new Mono.Unix.Native.Stat ();
+			int ret = Syscall.fstat (fd, out stat);
 			if (ret >= 0) {
-				thread.Mem.WriteBlock (bufAddr, (uint)Marshal.SizeOf (typeof(Mono.Unix.Native.Stat)), (byte*)&buf);
+				int sizeOfDataToWrite = Marshal.SizeOf (typeof(Mono.Unix.Native.Stat));
+				
+				IntPtr statPtr = Marshal.AllocHGlobal (sizeOfDataToWrite);
+				Marshal.StructureToPtr (stat, statPtr, false);
+			
+				byte[] dataToWrite = new byte[sizeOfDataToWrite];
+				Marshal.Copy(statPtr, dataToWrite, 0, sizeOfDataToWrite);
+				
+				Marshal.FreeHGlobal (statPtr);
+				
+				thread.Mem.WriteBlock (bufAddr, (uint)sizeOfDataToWrite, dataToWrite);
+				
+				
 			}
 			return ret;
 		}
 
 		[Syscall("uname", 122)]
-		unsafe private static int UnameImpl (Thread thread)
+		private static int UnameImpl (Thread thread)
 		{
 			Utsname un = new Utsname ();
 			un.sysname = "Linux";
@@ -470,12 +488,17 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			un.version = "Tue Apr 5 12:21:57 UTC 2005";
 			un.machine = "mips";
 			
-			IntPtr unPtr = Marshal.AllocHGlobal (Marshal.SizeOf (typeof(Utsname)));
+			int sizeOfDataToWrite = Marshal.SizeOf (typeof(Utsname));
+			
+			IntPtr unPtr = Marshal.AllocHGlobal (sizeOfDataToWrite);
 			Marshal.StructureToPtr (un, unPtr, false);
 			
-			thread.Mem.WriteBlock (thread.GetSyscallArg (0), (uint)Marshal.SizeOf (typeof(Utsname)), (byte*)unPtr);
+			byte[] dataToWrite = new byte[sizeOfDataToWrite];
+			Marshal.Copy(unPtr, dataToWrite, 0, sizeOfDataToWrite);
 			
 			Marshal.FreeHGlobal (unPtr);
+			
+			thread.Mem.WriteBlock (thread.GetSyscallArg (0), (uint)sizeOfDataToWrite, dataToWrite);
 			
 			return 0;
 		}
