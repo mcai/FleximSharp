@@ -1,24 +1,35 @@
---------------------------------
-Flexim# - A modular and highly extensible multicore simulator written in C#/Mono.
-(version: 0.1 Prerelease)
---------------------------------
+ _______________________________________
+/ README: FleximSharp - A modular and   \
+| highly extensible multicore simulator |
+\ written in C#/Mono.                   /
+ ---------------------------------------
+        \   ^__^
+         \  (oo)\_______
+            (__)\       )\/\
+                ||----w |
+                ||     ||
 
-This README briefly describes what Flexim# is and how to setup & run Flexim#. For more details, 
-please refer to the Flexim# User Guide under the subdirectory doc/ of the distribution.
+Current Version: 0.1 Pre-release.
+
+This README briefly describes what FleximSharp is and how to setup & run FleximSharp. For more details, 
+please refer to the FleximSharp User Guide under the subdirectory doc/ of the distribution.
 
 == License Information ==
-   Copyright (c) 2010 by Min Cai <itecgo@163.com>
+   Copyright (c) 2010 by Min Cai <min.cai.china@gmail.com>
    
    This program is free software, licensed under the GPL3.
    Please, read the license file "COPYING" for further information.
 
 == About ==
-   Flexim# is an active clone of Flexim written in C#/Mono.
+   FleximSharp is an active clone of Flexim written in C#/Mono.
    It is a modular and highly extensible architectural simulator for evaluating
    emerging multicore processors. It can run statically compiled MIPS32 LE programs.
+   
+   FleximSharp strives to provide a clearly-written, object-oriented, type-safe and pointerless
+   multicore simulation environment running on managed .NET CLR for architectural researchers.
 
 == Web Site ==   
-   Please obtain the latest Flexim# code from http://github.com/mcai/FleximSharp.
+   Please obtain the latest FleximSharp code from http://github.com/mcai/FleximSharp.
 
 == Key Features ==
    Architectural:
@@ -48,34 +59,34 @@ please refer to the Flexim# User Guide under the subdirectory doc/ of the distri
  
  2. Make sure that you have the latest Mono and MonoDevelop installed.
    If not, type the following command to install them:
-   'sudo apt-get install mono monodevelop'
+   'sudo apt-get install monodevelop'
 
-== How to compile Benchmarks for Flexim# ==
-   Flexim# supports the statically linked MIPS32 LE binaries. It supports the full set of wcet_bench benchmarks.
+== How to compile Benchmarks for FleximSharp ==
+   FleximSharp supports the statically linked MIPS32 LE binaries. It supports the full set of wcet_bench benchmarks.
    Other popular benchmarks such as Olden and CPU2006 are being tested.
  
    Download and unpack cross-compiler-mipsel.tar.bz2 from http://github.com/mcai/flexim/downloads/.
-   Use it to compile MIPS32 LE binaries to be simulated by Flexim#.
+   Use it to compile MIPS32 LE binaries to be simulated by FleximSharp.
    See the Makefiles under the subdirectory tests/ of the distribution for sample use.
 
-== How to Build and Run Flexim# ==
- 1. Unpack the zip or tar file containing the Flexim# source.
+== How to Build and Run FleximSharp ==
+ 1. Unpack the zip or tar file containing the FleximSharp source.
  
  2. In the main directory of the distribution (the one that this file is in), you can
     edit and build Impetus source code by opening the .NET solution file within MonoDevelop.
-    Note: By default, the flexim# binary is placed in the MinCai.Simulators.Flexim/bin/Debug folder.
+    Note: By default, the FleximSharp binary is placed in the MinCai.Simulators.Flexim/bin/Debug folder.
 
  3. In order to run the simulator, you will need to set up a few configuration files.
-    The Flexim# User Guide describes these files in detail.
+    The FleximSharp User Guide describes these files in detail.
     A few sample configuration files have been provided for your reference.
 
 
-Good Luck!
+Happy hacking!
 
 Min Cai
 
 School of Computer Science and Technology
 Beijing Institute of Technology
 Beijing, China
-<itecgo@163.com>
+<min.cai.china@gmail.com>
   

@@ -1,9 +1,9 @@
 /*
  * Startup.cs
  * 
- * Copyright © 2010 Min Cai (itecgo@163.com). 
+ * Copyright © 2010 Min Cai (min.cai.china@gmail.com). 
  * 
- * This file is part of the Flexim# multicore architectural simulator.
+ * This file is part of the FleximSharp multicore architectural simulator.
  * 
  * Flexim is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
  * GNU General Public License for more details.
  * 
  * You should have received a copy of the GNU General Public License
- * along with Flexim#.  If not, see <http ://www.gnu.org/licenses/>.
+ * along with FleximSharp.  If not, see <http ://www.gnu.org/licenses/>.
  */
 
 using System.IO;
@@ -30,8 +30,8 @@ namespace MinCai.Simulators.Flexim.Startup
 	{		
 		public static int Main (string[] args)
 		{		
-			Logger.Info (Logger.Categories.Simulator, "Flexim# - A modular and highly extensible multicore simulator written in C#/Mono.");
-			Logger.Info (Logger.Categories.Simulator, "Copyright © 2010 Min Cai (itecgo@163.com).");
+			Logger.Info (Logger.Categories.Simulator, "FleximSharp - A modular and highly extensible multicore simulator written in C#/Mono.");
+			Logger.Info (Logger.Categories.Simulator, "Copyright © 2010 Min Cai (min.cai.china@gmail.com).");
 			Logger.Info (Logger.Categories.Simulator, "");
 			
 //			string simulationTitle = "WCETBench-fir-1x1";

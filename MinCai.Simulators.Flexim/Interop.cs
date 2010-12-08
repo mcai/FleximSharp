@@ -1,9 +1,9 @@
 /*
  * Interop.cs
  * 
- * Copyright © 2010 Min Cai (itecgo@163.com). 
+ * Copyright © 2010 Min Cai (min.cai.china@gmail.com). 
  * 
- * This file is part of the Flexim# multicore architectural simulator.
+ * This file is part of the FleximSharp multicore architectural simulator.
  * 
  * Flexim is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
  * GNU General Public License for more details.
  * 
  * You should have received a copy of the GNU General Public License
- * along with Flexim#.  If not, see <http ://www.gnu.org/licenses/>.
+ * along with FleximSharp.  If not, see <http ://www.gnu.org/licenses/>.
  */
 
 using System;
@@ -1118,7 +1118,6 @@ namespace MinCai.Simulators.Flexim.Interop
 	{
 		void Run ();
 
-		bool CanRun { get; }
 		MemoryManagementUnit MMU { get; }
 		List<ICore> Cores { get; }
 		MemorySystem MemorySystem { get; }

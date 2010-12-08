@@ -1,9 +1,9 @@
 /*
  * Microarchitecture.cs
  * 
- * Copyright © 2010 Min Cai (itecgo@163.com). 
+ * Copyright © 2010 Min Cai (min.cai.china@gmail.com). 
  * 
- * This file is part of the Flexim# multicore architectural simulator.
+ * This file is part of the FleximSharp multicore architectural simulator.
  * 
  * Flexim is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
  * GNU General Public License for more details.
  * 
  * You should have received a copy of the GNU General Public License
- * along with Flexim#.  If not, see <http ://www.gnu.org/licenses/>.
+ * along with FleximSharp.  If not, see <http ://www.gnu.org/licenses/>.
  */
 
 using System;
@@ -890,7 +890,6 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 		public bool IsStoreOperandReady {
 			get {
 				MemoryOp memOp = this.DynamicInstruction.StaticInstruction as MemoryOp;
-				
 				return memOp.MemIDeps.GetRange (1, memOp.MemIDeps.Count - 1).All (iDep => this.SrcPhysRegs[iDep].IsReady);
 			}
 		}
@@ -1822,10 +1821,6 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			this.MemorySystem = new MemorySystem (this);
 		}
 
-		public bool CanRun {
-			get { return this.ActiveThreadCount > 0; }
-		}
-
 		public void Run ()
 		{
 			DateTime beginTime = DateTime.Now;
@@ -1833,7 +1828,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 //			Barrier barrier = new Barrier(this.Cores.Count);
 //			barrier.Wait();
 			
-			while (this.CanRun && this.Simulation.IsRunning) {
+			while (this.ActiveThreadCount > 0 && this.Simulation.IsRunning) {
 				foreach (var core in this.Cores) {
 					core.AdvanceOneCycle ();
 				}
@@ -1851,7 +1846,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 		}
 
 		public MemoryManagementUnit MMU {
-			get { return this.MemorySystem.MMU; }
+			get { return this.MemorySystem != null ? this.MemorySystem.MMU : null; }
 		}
 
 		public List<ICore> Cores { get; private set; }
