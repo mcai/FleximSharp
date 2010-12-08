@@ -23,6 +23,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading;
@@ -202,32 +203,18 @@ namespace MinCai.Simulators.Flexim.Common
 			return fcsr;
 		}
 	}
-
-	static internal class PtrHelper
-	{
-		unsafe public static ulong Strlen (char* s)
+	
+	static internal class StringHelper
+	{		
+		public static byte[] StringToBytes(string str, out int bytesCount)
 		{
-			ulong cnt = 0;
-			byte* b = (byte*)s;
-			while (*b != 0) {
-				b++;
-				cnt++;
-			}
-			return cnt;
+			bytesCount = ASCIIEncoding.ASCII.GetByteCount(str) + 1;
+			return ASCIIEncoding.ASCII.GetBytes(str + char.MinValue);
 		}
-
-		unsafe public static void Memcpy (byte* pDest, byte* pSource, int Count)
+		
+		public static string BytesToString(byte[] bytes)
 		{
-			for (uint i = 0; i < Count; i++) {
-				*pDest++ = *pSource++;
-			}
-		}
-
-		unsafe public static void Memset (byte* pDest, byte byteVal, int Count)
-		{
-			for (uint i = 0; i < Count; i++) {
-				*pDest++ = byteVal;
-			}
+			return ASCIIEncoding.ASCII.GetString(bytes.TakeWhile(b => !b.Equals(char.MinValue)).ToArray());
 		}
 	}
 

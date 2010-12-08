@@ -118,6 +118,14 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			this.Access (addr, (int)size, ref data, MemoryAccessType.Write);
 		}
 		
+		public int WriteString(uint addr, string str)
+		{
+			int bytesCount;
+			byte[] blks = StringHelper.StringToBytes(str, out bytesCount);			
+			WriteBlock(addr, (uint)bytesCount, blks);
+			return bytesCount;
+		}
+		
 		public byte ReadByte(uint addr)
 		{
 			byte[] data = new byte[1];
@@ -145,28 +153,18 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			this.Access(addr, 8, ref data, MemoryAccessType.Read);
 			return BitConverter.ToUInt64(data, 0);
 		}
-
-		unsafe public void WriteString (uint addr, char* str)
-		{
-			this.Access (addr, (int)(PtrHelper.Strlen (str) + 1), (byte*)str, MemoryAccessType.Write);
-		}
-
-		unsafe public int ReadString (uint addr, int size, char* str)
-		{
-			int i;
-			for (i = 0; i < size; i++) {
-				this.Access ((uint)(addr + i), 1, (byte*)(str + i), MemoryAccessType.Read);
-				if (str[i] == 0)
-					break;
-			}
-			return i;
-		}
 		
 		public byte[] ReadBlock(uint addr, int size)
 		{
 			byte[] data = new byte[size];
 			this.Access(addr, size, ref data, MemoryAccessType.Read);
 			return data;
+		}
+		
+		public string ReadString(uint addr, int size)
+		{
+			byte[] blks = ReadBlock(addr, size);
+			return StringHelper.BytesToString(blks);
 		}
 		
 		public void Zero(uint addr, int size)
@@ -186,19 +184,6 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 				
 				size -= chunksize;
 				bufOffset += (uint)chunksize;
-				addr += (uint)chunksize;
-			}
-		}
-
-		unsafe private void Access (uint addr, int size, byte* buf, MemoryAccessType access)
-		{
-			while (size > 0) {
-				uint offset = this.GetOffset (addr);
-				int chunksize = Math.Min (size, (int)(MemoryConstants.PAGE_SIZE - offset));
-				this.AccessPageBoundary (addr, chunksize, buf, access);
-				
-				size -= chunksize;
-				buf += chunksize;
 				addr += (uint)chunksize;
 			}
 		}
@@ -289,37 +274,6 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			this.mappedSpace -= MemoryConstants.PAGE_SIZE;
 			
 			page = null;
-		}
-
-		unsafe private void AccessPageBoundary (uint addr, int size, byte* buf, MemoryAccessType access)
-		{
-			MemoryPage page = this.GetPage (addr);
-			
-			if (page == null) {
-				throw new SegmentationFaultException (addr);
-			}
-			if ((page.Permission & access) != access) {
-				Logger.Fatalf (Logger.Categories.Memory, "Memory.accessPageBoundary: permission denied at 0x{0:x8}, page.Permission: 0x{1:x8}, access: 0x{2:x8}", addr, page.Permission, access);
-			}
-			
-			uint offset = this.GetOffset (addr);
-			Debug.Assert (offset + size <= MemoryConstants.PAGE_SIZE);
-			
-			fixed (byte* data = &page.Data[offset]) {
-				switch (access) {
-				case MemoryAccessType.Read:
-				case MemoryAccessType.Execute:
-					PtrHelper.Memcpy (buf, data, size);
-					break;
-				case MemoryAccessType.Write:
-				case MemoryAccessType.Init:
-					PtrHelper.Memcpy (data, buf, size);
-					break;
-				default:
-					Logger.Panic (Logger.Categories.Memory, "Memory.accessPageBoundary: unknown access");
-					break;
-				}
-			}
 		}
 
 		private void AccessPageBoundary (uint addr, int size, ref byte[] buf, uint bufOffset, MemoryAccessType access)

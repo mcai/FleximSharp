@@ -27,9 +27,9 @@ using MinCai.Simulators.Flexim.Microarchitecture;
 namespace MinCai.Simulators.Flexim.Startup
 {
 	public class FleximMain
-	{
+	{		
 		public static int Main (string[] args)
-		{
+		{		
 			Logger.Info (Logger.Categories.Simulator, "Flexim# - A modular and highly extensible multicore simulator written in C#/Mono.");
 			Logger.Info (Logger.Categories.Simulator, "Copyright © 2010 Min Cai (itecgo@163.com).");
 			Logger.Info (Logger.Categories.Simulator, "");

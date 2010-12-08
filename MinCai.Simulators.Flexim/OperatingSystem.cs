@@ -60,7 +60,7 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			this.LoadInternal (thread, file);
 		}
 
-		unsafe private void LoadInternal (Thread thread, ElfFile file)
+		private void LoadInternal (Thread thread, ElfFile file)
 		{
 			uint dataBase = 0;
 			uint dataSize = 0;
@@ -125,24 +125,14 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			
 			for (int i = 0; i < this.Argc; i++) {
 				thread.Mem.WriteWord ((uint)(argAddr + i * Marshal.SizeOf (typeof(uint))), stackPtr);
-				
-				char* arg = (char*)Marshal.StringToHGlobalAnsi (this.Args[i]); //TODO: remove unsafe
-				
-				thread.Mem.WriteString (stackPtr, arg);
-				stackPtr += (uint)(PtrHelper.Strlen (arg) + 1);
-				
-				Marshal.FreeHGlobal ((IntPtr)arg);
+				int strLen = thread.Mem.WriteString(stackPtr, this.Args[i]);
+				stackPtr += (uint)strLen;
 			}
 			
 			for (int i = 0; i < this.Envs.Count; i++) {
 				thread.Mem.WriteWord ((uint)(envAddr + i * Marshal.SizeOf (typeof(uint))), stackPtr);
-				
-				char* e = (char*)Marshal.StringToHGlobalAnsi (this.Envs[i]); //TODO: remove unsafe
-				
-				thread.Mem.WriteString (stackPtr, e);
-				stackPtr += (uint)(PtrHelper.Strlen (e) + 1);
-				
-				Marshal.FreeHGlobal ((IntPtr)e);
+				int strLen = thread.Mem.WriteString(stackPtr, this.Envs[i]);
+				stackPtr += (uint)strLen;
 			}
 			
 			if (stackPtr + Marshal.SizeOf (typeof(uint)) >= STACK_BASE) {
@@ -348,17 +338,13 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 		}
 
 		[Syscall("open", 5)]
-		unsafe private static int OpenImpl (Thread thread)
+		private static int OpenImpl (Thread thread)
 		{
-			char[] path = new char[MAX_BUFFER_SIZE];
-			
 			uint addr = thread.GetSyscallArg (0);
 			uint tgtFlags = thread.GetSyscallArg (1);
 			uint mode = thread.GetSyscallArg (2);
 			
-			fixed (char* pathPtr = &path[0]) {
-				thread.Mem.ReadString (addr, (int)MAX_BUFFER_SIZE, pathPtr); //TODO: remove unsafe
-			}
+			string path = thread.Mem.ReadString(addr, (int)MAX_BUFFER_SIZE);
 			
 			int hostFlags = 0;
 			foreach (var mapping in OpenFlagMappings) {
@@ -372,10 +358,7 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 				Logger.Fatalf (Logger.Categories.Syscall, "Syscall: open: cannot decode flags 0x{0:x8}", tgtFlags);
 			}
 			
-			StringBuilder sb = new StringBuilder ();
-			sb.Append (path);
-			
-			int fd = (int)Syscall.open (sb.ToString (), (OpenFlags)hostFlags, (FilePermissions)mode);
+			int fd = (int)Syscall.open (path, (OpenFlags)hostFlags, (FilePermissions)mode);
 			
 			return fd;
 		}

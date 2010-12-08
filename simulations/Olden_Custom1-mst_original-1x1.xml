@@ -2,15 +2,15 @@
   <SimulationConfig architectureConfigTitle="shared_l2_cmp_1x1">
     <ContextConfig workloadSetTitle="Olden_Custom1" workloadTitle="mst_original" />
   </SimulationConfig>
-  <SimulationStat cyclesPerSecond="12225.7207207207" duration="333" instsPerCycle="0.568899074343585" totalCycles="4071165" totalInsts="2316082">
+  <SimulationStat cyclesPerSecond="12453.2385321101" duration="327" instsPerCycle="0.568753224601193" totalCycles="4072209" totalInsts="2316082">
     <ProcessorStat>
       <CoreStat>
         <CacheStat accesses="280358" blockingReads="0" blockingWrites="0" evictions="53" hits="280068" nonblockingReads="280358" nonblockingWrites="0" noRetryAccesses="280358" noRetryHits="280068" noRetryReadHits="280068" noRetryReads="280358" noRetryWriteHits="0" noRetryWrites="0" readHits="280068" readRetries="0" reads="280358" writeHits="0" writeRetries="0" writes="0" />
-        <CacheStat accesses="2146886" blockingReads="0" blockingWrites="0" evictions="19157" hits="2123784" nonblockingReads="626580" nonblockingWrites="1520306" noRetryAccesses="602536" noRetryHits="583091" noRetryReadHits="379822" noRetryReads="396994" noRetryWriteHits="203269" noRetryWrites="205542" readHits="608747" readRetries="0" reads="626580" writeHits="1515037" writeRetries="0" writes="1520306" />
+        <CacheStat accesses="2145269" blockingReads="0" blockingWrites="0" evictions="19156" hits="2122264" nonblockingReads="625101" nonblockingWrites="1520168" noRetryAccesses="602543" noRetryHits="583100" noRetryReadHits="379831" noRetryReads="397001" noRetryWriteHits="203269" noRetryWrites="205542" readHits="607286" readRetries="0" reads="625101" writeHits="1514978" writeRetries="0" writes="1520168" />
       </CoreStat>
       <ContextStat totalInsts="2316082" />
     </ProcessorStat>
-    <CacheStat accesses="39331" blockingReads="0" blockingWrites="0" evictions="0" hits="36930" nonblockingReads="17460" nonblockingWrites="21871" noRetryAccesses="39328" noRetryHits="36927" noRetryReadHits="17144" noRetryReads="17457" noRetryWriteHits="19783" noRetryWrites="21871" readHits="17147" readRetries="0" reads="17460" writeHits="19783" writeRetries="0" writes="21871" />
+    <CacheStat accesses="39330" blockingReads="0" blockingWrites="0" evictions="0" hits="36929" nonblockingReads="17460" nonblockingWrites="21870" noRetryAccesses="39326" noRetryHits="36925" noRetryReadHits="17143" noRetryReads="17456" noRetryWriteHits="19782" noRetryWrites="21870" readHits="17147" readRetries="0" reads="17460" writeHits="19782" writeRetries="0" writes="21870" />
     <MainMemoryStat accesses="2401" reads="313" writes="2088" />
   </SimulationStat>
 </Simulation>
