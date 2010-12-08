@@ -33,7 +33,7 @@ please refer to the FleximSharp User Guide under the subdirectory doc/ of the di
 
 == Key Features ==
    Architectural:
-   * Simulation of a classic five-stage superscalar pipeline with out-of-order execution.
+   * Simulation of a superscalar pipeline with out-of-order execution.
    
    * Multi-level memory hierarchy with the directory-based MESI cache coherence protocol.
    
@@ -51,7 +51,7 @@ please refer to the FleximSharp User Guide under the subdirectory doc/ of the di
      e.g., wcet_bench, Olden and CPU2006.
      
    * Easy to begin with and easy to use. No scripting.
-     Only required are a statically compiled simulator executable and a few XML files.
+     Only required are Mono Runtime, the simulator executable and a few XML files.
 
 == System Requirements ==
  1. Make sure that you have a Ubuntu 10.10 linux machine.
