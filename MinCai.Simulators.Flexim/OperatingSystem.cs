@@ -439,10 +439,10 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 		{
 			int fd = (int)thread.GetSyscallArg (0);
 			uint bufAddr = thread.GetSyscallArg (1);
-			Mono.Unix.Native.Stat stat = new Mono.Unix.Native.Stat ();
+			Stat stat = new Stat ();
 			int ret = Syscall.fstat (fd, out stat);
 			if (ret >= 0) {
-				int sizeOfDataToWrite = Marshal.SizeOf (typeof(Mono.Unix.Native.Stat));
+				int sizeOfDataToWrite = Marshal.SizeOf (typeof(Stat));
 				
 				IntPtr statPtr = Marshal.AllocHGlobal (sizeOfDataToWrite);
 				Marshal.StructureToPtr (stat, statPtr, false);

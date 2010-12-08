@@ -102,34 +102,34 @@ namespace MinCai.Simulators.Flexim.Interop
 
 	public sealed class WorkloadSet
 	{
-		public sealed class Serializer : XmlConfigFileSerializer<WorkloadSet>
+		public sealed class Serializer : XmlConfigSerializer<WorkloadSet>
 		{
 			public Serializer ()
 			{
 			}
 
-			public override XmlConfigFile Save (WorkloadSet workloadSet)
+			public override XmlConfig Save (WorkloadSet workloadSet)
 			{
-				XmlConfigFile xmlConfigFile = new XmlConfigFile ("WorkloadSet");
+				XmlConfig xmlConfig = new XmlConfig ("WorkloadSet");
 				
-				xmlConfigFile["title"] = workloadSet.Title;
+				xmlConfig["title"] = workloadSet.Title;
 				
 				foreach (var pair in workloadSet.Workloads) {
 					Workload workload = pair.Value;
 					
-					xmlConfigFile.Entries.Add (Workload.Serializer.SingleInstance.Save(workload));
+					xmlConfig.Entries.Add (Workload.Serializer.SingleInstance.Save(workload));
 				}
 				
-				return xmlConfigFile;
+				return xmlConfig;
 			}
 
-			public override WorkloadSet Load (XmlConfigFile xmlConfigFile)
+			public override WorkloadSet Load (XmlConfig xmlConfig)
 			{
-				string workloadSetTitle = xmlConfigFile["title"];
+				string workloadSetTitle = xmlConfig["title"];
 				
 				WorkloadSet workloadSet = new WorkloadSet (workloadSetTitle);
 				
-				foreach (var entry in xmlConfigFile.Entries) {
+				foreach (var entry in xmlConfig.Entries) {
 					workloadSet.Register (Workload.Serializer.SingleInstance.Load(entry));
 				}
 				
@@ -489,32 +489,32 @@ namespace MinCai.Simulators.Flexim.Interop
 
 	public sealed class ArchitectureConfig : Config
 	{
-		public sealed class Serializer : XmlConfigFileSerializer<ArchitectureConfig>
+		public sealed class Serializer : XmlConfigSerializer<ArchitectureConfig>
 		{
 			public Serializer ()
 			{
 			}
 
-			public override XmlConfigFile Save (ArchitectureConfig architectureConfig)
+			public override XmlConfig Save (ArchitectureConfig architectureConfig)
 			{
-				XmlConfigFile xmlConfigFile = new XmlConfigFile ("ArchitectureConfig");
+				XmlConfig xmlConfig = new XmlConfig ("ArchitectureConfig");
 				
-				xmlConfigFile["title"] = architectureConfig.Title;
+				xmlConfig["title"] = architectureConfig.Title;
 				
-				xmlConfigFile.Entries.Add (ProcessorConfig.Serializer.SingleInstance.Save (architectureConfig.Processor));
-				xmlConfigFile.Entries.Add (CacheConfig.Serializer.SingleInstance.Save (architectureConfig.L2Cache));
-				xmlConfigFile.Entries.Add (MainMemoryConfig.Serializer.SingleInstance.Save (architectureConfig.MainMemory));
+				xmlConfig.Entries.Add (ProcessorConfig.Serializer.SingleInstance.Save (architectureConfig.Processor));
+				xmlConfig.Entries.Add (CacheConfig.Serializer.SingleInstance.Save (architectureConfig.L2Cache));
+				xmlConfig.Entries.Add (MainMemoryConfig.Serializer.SingleInstance.Save (architectureConfig.MainMemory));
 				
-				return xmlConfigFile;
+				return xmlConfig;
 			}
 
-			public override ArchitectureConfig Load (XmlConfigFile xmlConfigFile)
+			public override ArchitectureConfig Load (XmlConfig xmlConfig)
 			{
-				string title = xmlConfigFile["title"];
+				string title = xmlConfig["title"];
 				
-				ProcessorConfig processor = ProcessorConfig.Serializer.SingleInstance.Load (xmlConfigFile.Entries[0]);
-				CacheConfig l2Cache = CacheConfig.Serializer.SingleInstance.Load (xmlConfigFile.Entries[1]);
-				MainMemoryConfig mainMemory = MainMemoryConfig.Serializer.SingleInstance.Load (xmlConfigFile.Entries[2]);
+				ProcessorConfig processor = ProcessorConfig.Serializer.SingleInstance.Load (xmlConfig.Entries[0]);
+				CacheConfig l2Cache = CacheConfig.Serializer.SingleInstance.Load (xmlConfig.Entries[1]);
+				MainMemoryConfig mainMemory = MainMemoryConfig.Serializer.SingleInstance.Load (xmlConfig.Entries[2]);
 				
 				ArchitectureConfig architectureConfig = new ArchitectureConfig (title, processor, l2Cache, mainMemory);
 				
@@ -1216,32 +1216,32 @@ namespace MinCai.Simulators.Flexim.Interop
 
 	public sealed class Simulation
 	{
-		public sealed class Serializer : XmlConfigFileSerializer<Simulation>
+		public sealed class Serializer : XmlConfigSerializer<Simulation>
 		{
 			public Serializer ()
 			{
 			}
 
-			public override XmlConfigFile Save (Simulation simulation)
+			public override XmlConfig Save (Simulation simulation)
 			{
-				XmlConfigFile xmlConfigFile = new XmlConfigFile ("Simulation");
+				XmlConfig xmlConfig = new XmlConfig ("Simulation");
 				
-				xmlConfigFile["title"] = simulation.Title;
-				xmlConfigFile["cwd"] = simulation.Cwd;
+				xmlConfig["title"] = simulation.Title;
+				xmlConfig["cwd"] = simulation.Cwd;
 				
-				xmlConfigFile.Entries.Add (SimulationConfig.Serializer.SingleInstance.Save (simulation.Config));
-				xmlConfigFile.Entries.Add (SimulationStat.Serializer.SingleInstance.Save (simulation.Stat));
+				xmlConfig.Entries.Add (SimulationConfig.Serializer.SingleInstance.Save (simulation.Config));
+				xmlConfig.Entries.Add (SimulationStat.Serializer.SingleInstance.Save (simulation.Stat));
 				
-				return xmlConfigFile;
+				return xmlConfig;
 			}
 
-			public override Simulation Load (XmlConfigFile xmlConfigFile)
+			public override Simulation Load (XmlConfig xmlConfig)
 			{
-				string title = xmlConfigFile["title"];
-				string cwd = xmlConfigFile["cwd"];
+				string title = xmlConfig["title"];
+				string cwd = xmlConfig["cwd"];
 				
-				SimulationConfig config = SimulationConfig.Serializer.SingleInstance.Load (xmlConfigFile.Entries[0]);
-//				TODO: SimulationStat stat = SimulationStat.Serializer.SingleInstance.Load (xmlConfigFile.Entries[1]);
+				SimulationConfig config = SimulationConfig.Serializer.SingleInstance.Load (xmlConfig.Entries[0]);
+//				TODO: SimulationStat stat = SimulationStat.Serializer.SingleInstance.Load (xmlConfig.Entries[1]);
 				SimulationStat stat = new SimulationStat (config.Architecture.Processor.Cores.Count, config.Architecture.Processor.NumThreadsPerCore);
 				
 				Simulation simulation = new Simulation (title, cwd, config, stat);

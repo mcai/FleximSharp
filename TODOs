@@ -1,8 +1,7 @@
-1. Cleanup of XmlConfig stuff...
-2. Verification of Branch predictor stuff.
-3. Multi-level cache hierarchy configuration.
-4. benchmarking.
-5. performance optimization.
-6. thread state maintanence.
-7. predicate-based uniform pipeline shared resource scheduling.
-8. bpred refactoring, simple variant first, like in SMTSIM.
+1. Verification of Branch predictor stuff.
+2. Multi-level cache hierarchy configuration.
+3. benchmarking.
+4. performance optimization.
+5. thread state maintanence.
+6. predicate-based uniform pipeline shared resource scheduling.
+7. bpred refactoring, simple variant first, like in SMTSIM.

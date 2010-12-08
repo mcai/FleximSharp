@@ -84,11 +84,6 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			this.pages = new Dictionary<uint, MemoryPage> ();
 		}
 		
-		public void InitBlock (uint addr, int size, byte[] data)
-		{
-			this.Access (addr, (int)size, ref data, MemoryAccessType.Init);
-		}
-		
 		public void WriteByte(uint addr, byte data)
 		{
 			byte[] data1 = new byte[]{data};
@@ -171,6 +166,11 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 		{
 			byte[] dataToZero = Enumerable.Repeat<byte>(0, size).ToArray();
 			this.Access(addr, size, ref dataToZero, MemoryAccessType.Write);
+		}
+		
+		public void InitBlock (uint addr, int size, byte[] data)
+		{
+			this.Access (addr, (int)size, ref data, MemoryAccessType.Init);
 		}
 		
 		private void Access (uint addr, int size, ref byte[] buf, MemoryAccessType access)
@@ -321,22 +321,22 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 		private ulong mappedSpace = 0;
 		private ulong maxMappedSpace = 0;
 
-		public static uint GetTag (uint addr)
+		private static uint GetTag (uint addr)
 		{
 			return addr & ~(MemoryConstants.PAGE_SIZE - 1);
 		}
 
-		public static uint GetOffset (uint addr)
+		private static uint GetOffset (uint addr)
 		{
 			return addr & (MemoryConstants.PAGE_SIZE - 1);
 		}
 
-		public static uint GetIndex (uint addr)
+		private static uint GetIndex (uint addr)
 		{
 			return (addr >> (int)MemoryConstants.LOG_PAGE_SIZE) % MemoryConstants.PAGE_COUNT;
 		}
 
-		public static bool IsAligned (uint addr)
+		private static bool IsAligned (uint addr)
 		{
 			return GetOffset (addr) == 0;
 		}

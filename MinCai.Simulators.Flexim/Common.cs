@@ -28,7 +28,6 @@ using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Xml;
-using Mono.Unix.Native;
 
 namespace MinCai.Simulators.Flexim.Common
 {
@@ -354,7 +353,7 @@ namespace MinCai.Simulators.Flexim.Common
 			}
 		}
 
-		public void save (string fileName)
+		public void Save (string fileName)
 		{
 			using (StreamWriter sw = new StreamWriter (fileName)) {
 				foreach (var sectionPair in this.Sections) {
@@ -444,19 +443,12 @@ namespace MinCai.Simulators.Flexim.Common
 		private static string IS_PLACEHOLDER = "IsNull";
 	}
 
-	public sealed class XmlConfigFile : XmlConfig
-	{
-		public XmlConfigFile (string typeName) : base(typeName)
-		{
-		}
-	}
-
 	public abstract class XmlConfigSerializer<T>
 	{
 		public abstract XmlConfig Save (T config);
 		public abstract T Load (XmlConfig xmlConfig);
 
-		public static XmlConfig SaveList<K> (string name, List<K> entries, Func<K, XmlConfig> saveEntry)
+		protected static XmlConfig SaveList<K> (string name, List<K> entries, Func<K, XmlConfig> saveEntry)
 		{
 			XmlConfig xmlConfig = new XmlConfig (name);
 			
@@ -467,7 +459,7 @@ namespace MinCai.Simulators.Flexim.Common
 			return xmlConfig;
 		}
 
-		public static List<K> LoadList<K> (XmlConfig xmlConfig, Func<XmlConfig, K> loadEntry)
+		protected static List<K> LoadList<K> (XmlConfig xmlConfig, Func<XmlConfig, K> loadEntry)
 		{
 			List<K> entries = new List<K> ();
 			
@@ -478,7 +470,7 @@ namespace MinCai.Simulators.Flexim.Common
 			return entries;
 		}
 
-		public static XmlConfig SaveDictionary<KeyT, K> (string name, SortedDictionary<KeyT, K> entries, Func<K, XmlConfig> saveEntry)
+		protected static XmlConfig SaveDictionary<KeyT, K> (string name, SortedDictionary<KeyT, K> entries, Func<K, XmlConfig> saveEntry)
 		{
 			XmlConfig xmlConfig = new XmlConfig (name);
 			
@@ -491,7 +483,7 @@ namespace MinCai.Simulators.Flexim.Common
 			return xmlConfig;
 		}
 
-		public static SortedDictionary<KeyT, K> LoadDictionary<KeyT, K> (XmlConfig xmlConfig, Func<XmlConfig, K> loadEntry, Func<K, KeyT> keyOf)
+		protected static SortedDictionary<KeyT, K> LoadDictionary<KeyT, K> (XmlConfig xmlConfig, Func<XmlConfig, K> loadEntry, Func<K, KeyT> keyOf)
 		{
 			SortedDictionary<KeyT, K> entries = new SortedDictionary<KeyT, K> ();
 			
@@ -502,12 +494,6 @@ namespace MinCai.Simulators.Flexim.Common
 			
 			return entries;
 		}
-	}
-
-	public abstract class XmlConfigFileSerializer<T>
-	{
-		public abstract XmlConfigFile Save (T config);
-		public abstract T Load (XmlConfigFile xmlConfigFile);
 
 		public void SaveXML (T config, string cwd, string fileName)
 		{
@@ -516,10 +502,8 @@ namespace MinCai.Simulators.Flexim.Common
 
 		public void SaveXML (T config, string xmlFileName)
 		{
-//			Logger.Infof(Logger.Categories.XML, "{0:s}.SaveXML({1:s})", "XMLConfigFileSerializer", xmlFileName);
-			
-			XmlConfigFile xmlConfigFile = this.Save (config);
-			Serialize (xmlConfigFile, xmlFileName);
+			XmlConfig xmlConfig = this.Save (config);
+			Serialize (xmlConfig, xmlFileName);
 		}
 
 		public T LoadXML (string cwd, string fileName)
@@ -529,13 +513,11 @@ namespace MinCai.Simulators.Flexim.Common
 
 		public T LoadXML (string xmlFileName)
 		{
-//			Logger.Infof(Logger.Categories.XML, "{0:s}.LoadXML({1:s})", "XMLConfigFileSerializer", xmlFileName);
-			
-			XmlConfigFile xmlConfigFile = Deserialize (xmlFileName);
-			return this.Load (xmlConfigFile);
+			XmlConfig xmlConfig = Deserialize (xmlFileName);
+			return this.Load (xmlConfig);
 		}
 
-		public static void Serialize (XmlConfig xmlConfig, XmlElement rootElement)
+		private static void Serialize (XmlConfig xmlConfig, XmlElement rootElement)
 		{
 			XmlElement element = rootElement.OwnerDocument.CreateElement (xmlConfig.TypeName);
 			rootElement.AppendChild (element);
@@ -543,7 +525,7 @@ namespace MinCai.Simulators.Flexim.Common
 			Serialize (xmlConfig, rootElement, element);
 		}
 
-		public static void Serialize (XmlConfig xmlConfig, XmlElement rootElement, XmlElement element)
+		private static void Serialize (XmlConfig xmlConfig, XmlElement rootElement, XmlElement element)
 		{
 			foreach (var pair in xmlConfig.Attributes) {
 				element.SetAttribute (pair.Key, pair.Value);
@@ -554,25 +536,25 @@ namespace MinCai.Simulators.Flexim.Common
 			}
 		}
 
-		public static void Serialize (XmlConfigFile xmlConfigFile, string xmlFileName)
+		private static void Serialize (XmlConfig xmlConfig, string xmlFileName)
 		{
 			XmlDocument doc = new XmlDocument ();
 			
-			XmlElement rootElement = doc.CreateElement (xmlConfigFile.TypeName);
+			XmlElement rootElement = doc.CreateElement (xmlConfig.TypeName);
 			doc.AppendChild (rootElement);
 			
-			foreach (var pair in xmlConfigFile.Attributes) {
+			foreach (var pair in xmlConfig.Attributes) {
 				rootElement.SetAttribute (pair.Key, pair.Value);
 			}
 			
-			foreach (var child in xmlConfigFile.Entries) {
+			foreach (var child in xmlConfig.Entries) {
 				Serialize (child, rootElement);
 			}
 			
 			doc.Save (xmlFileName);
 		}
 
-		public static void Deserialize (XmlConfig rootEntry, XmlElement rootElement)
+		private static void Deserialize (XmlConfig rootEntry, XmlElement rootElement)
 		{
 			XmlConfig entry = new XmlConfig (rootElement.Name);
 			
@@ -590,27 +572,27 @@ namespace MinCai.Simulators.Flexim.Common
 			rootEntry.Entries.Add (entry);
 		}
 
-		public static XmlConfigFile Deserialize (string xmlFileName)
+		private static XmlConfig Deserialize (string xmlFileName)
 		{
 			XmlTextReader reader = new XmlTextReader (xmlFileName);
 			XmlDocument doc = new XmlDocument ();
 			doc.Load (reader);
 			reader.Close ();
 			
-			XmlConfigFile xmlConfigFile = new XmlConfigFile (doc.DocumentElement.Name);
+			XmlConfig xmlConfig = new XmlConfig (doc.DocumentElement.Name);
 			
 			foreach (XmlAttribute attribute in doc.DocumentElement.Attributes) {
-				xmlConfigFile[attribute.Name] = attribute.Value;
+				xmlConfig[attribute.Name] = attribute.Value;
 			}
 			
 			foreach (var node in doc.DocumentElement.ChildNodes) {
 				if (node is XmlElement) {
 					XmlElement childElement = (XmlElement)node;
-					Deserialize (xmlConfigFile, childElement);
+					Deserialize (xmlConfig, childElement);
 				}
 			}
 			
-			return xmlConfigFile;
+			return xmlConfig;
 		}
 	}
 
@@ -726,8 +708,7 @@ namespace MinCai.Simulators.Flexim.Common
 
 		public static void Panic (Categories category, string text)
 		{
-			Console.Error.WriteLine (Message (category + "|" + "panic", text));
-			Syscall.exit (-1);
+			throw new Exception (Message (category + "|" + "panic", text));
 		}
 
 		public static Dictionary<Categories, bool> LogSwitches { get; private set; }
