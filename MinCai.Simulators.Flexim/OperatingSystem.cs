@@ -77,8 +77,6 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 			foreach (var shdr in file.SectionHeaders) {
 				if (shdr.Sh_type == ElfSectionHeader.Sh_Type.SHT_PROGBITS || shdr.Sh_type == ElfSectionHeader.Sh_Type.SHT_NOBITS) {
 					if (shdr.Sh_size > 0 && ((shdr.Sh_flags & ElfSectionHeader.Sh_Flags.SHF_ALLOC) != 0)) {
-//						Logger.Infof (Logger.Categories.PROCESS, "Loading {0:s} ({1:d} bytes) at address 0x{2:x8}", shdr.Name, shdr.Sh_size, shdr.Sh_addr);
-						
 						MemoryAccessType perm = MemoryAccessType.Init | MemoryAccessType.Read;
 						
 						if ((shdr.Sh_flags & ElfSectionHeader.Sh_Flags.SHF_WRITE) != 0) {
@@ -455,8 +453,6 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 				Marshal.FreeHGlobal (statPtr);
 				
 				thread.Mem.WriteBlock (bufAddr, (uint)sizeOfDataToWrite, dataToWrite);
-				
-				
 			}
 			return ret;
 		}
