@@ -1,28 +1,34 @@
 <?xml version="1.0"?>
 <ArchitectureConfig title="shared_l2_cmp_2x2">
    <ProcessorConfig physicalRegisterFileCapacity="128" decodeWidth="4" decodeBufferCapacity="4" loadStoreQueueCapacity="32" maxInsts="2000000" maxTime="7200" numThreadsPerCore="2" issueWidth="4" reorderBufferCapacity="96" maxCycle="2000000" commitWidth="4">
+	<Cores>
       <CoreConfig>
-         <CacheConfig level="0" missLatency="3" policy="LRU" name="l1I-0" hitLatency="1">
+         <CacheConfig level="0" policy="LRU" name="l1I-0" hitLatency="1">
 			<CacheGeometry size="16384" associativity="4" lineSize="64">
 			</CacheGeometry>
          </CacheConfig>
-         <CacheConfig level="0" missLatency="3" policy="LRU" name="l1D-0" hitLatency="1">
+         <CacheConfig level="0" policy="LRU" name="l1D-0" hitLatency="1">
 			<CacheGeometry size="16384" associativity="4" lineSize="64">
 			</CacheGeometry>
          </CacheConfig>
       </CoreConfig>
       <CoreConfig>
-         <CacheConfig level="0" missLatency="3" policy="LRU" name="l1I-1" hitLatency="1">
+         <CacheConfig level="0" policy="LRU" name="l1I-1" hitLatency="1">
 			<CacheGeometry size="16384" associativity="4" lineSize="64">
 			</CacheGeometry>
          </CacheConfig>
-         <CacheConfig level="0" missLatency="3" policy="LRU" name="l1D-1" hitLatency="1">
+         <CacheConfig level="0" policy="LRU" name="l1D-1" hitLatency="1">
 			<CacheGeometry size="16384" associativity="4" lineSize="64">
 			</CacheGeometry>
          </CacheConfig>
       </CoreConfig>
+    </Cores>
+     <TlbConfig hitLatency="2" missLatency="30">
+		<CacheGeometry size="16384" associativity="4" lineSize="64">
+		</CacheGeometry>
+     </TlbConfig>
    </ProcessorConfig>
-   <CacheConfig level="1" missLatency="7" policy="LRU" name="l2" hitLatency="4">
+   <CacheConfig level="1" policy="LRU" name="l2" hitLatency="4">
 		<CacheGeometry size="262144" associativity="4" lineSize="64">
 		</CacheGeometry>
    </CacheConfig>

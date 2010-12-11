@@ -56,7 +56,7 @@ namespace MinCai.Simulators.Flexim.Interop
 
 		public WorkloadSet WorkloadSet { get; set; }
 	}
-	
+
 	public sealed partial class WorkloadSet
 	{
 		public WorkloadSet (string title)
@@ -84,27 +84,39 @@ namespace MinCai.Simulators.Flexim.Interop
 	public abstract class Config
 	{
 	}
-	
+
+	public sealed partial class TlbConfig : Config
+	{
+		public TlbConfig (CacheGeometry geometry, uint hitLatency, uint missLatency)
+		{
+			this.Geometry = geometry;
+			this.HitLatency = hitLatency;
+			this.MissLatency = missLatency;
+		}
+
+		public CacheGeometry Geometry { get; set; }
+		public uint HitLatency { get; set; }
+		public uint MissLatency { get; set; }
+	}
+
 	public sealed partial class CacheConfig : Config
 	{
-		public CacheConfig (string name, uint level, CacheGeometry geometry, uint hitLatency, uint missLatency, CacheReplacementPolicy policy)
+		public CacheConfig (string name, uint level, CacheGeometry geometry, uint hitLatency, CacheReplacementPolicy policy)
 		{
 			this.Name = name;
 			this.Level = level;
 			this.Geometry = geometry;
 			this.HitLatency = hitLatency;
-			this.MissLatency = missLatency;
 			this.Policy = policy;
 		}
 
 		public string Name { get; set; }
 		public uint Level { get; set; }
-		public CacheGeometry Geometry {get;set;}
+		public CacheGeometry Geometry { get; set; }
 		public uint HitLatency { get; set; }
-		public uint MissLatency { get; set; }
 		public CacheReplacementPolicy Policy { get; set; }
 	}
-	
+
 	public sealed partial class MainMemoryConfig : Config
 	{
 		public MainMemoryConfig (uint latency)
@@ -114,7 +126,7 @@ namespace MinCai.Simulators.Flexim.Interop
 
 		public uint Latency { get; set; }
 	}
-	
+
 	public sealed partial class ContextConfig : Config
 	{
 		public ContextConfig (Workload workload)
@@ -124,7 +136,7 @@ namespace MinCai.Simulators.Flexim.Interop
 
 		public Workload Workload { get; set; }
 	}
-	
+
 	public sealed partial class CoreConfig : Config
 	{
 		public CoreConfig (CacheConfig iCache, CacheConfig dCache)
@@ -136,7 +148,7 @@ namespace MinCai.Simulators.Flexim.Interop
 		public CacheConfig ICache { get; set; }
 		public CacheConfig DCache { get; set; }
 	}
-	
+
 	public sealed partial class ProcessorConfig : Config
 	{
 		public ProcessorConfig (ulong maxCycle, ulong maxInsts, ulong maxTime, uint numThreadsPerCore, uint physicalRegisterFileCapacity, uint decodeWidth, uint issueWidth, uint commitWidth, uint decodeBufferCapacity, uint reorderBufferCapacity,
@@ -170,8 +182,10 @@ namespace MinCai.Simulators.Flexim.Interop
 		public uint DecodeBufferCapcity { get; set; }
 		public uint ReorderBufferCapacity { get; set; }
 		public uint LoadStoreQueueCapacity { get; set; }
+
+		public TlbConfig Tlb { get; set; }
 	}
-	
+
 	public sealed partial class ArchitectureConfig : Config
 	{
 		public ArchitectureConfig (string title, ProcessorConfig processor, CacheConfig l2Cache, MainMemoryConfig mainMemory)
@@ -187,7 +201,7 @@ namespace MinCai.Simulators.Flexim.Interop
 		public CacheConfig L2Cache { get; set; }
 		public MainMemoryConfig MainMemory { get; set; }
 	}
-	
+
 	public sealed partial class SimulationConfig : Config
 	{
 		public SimulationConfig (ArchitectureConfig architecture)
@@ -204,7 +218,28 @@ namespace MinCai.Simulators.Flexim.Interop
 	{
 		public abstract void Reset ();
 	}
-	
+
+	public sealed partial class TlbStat : Stat
+	{
+		public TlbStat (string name)
+		{
+			this.Name = name;
+			this.Reset ();
+		}
+
+		public override void Reset ()
+		{
+			this.Accesses = 0;
+			this.Hits = 0;
+			this.Evictions = 0;
+		}
+
+		public string Name {get; private set;}
+		public ulong Accesses { get; set; }
+		public ulong Hits { get; set; }
+		public ulong Evictions { get; set; }
+	}
+
 	public sealed partial class CacheStat : Stat
 	{
 		public CacheStat ()
@@ -259,7 +294,7 @@ namespace MinCai.Simulators.Flexim.Interop
 		public ulong NoRetryWrites { get; set; }
 		public ulong NoRetryWriteHits { get; set; }
 	}
-	
+
 	public sealed partial class MainMemoryStat : Stat
 	{
 		public MainMemoryStat ()
@@ -278,7 +313,7 @@ namespace MinCai.Simulators.Flexim.Interop
 		public ulong Reads { get; set; }
 		public ulong Writes { get; set; }
 	}
-	
+
 	public sealed partial class ContextStat : Stat
 	{
 		public ContextStat ()
@@ -292,8 +327,11 @@ namespace MinCai.Simulators.Flexim.Interop
 		}
 
 		public ulong TotalInsts { get; set; }
+
+		public TlbStat Itlb { get; set; }
+		public TlbStat Dtlb { get; set; }
 	}
-	
+
 	public sealed partial class CoreStat : Stat
 	{
 		public CoreStat ()
@@ -313,7 +351,7 @@ namespace MinCai.Simulators.Flexim.Interop
 		public CacheStat ICache { get; set; }
 		public CacheStat DCache { get; set; }
 	}
-	
+
 	public sealed partial class ProcessorStat : Stat
 	{
 		public ProcessorStat ()
@@ -338,7 +376,7 @@ namespace MinCai.Simulators.Flexim.Interop
 		public List<CoreStat> Cores { get; private set; }
 		public List<ContextStat> Contexts { get; private set; }
 	}
-	
+
 	public sealed partial class SimulationStat : Stat
 	{
 		public SimulationStat (int numCores, uint numThreadsPerCore)
@@ -405,7 +443,7 @@ namespace MinCai.Simulators.Flexim.Interop
 		List<ICore> Cores { get; }
 		MemorySystem MemorySystem { get; }
 		Simulation Simulation { get; }
-		ProcessorConfig Config {get;}
+		ProcessorConfig Config { get; }
 		ulong CurrentCycle { get; }
 		int ActiveThreadCount { get; set; }
 	}
@@ -422,9 +460,7 @@ namespace MinCai.Simulators.Flexim.Interop
 		void Commit ();
 
 		Sequencer SeqI { get; set; }
-		CoherentCacheNode L1I { get; set; }
 		Sequencer SeqD { get; set; }
-		CoherentCacheNode L1D { get; set; }
 
 		uint Num { get; }
 
@@ -463,6 +499,10 @@ namespace MinCai.Simulators.Flexim.Interop
 		DynamicInstruction DecodeAndExecute ();
 		ReorderBufferEntry GetNextReorderBufferEntryToDispatch ();
 		void RecoverReorderBuffer (ReorderBufferEntry branchReorderBufferEntry);
+		
+		void IFetch (uint addr, bool isRetry, Action onCompletedCallback);
+		void Load (uint addr, bool isRetry, Action onCompletedCallback);
+		void Store (uint addr, bool isRetry, Action onCompletedCallback);
 
 		string Name { get; }
 		uint Num { get; }
@@ -495,7 +535,7 @@ namespace MinCai.Simulators.Flexim.Interop
 
 		ContextStat Stat { get; }
 	}
-	
+
 	public sealed partial class Simulation
 	{
 		public Simulation (string title, string cwd, SimulationConfig config, SimulationStat stat)

@@ -618,7 +618,6 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			this.Add (FunctionalUnit.Types.FloatSquareRoot, 1, 24, 24);
 			
 			this.EventQueue = new DelegateEventQueue ();
-			
 			this.Core.EventProcessors.Add (this.EventQueue);
 		}
 
@@ -1199,7 +1198,8 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 						if (isHitInLoadStoreQueue) {
 							readyQueueEntry1.SignalCompleted ();
 						} else {
-							this.SeqD.Load (this.Processor.MMU.GetPhysicalAddress (readyQueueEntry1.DynamicInstruction.Thread.MemoryMapId, readyQueueEntry1.Ea), false, readyQueueEntry1, delegate(ReorderBufferEntry readyQueueEntry2) { readyQueueEntry2.SignalCompleted (); });
+							readyQueueEntry1.DynamicInstruction.Thread.Load (this.Processor.MMU.GetPhysicalAddress (readyQueueEntry1.DynamicInstruction.Thread.MemoryMapId, readyQueueEntry1.Ea),
+							                false, delegate() { readyQueueEntry1.SignalCompleted (); });
 						}
 					});
 					
@@ -1297,12 +1297,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 		}
 
 		public Sequencer SeqI { get; set; }
-
-		public CoherentCacheNode L1I { get; set; }
-
 		public Sequencer SeqD { get; set; }
-
-		public CoherentCacheNode L1D { get; set; }
 
 		public uint Num { get; private set; }
 		public IProcessor Processor { get; private set; }
@@ -1353,6 +1348,9 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			
 			this.MemoryMapId = MemoryManagementUnit.CurrentMemoryMapId++;
 			this.Mem = new Memory ();
+			
+			this.Itlb = new TranslationLookasideBuffer(this.Core, this.Core.Processor.Config.Tlb, stat.Itlb);
+			this.Dtlb = new TranslationLookasideBuffer(this.Core, this.Core.Processor.Config.Tlb, stat.Dtlb);
 			
 			this.Process.Load (this);
 			
@@ -1422,7 +1420,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			if (cacheLineToFetch != this.LastFetchedCacheLine) {
 				this.LastFetchedCacheLine = cacheLineToFetch;
 				
-				this.Core.SeqI.Load (this.Core.Processor.MMU.GetPhysicalAddress (this.MemoryMapId, this.FetchNpc), false, delegate() { this.IsFetchStalled = false; });
+				this.IFetch (this.Core.Processor.MMU.GetPhysicalAddress (this.MemoryMapId, this.FetchNpc), false, delegate() { this.IsFetchStalled = false; });
 				
 				this.IsFetchStalled = true;
 			}
@@ -1524,7 +1522,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 					}
 					
 					if (loadStoreQueueEntry.DynamicInstruction.StaticInstruction.IsStore) {
-						this.Core.FuPool.Acquire (loadStoreQueueEntry, delegate(ReorderBufferEntry loadStoreQueueEntry1) { this.Core.SeqD.Store (this.Core.Processor.MMU.GetPhysicalAddress (this.MemoryMapId, loadStoreQueueEntry1.Ea), false, delegate() { }); });
+						this.Core.FuPool.Acquire (loadStoreQueueEntry, delegate(ReorderBufferEntry loadStoreQueueEntry1) { this.Store (this.Core.Processor.MMU.GetPhysicalAddress (this.MemoryMapId, loadStoreQueueEntry1.Ea), false, delegate() { }); });
 					}
 					
 					foreach (var oDep in loadStoreQueueEntry.ODeps) {
@@ -1639,6 +1637,75 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			}
 		}
 
+		public void IFetch (uint addr, bool isRetry, Action onCompletedCallback)
+		{
+			uint pending = 2;
+			
+			this.Itlb.Access(addr, delegate() {
+				pending--;
+				
+				if(pending == 0)
+				{
+					onCompletedCallback();
+				}
+			});
+			
+			this.Core.SeqI.Load (addr, isRetry, delegate() {
+				pending--;
+				
+				if(pending == 0)
+				{
+					onCompletedCallback();
+				}
+			});
+		}
+
+		public void Load (uint addr, bool isRetry, Action onCompletedCallback)
+		{
+			uint pending = 2;
+			
+			this.Dtlb.Access(addr,  delegate() {
+				pending--;
+				
+				if(pending == 0)
+				{
+					onCompletedCallback();
+				}
+			});
+			
+			this.Core.SeqD.Load (addr, isRetry,  delegate() {
+				pending--;
+				
+				if(pending == 0)
+				{
+					onCompletedCallback();
+				}
+			});
+		}
+
+		public void Store (uint addr, bool isRetry, Action onCompletedCallback)
+		{
+			uint pending = 2;
+			
+			this.Dtlb.Access(addr,  delegate() {
+				pending--;
+				
+				if(pending == 0)
+				{
+					onCompletedCallback();
+				}
+			});
+			
+			this.Core.SeqD.Store (addr, isRetry,  delegate() {
+				pending--;
+				
+				if(pending == 0)
+				{
+					onCompletedCallback();
+				}
+			});
+		}
+
 		public string Name {
 			get { return "c" + this.Core.Num + "t" + this.Num; }
 		}
@@ -1654,6 +1721,9 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 		public Process Process { get; private set; }
 
 		public Memory Mem { get; private set; }
+		
+		public TranslationLookasideBuffer Itlb {get; private set;}
+		public TranslationLookasideBuffer Dtlb {get; private set;}
 
 		public CombinedRegisterFile Regs { get; private set; }
 
@@ -1721,10 +1791,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 				Sequencer seqD = new Sequencer ("seqD-" + i, l1D);
 				
 				core.SeqI = seqI;
-				core.L1I = l1I;
-				
 				core.SeqD = seqD;
-				core.L1D = l1D;
 				
 				l1I.Next = l1D.Next = this.L2;
 			}

@@ -5,4 +5,5 @@
 5. thread state maintanence.
 6. predicate-based uniform pipeline shared resource scheduling.
 7. bpred refactoring, simple variant first, like in SMTSIM.
-8. tlb integration. see MMU_principle.png for reference.
+8. add on-chip interconnect simulation.
+9. add cycle-accurate DRAM controller simulation.

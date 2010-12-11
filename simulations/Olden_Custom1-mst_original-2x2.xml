@@ -13,8 +13,14 @@
         <CacheStat accesses="280645" blockingReads="0" blockingWrites="288" evictions="46" hits="280171" nonblockingReads="280357" nonblockingWrites="0" noRetryAccesses="280644" noRetryHits="280170" noRetryReadHits="279882" noRetryReads="280356" noRetryWriteHits="288" noRetryWrites="288" readHits="279883" readRetries="0" reads="280357" writeHits="288" writeRetries="0" writes="288" />
         <CacheStat accesses="2743764" blockingReads="0" blockingWrites="20" evictions="19156" hits="2718543" nonblockingReads="727119" nonblockingWrites="2016625" noRetryAccesses="602740" noRetryHits="583284" noRetryReadHits="379996" noRetryReads="397178" noRetryWriteHits="203288" noRetryWrites="205562" readHits="707533" readRetries="0" reads="727119" writeHits="2011010" writeRetries="0" writes="2016645" />
       </CoreStat>
-      <ContextStat totalInsts="2354125" />
-      <ContextStat totalInsts="2316076" />
+      <ContextStat totalInsts="2354125">
+        <TlbStat accesses="0" evictions="0" hits="0" name="itlb" />
+        <TlbStat accesses="0" evictions="0" hits="0" name="dtlb" />
+      </ContextStat>
+      <ContextStat totalInsts="2316076">
+        <TlbStat accesses="0" evictions="0" hits="0" name="itlb" />
+        <TlbStat accesses="0" evictions="0" hits="0" name="dtlb" />
+      </ContextStat>
     </ProcessorStat>
     <CacheStat accesses="88350" blockingReads="0" blockingWrites="0" evictions="2289" hits="77719" nonblockingReads="42144" nonblockingWrites="46206" noRetryAccesses="79052" noRetryHits="72906" noRetryReadHits="33376" noRetryReads="35306" noRetryWriteHits="39530" noRetryWrites="43746" readHits="36692" readRetries="0" reads="42144" writeHits="41027" writeRetries="0" writes="46206" />
     <MainMemoryStat accesses="8500" reads="1985" writes="6515" />

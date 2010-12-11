@@ -673,11 +673,6 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 
 	public sealed class Cache
 	{
-		public Cache (CoherentCache coherentCache)
-			:this(coherentCache.CycleProvider, coherentCache.Config.Geometry)
-		{
-		}
-		
 		public Cache (ICycleProvider cycleProvider, CacheGeometry geometry)
 		{
 			this.CycleProvider = cycleProvider;
@@ -773,39 +768,75 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 		}
 
 		public CacheGeometry Geometry { get; private set; }
-		
-		public uint NumSets {get {return this.Geometry.NumSets;}}
-		public uint Associativity {get {return this.Geometry.Associativity;}}
-		public uint LineSize {get {return this.Geometry.LineSize;}}
+
+		public uint NumSets {
+			get { return this.Geometry.NumSets; }
+		}
+		public uint Associativity {
+			get { return this.Geometry.Associativity; }
+		}
+		public uint LineSize {
+			get { return this.Geometry.LineSize; }
+		}
 
 		public List<CacheSet> Sets { get; private set; }
 		public Directory Directory { get; private set; }
 
-		public ICycleProvider CycleProvider {get; private set;}
+		public ICycleProvider CycleProvider { get; private set; }
 	}
-	
+
 	public sealed class TranslationLookasideBuffer
 	{
-		public TranslationLookasideBuffer(string name, uint hitLatency, uint missLatency)
+		public TranslationLookasideBuffer (ICycleProvider cycleProvider, TlbConfig config, TlbStat stat)
 		{
-			this.Name = name;
-			this.HitLatency = hitLatency;
-			this.MissLatency = missLatency;
+			this.CycleProvider = cycleProvider;
+			this.Config = config;
+			this.Stat = stat;
 			
-			this.Accesses = 0;
-			this.Hits = 0;
-			this.Evictions = 0;
+			this.Cache = new Cache(cycleProvider, config.Geometry);
+			
+			this.EventQueue = new DelegateEventQueue ();
+			this.CycleProvider.EventProcessors.Add (this.EventQueue);
+		}
+
+		public void Access (uint addr, Action onCompletedCallback)
+		{
+			uint @set, way, tag;
+			
+			uint dumbTag;
+			MESIState dumbState;
+			bool hit = this.Cache.FindLine (addr, out @set, out way, out dumbTag, out dumbState, false);
+			
+			this.Stat.Accesses++;
+			if (hit) {
+				this.Stat.Hits++;
+			}
+			
+			if (!hit) {
+				@set = addr.GetIndex (this.Cache.Geometry);
+				tag = addr.GetTag (this.Cache.Geometry);
+				way = this.Cache.FindVictimToEvict (@set);
+				
+				uint dumbTag1;
+				MESIState state;
+				this.Cache.GetLine (@set, way, out dumbTag1, out state);
+				if (state != MESIState.Invalid) {
+					this.Stat.Evictions++;
+				}
+				this.Cache.SetLine (@set, way, tag, MESIState.Modified);
+			}
+			
+			this.Cache.AccessLine (@set, way);
+			this.EventQueue.Schedule(onCompletedCallback, hit ? this.Config.HitLatency : this.Config.MissLatency);
 		}
 		
-		public string Name {get;set;}
-		public Cache Cache {get;set;}
-		
-		public uint HitLatency {get;set;}
-		public uint MissLatency {get;set;}
-		
-		public ulong Accesses {get;set;}
-		public ulong Hits {get;set;}
-		public ulong Evictions {get;set;}
+		public ICycleProvider CycleProvider {get; private set;}
+		public TlbConfig Config {get; private set;}
+		public TlbStat Stat {get; private set;}
+
+		public Cache Cache { get; private set; }
+
+		public DelegateEventQueue EventQueue { get; private set; }
 	}
 
 	public abstract class CoherentCacheNode
@@ -891,11 +922,6 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			this.L1Cache = l1Cache;
 		}
 
-		public void Load (uint addr, bool isRetry, ReorderBufferEntry reorderBufferEntry, Action<ReorderBufferEntry> onCompletedCallback)
-		{
-			this.Load (addr, isRetry, delegate() { onCompletedCallback (reorderBufferEntry); });
-		}
-
 		public override void Load (uint addr, bool isRetry, Action onCompletedCallback)
 		{
 			this.L1Cache.Load (addr, isRetry, onCompletedCallback);
@@ -930,7 +956,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 		{
 			this.Config = config;
 			this.Stat = stat;
-			this.Cache = new Cache (this);
+			this.Cache = new Cache (cycleProvider, config.Geometry);
 			
 			this.Random = new Random ();
 		}

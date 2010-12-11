@@ -21,8 +21,12 @@
             </CacheStat>
          </CoreStat>
          <ContextStat totalInsts="2667">
+			<TlbStat accesses="0" evictions="0" hits="0" name="itlb" />
+			<TlbStat accesses="0" evictions="0" hits="0" name="dtlb" />
          </ContextStat>
          <ContextStat totalInsts="2669">
+			<TlbStat accesses="0" evictions="0" hits="0" name="itlb" />
+			<TlbStat accesses="0" evictions="0" hits="0" name="dtlb" />
          </ContextStat>
       </ProcessorStat>
       <CacheStat hits="4438" noRetryWrites="51" noRetryAccesses="179" writeHits="707" evictions="0" nonblockingReads="3792" reads="3792" blockingReads="0" writeRetries="0" writes="718" noRetryWriteHits="40" readHits="3731" nonblockingWrites="718" blockingWrites="0" noRetryReads="128" noRetryHits="107" readRetries="0" accesses="4510" noRetryReadHits="67">

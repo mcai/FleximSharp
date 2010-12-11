@@ -153,6 +153,41 @@ namespace MinCai.Simulators.Flexim.Interop
 		}
 	}
 	
+	public sealed partial class TlbConfig: Config
+	{
+		public sealed class Serializer: XmlConfigSerializer<TlbConfig>
+		{
+			public Serializer()
+			{
+			}
+			
+			public override XmlConfig Save (TlbConfig tlbConfig)
+			{
+				XmlConfig xmlConfig = new XmlConfig("TlbConfig");
+				xmlConfig["hitLatency"] = tlbConfig.HitLatency + "";
+				xmlConfig["missLatency"] = tlbConfig.MissLatency + "";
+				
+				xmlConfig.Entries.Add(CacheGeometry.Serializer.SingleInstance.Save(tlbConfig.Geometry));
+				
+				return xmlConfig;
+			}
+			
+			public override TlbConfig Load (XmlConfig xmlConfig)
+			{
+				uint hitLatency = uint.Parse(xmlConfig["hitLatency"]);
+				uint missLatency = uint.Parse(xmlConfig["missLatency"]);
+				
+				CacheGeometry geometry = CacheGeometry.Serializer.SingleInstance.Load(xmlConfig.Entries[0]);
+				
+				TlbConfig tlbConfig = new TlbConfig(geometry, hitLatency, missLatency);
+				
+				return tlbConfig;
+			}
+			
+			public static Serializer SingleInstance = new Serializer();
+		}
+	}
+	
 	public sealed partial class CacheConfig : Config
 	{
 		public sealed class Serializer : XmlConfigSerializer<CacheConfig>
@@ -169,7 +204,6 @@ namespace MinCai.Simulators.Flexim.Interop
 				xmlConfig["level"] = cacheConfig.Level + "";
 				
 				xmlConfig["hitLatency"] = cacheConfig.HitLatency + "";
-				xmlConfig["missLatency"] = cacheConfig.MissLatency + "";
 				xmlConfig["policy"] = cacheConfig.Policy + "";
 				
 				xmlConfig.Entries.Add(CacheGeometry.Serializer.SingleInstance.Save(cacheConfig.Geometry));
@@ -183,12 +217,11 @@ namespace MinCai.Simulators.Flexim.Interop
 				uint level = uint.Parse (xmlConfig["level"]);
 				
 				uint hitLatency = uint.Parse (xmlConfig["hitLatency"]);
-				uint missLatency = uint.Parse (xmlConfig["missLatency"]);
 				CacheReplacementPolicy policy = (CacheReplacementPolicy)Enum.Parse (typeof(CacheReplacementPolicy), xmlConfig["policy"]);
 				
 				CacheGeometry geometry = CacheGeometry.Serializer.SingleInstance.Load(xmlConfig.Entries[0]);
 				
-				CacheConfig cacheConfig = new CacheConfig (name, level, geometry, hitLatency, missLatency, policy);
+				CacheConfig cacheConfig = new CacheConfig (name, level, geometry, hitLatency, policy);
 				return cacheConfig;
 			}
 
@@ -317,9 +350,8 @@ namespace MinCai.Simulators.Flexim.Interop
 				xmlConfig["reorderBufferCapacity"] = processorConfig.ReorderBufferCapacity + "";
 				xmlConfig["loadStoreQueueCapacity"] = processorConfig.LoadStoreQueueCapacity + "";
 				
-				foreach (var core in processorConfig.Cores) {
-					xmlConfig.Entries.Add (CoreConfig.Serializer.SingleInstance.Save (core));
-				}
+				ProcessorConfig.Serializer.SaveList("Cores", processorConfig.Cores, coreConfig => CoreConfig.Serializer.SingleInstance.Save(coreConfig));
+				xmlConfig.Entries.Add(TlbConfig.Serializer.SingleInstance.Save(processorConfig.Tlb));
 				
 				return xmlConfig;
 			}
@@ -342,9 +374,8 @@ namespace MinCai.Simulators.Flexim.Interop
 				ProcessorConfig processorConfig = new ProcessorConfig (maxCycle, maxInsts, maxTime, numThreadsPerCore, physicalRegisterFileCapacity, decodeWidth, issueWidth, commitWidth, decodeBufferCapacity, reorderBufferCapacity,
 				loadStoreQueueCapacity);
 				
-				foreach (var entry in xmlConfig.Entries) {
-					processorConfig.Cores.Add (CoreConfig.Serializer.SingleInstance.Load (entry));
-				}
+				processorConfig.Cores.AddRange(ProcessorConfig.Serializer.LoadList(xmlConfig.Entries[0], entry => CoreConfig.Serializer.SingleInstance.Load(entry)));
+				processorConfig.Tlb = TlbConfig.Serializer.SingleInstance.Load(xmlConfig.Entries[1]);				
 				
 				return processorConfig;
 			}
@@ -433,6 +464,44 @@ namespace MinCai.Simulators.Flexim.Interop
 			}
 
 			public static Serializer SingleInstance = new Serializer ();
+		}
+	}
+	
+	public sealed partial class TlbStat: Stat
+	{
+		public sealed class Serializer: XmlConfigSerializer<TlbStat>
+		{
+			public Serializer()
+			{
+			}
+			
+			public override XmlConfig Save (TlbStat tlbStat)
+			{
+				XmlConfig xmlConfig = new XmlConfig("TlbStat");
+				xmlConfig["name"] = tlbStat.Name;
+				xmlConfig["accesses"] = tlbStat.Accesses + "";
+				xmlConfig["hits"] = tlbStat.Hits + "";
+				xmlConfig["evictions"] = tlbStat.Evictions + "";
+				
+				return xmlConfig;
+			}
+			
+			public override TlbStat Load (XmlConfig xmlConfig)
+			{
+				string name = xmlConfig["name"];
+				uint accesses = uint.Parse(xmlConfig["accesses"]);
+				uint hits = uint.Parse(xmlConfig["hits"]);
+				uint evictions = uint.Parse(xmlConfig["evictions"]);
+				
+				TlbStat tlbStat = new TlbStat(name);
+				tlbStat.Accesses = accesses;
+				tlbStat.Hits = hits;
+				tlbStat.Evictions = evictions;
+				
+				return tlbStat;
+			}
+			
+			public static Serializer SingleInstance = new Serializer();
 		}
 	}
 
@@ -579,6 +648,9 @@ namespace MinCai.Simulators.Flexim.Interop
 				
 				xmlConfig["totalInsts"] = contextStat.TotalInsts + "";
 				
+				xmlConfig.Entries.Add(TlbStat.Serializer.SingleInstance.Save(contextStat.Itlb));
+				xmlConfig.Entries.Add(TlbStat.Serializer.SingleInstance.Save(contextStat.Dtlb));
+				
 				return xmlConfig;
 			}
 
@@ -586,8 +658,13 @@ namespace MinCai.Simulators.Flexim.Interop
 			{
 				ulong totalInsts = ulong.Parse (xmlConfig["totalInsts"]);
 				
+				TlbStat itlb = TlbStat.Serializer.SingleInstance.Load(xmlConfig.Entries[0]);
+				TlbStat dtlb = TlbStat.Serializer.SingleInstance.Load(xmlConfig.Entries[1]);
+				
 				ContextStat contextStat = new ContextStat ();
 				contextStat.TotalInsts = totalInsts;
+				contextStat.Itlb = itlb;
+				contextStat.Dtlb = dtlb;
 				
 				return contextStat;
 			}
