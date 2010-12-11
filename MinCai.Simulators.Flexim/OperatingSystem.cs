@@ -234,11 +234,6 @@ namespace MinCai.Simulators.Flexim.OperatingSystem
 				this.Num = num;
 			}
 
-			public override string ToString ()
-			{
-				return string.Format ("[SyscallAttribute: Name={0}, Num={1}]", Name, Num);
-			}
-
 			public string Name { get; set; }
 			public uint Num { get; set; }
 		}

@@ -419,11 +419,6 @@ namespace MinCai.Simulators.Flexim.Common
 			get { return this.Attributes.ContainsKey (IS_PLACEHOLDER) && bool.Parse (this[IS_PLACEHOLDER]) == true; }
 		}
 
-		public override string ToString ()
-		{
-			return string.Format ("[XmlConfig: TypeName={0}, Attributes.Count={1}]", this.TypeName, this.Attributes.Count);
-		}
-
 		public string this[string index] {
 			get { return this.Attributes[index]; }
 			set { this.Attributes[index] = value; }
@@ -724,11 +719,6 @@ namespace MinCai.Simulators.Flexim.Common
 			this.When = when;
 		}
 
-		public override string ToString ()
-		{
-			return string.Format ("[Event: EventType={0}, Context={1}, ScheduledCycle={2}, When={3}]", this.EventType, this.Context, this.ScheduledCycle, this.When);
-		}
-
 		public EventTypeT EventType { get; private set; }
 		public EventContextT Context { get; private set; }
 		public ulong ScheduledCycle { get; private set; }
@@ -957,12 +947,6 @@ namespace MinCai.Simulators.Flexim.Common
 			this.E_shstrndx = this.ReadElf32Half (this.ElfFile.Reader);
 		}
 
-		public override string ToString ()
-		{
-			return string.Format ("[ElfHeader: E_type={0}, E_machine=0x{1:x8}, E_version={2}, E_entry=0x{3:x8}, E_phoff=0x{4:x8}, E_shoff=0x{5:x8}, E_flags=0x{6:x8}, E_ehsize=0x{7:x8}, E_phentsize=0x{8:x8}, E_phnum={9}, E_shentsize=0x{10:x8}, E_shnum={11}, E_shstrndx=0x{12:x8}]", this.E_type, this.E_machine, this.E_version, this.E_entry, this.E_phoff, this.E_shoff, this.E_flags, this.E_ehsize, this.E_phentsize,
-			this.E_phnum, this.E_shentsize, this.E_shnum, this.E_shstrndx);
-		}
-
 		public E_Type E_type { get; private set; }
 		public E_Machine E_machine { get; private set; }
 		public E_Version E_version { get; private set; }
@@ -1010,11 +994,6 @@ namespace MinCai.Simulators.Flexim.Common
 			this.Ei_version = (int)e_ident[6];
 		}
 
-		public override string ToString ()
-		{
-			return string.Format ("[ElfIdentification: Ei_class={0}, Ei_data={1}, Ei_version={2}]", this.Ei_class, this.Ei_data, this.Ei_version);
-		}
-
 		public Ei_Class Ei_class { get; private set; }
 		public Ei_Data Ei_data { get; private set; }
 		public int Ei_version { get; private set; }
@@ -1057,11 +1036,6 @@ namespace MinCai.Simulators.Flexim.Common
 			this.Content = this.ElfFile.Reader.ReadBytes ((int)P_filesz);
 			
 			this.ElfFile.Reader.BaseStream.Seek (position, 0);
-		}
-
-		public override string ToString ()
-		{
-			return string.Format ("[ElfProgramHeader: P_type={0}, P_offset=0x{1:x8}, P_vaddr=0x{2:x8}, P_paddr=0x{3:x8}, P_filesz=0x{4:x8}, P_memsz=0x{5:x8}, P_flags=0x{6:x8}, P_align=0x{7:x8}, Content=0x{8:x8}]", this.P_type, this.P_offset, this.P_vaddr, this.P_paddr, this.P_filesz, this.P_memsz, this.P_flags, this.P_align, this.Content);
 		}
 
 		public P_Type P_type { get; private set; }
@@ -1128,12 +1102,6 @@ namespace MinCai.Simulators.Flexim.Common
 			this.Content = this.ElfFile.Reader.ReadBytes ((int)this.Sh_size);
 			
 			this.ElfFile.Reader.BaseStream.Seek (position, 0);
-		}
-
-		public override string ToString ()
-		{
-			return string.Format ("[ElfSectionHeader: Name={0}, Sh_type={1}, Sh_flags={2}, Sh_addr=0x{3:x8}, Sh_offset=0x{4:x8}, Sh_size={5}, Sh_link={6}, Sh_info={7}, Sh_addralign={8}, Sh_entsize={9}}]", this.Name, this.Sh_type, this.Sh_flags, this.Sh_addr, this.Sh_offset, this.Sh_size, this.Sh_link, this.Sh_info, this.Sh_addralign,
-			this.Sh_entsize);
 		}
 
 		public string Name {
@@ -1255,11 +1223,6 @@ namespace MinCai.Simulators.Flexim.Common
 			this.St_info = this.ReadByte (this.ElfFile.Reader);
 			this.St_other = this.ReadByte (this.ElfFile.Reader);
 			this.St_shndx = this.ReadElf32Half (this.ElfFile.Reader);
-		}
-
-		public override string ToString ()
-		{
-			return string.Format ("[ElfSymbolTableEntry: Name={0}, Binding={1}, Type={2}, St_value={3}, St_size={4}, St_info={5}, St_other={6}, St_shndx={7}]", this.Name, this.Binding, this.Type, this.St_value, this.St_size, this.St_info, this.St_other, this.St_shndx);
 		}
 
 		public string Name {

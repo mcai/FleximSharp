@@ -103,11 +103,6 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			return this.Entries.GetEnumerator ();
 		}
 
-		public override string ToString ()
-		{
-			return string.Format ("[PipelineList: Name={0}, Size={1}, IsEmpty={2}]", this.Name, this.Size, this.IsEmpty);
-		}
-
 		public string Name { get; set; }
 		public List<EntryT> Entries { get; private set; }
 	}
@@ -130,11 +125,6 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			}
 			
 			base.Add (val);
-		}
-
-		public override string ToString ()
-		{
-			return string.Format ("[PipelineQueue: Name={0}, Capacity={1}, Size={2}, IsEmpty={3}, IsFull={4}]", this.Name, this.Capacity, this.Size, this.IsEmpty, this.IsFull);
 		}
 
 		public uint Capacity { get; private set; }
@@ -257,25 +247,25 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 
 	public sealed class BranchTargetBuffer
 	{
-		public BranchTargetBuffer (uint sets, uint assoc)
+		public BranchTargetBuffer (uint numSets, uint associativity)
 		{
-			this.Sets = sets;
-			this.Assoc = assoc;
+			this.NumSets = numSets;
+			this.Associativity = associativity;
 			
-			this.Entries = new BranchTargetBufferEntry[this.Sets * this.Assoc];
-			for (uint i = 0; i < this.Sets * this.Assoc; i++) {
+			this.Entries = new BranchTargetBufferEntry[this.NumSets * this.Associativity];
+			for (uint i = 0; i < this.NumSets * this.Associativity; i++) {
 				this[i] = new BranchTargetBufferEntry ();
 			}
 			
-			if (this.Assoc > 1) {
-				for (uint i = 0; i < this.Sets * this.Assoc; i++) {
-					if (i % this.Assoc != (this.Assoc - 1)) {
+			if (this.Associativity > 1) {
+				for (uint i = 0; i < this.NumSets * this.Associativity; i++) {
+					if (i % this.Associativity != (this.Associativity - 1)) {
 						this[i].Next = this[i + 1];
 					} else {
 						this[i].Next = null;
 					}
 					
-					if (i % this.Assoc != (this.Assoc - 1)) {
+					if (i % this.Associativity != (this.Associativity - 1)) {
 						this[i + 1].Prev = this[i];
 					}
 				}
@@ -287,8 +277,8 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			set { this.Entries[index] = value; }
 		}
 
-		public uint Sets { get; private set; }
-		public uint Assoc { get; private set; }
+		public uint NumSets { get; private set; }
+		public uint Associativity { get; private set; }
 		public BranchTargetBufferEntry[] Entries { get; private set; }
 	}
 
@@ -408,14 +398,14 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 				this.Ras[this.Ras.TopOfStack].Target = (uint)(baddr + Marshal.SizeOf (typeof(uint)));
 			}
 			
-			uint index = (baddr >> (int)BranchPredictorConstants.BRANCH_SHIFT) & (this.Btb.Sets - 1);
+			uint index = (baddr >> (int)BranchPredictorConstants.BRANCH_SHIFT) & (this.Btb.NumSets - 1);
 			
 			BranchTargetBufferEntry btbEntry = null;
 			
-			if (this.Btb.Assoc > 1) {
-				index *= this.Btb.Assoc;
+			if (this.Btb.Associativity > 1) {
+				index *= this.Btb.Associativity;
 				
-				for (uint i = index; i < (index + this.Btb.Assoc); i++) {
+				for (uint i = index; i < (index + this.Btb.Associativity); i++) {
 					if (this.Btb[i].Addr == baddr) {
 						btbEntry = this.Btb[i];
 						break;
@@ -461,14 +451,14 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			}
 			
 			if (isTaken) {
-				uint index = (baddr >> (int)BranchPredictorConstants.BRANCH_SHIFT) & (this.Btb.Sets - 1);
+				uint index = (baddr >> (int)BranchPredictorConstants.BRANCH_SHIFT) & (this.Btb.NumSets - 1);
 				
-				if (this.Btb.Assoc > 1) {
-					index *= this.Btb.Assoc;
+				if (this.Btb.Associativity > 1) {
+					index *= this.Btb.Associativity;
 					
 					BranchTargetBufferEntry lruHead = null, lruItem = null;
 					
-					for (uint i = index; i < (index + this.Btb.Assoc); i++) {
+					for (uint i = index; i < (index + this.Btb.Associativity); i++) {
 						if (this.Btb[i].Addr == baddr) {
 							btbEntry = this.Btb[i];
 						}
@@ -598,11 +588,6 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			this.IsBusy = true;
 		}
 
-		public override string ToString ()
-		{
-			return string.Format ("[FunctionalUnit: Type={0}, OperationLatency={1}, IssueLatency={2}, IsBusy={3}]", this.Type, this.OperationLatency, this.IssueLatency, this.IsBusy);
-		}
-
 		public FunctionalUnitPool Pool { get; private set; }
 		public Types Type { get; private set; }
 		public uint OperationLatency { get; private set; }
@@ -707,11 +692,6 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			this.ReorderBufferEntry = null;
 		}
 
-		public override string ToString ()
-		{
-			return string.Format ("[PhysicalRegister: State={0}, ReorderBufferEntry={1}]", this.State, this.ReorderBufferEntry);
-		}
-
 		public bool IsReady {
 			get { return this.State == States.WrittenBack || this.State == States.Architectural; }
 		}
@@ -760,11 +740,6 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			return freeReg;
 		}
 
-		public override string ToString ()
-		{
-			return string.Format ("[PhysicalRegisterFile: Name={0}, Capacity={1}, Core={2}]", this.Name, this.Capacity, this.Core);
-		}
-
 		public PhysicalRegister this[uint index] {
 			get { return this.Entries[(int)index]; }
 			set { this.Entries[(int)index] = value; }
@@ -811,11 +786,6 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 		{
 			this.Id = CurrentId++;
 			this.DynamicInstruction = dynamicInst;
-		}
-
-		public override string ToString ()
-		{
-			return string.Format ("[DecodeBufferEntry: Id={0}, Npc=0x{1:x8}, Nnpc=0x{2:x8}, PredNpc=0x{3:x8}, PredNnpc=0x{4:x8}, DynamicInstruction={5}, IsSpeculative={6}, StackRecoverIndex={7}, DirUpdate={8}]", this.Id, this.Npc, this.Nnpc, this.PredNpc, this.PredNnpc, this.DynamicInstruction, this.IsSpeculative, this.StackRecoverIndex, this.DirUpdate);
 		}
 
 		public ulong Id { get; private set; }
@@ -868,12 +838,6 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 		public void Invalidate ()
 		{
 			this.IsValid = false;
-		}
-
-		public override string ToString ()
-		{
-			return string.Format ("[ReorderBufferEntry: Id={0}, Npc=0x{1:x8}, Nnpc=0x{2:x8}, PredNpc=0x{3:x8}, PredNnpc=0x{4:x8}, DynamicInstruction={5}, IsDispatched={6}, IsInReadyQueue={7}, IsIssued={8}, IsCompleted={9}, IsValid={10}, LoadStoreQueueEntry={11}, Ea=0x{12:x8}, IsSpeculative={13}, StackRecoverIndex={14}, DirUpdate={15}]", this.Id, this.Npc, this.Nnpc, this.PredNpc, this.PredNnpc, this.DynamicInstruction, this.IsDispatched, this.IsInReadyQueue, this.IsIssued,
-			this.IsCompleted, this.IsValid, this.LoadStoreQueueEntry, this.Ea, this.IsSpeculative, this.StackRecoverIndex, this.DirUpdate);
 		}
 
 		public bool IsAllOperandsReady {
@@ -1454,9 +1418,9 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 
 		public void Fetch ()
 		{
-			uint blockToFetch = BitHelper.Aligned (this.FetchNpc, this.Core.SeqI.BlockSize);
-			if (blockToFetch != this.LastFetchedBlock) {
-				this.LastFetchedBlock = blockToFetch;
+			uint cacheLineToFetch = BitHelper.Aligned (this.FetchNpc, this.Core.SeqI.LineSize);
+			if (cacheLineToFetch != this.LastFetchedCacheLine) {
+				this.LastFetchedCacheLine = cacheLineToFetch;
 				
 				this.Core.SeqI.Load (this.Core.Processor.MMU.GetPhysicalAddress (this.MemoryMapId, this.FetchNpc), false, delegate() { this.IsFetchStalled = false; });
 				
@@ -1479,7 +1443,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 					hasDone = true;
 				}
 				
-				if ((this.FetchPc + Marshal.SizeOf (typeof(uint))) % this.Core.SeqI.BlockSize == 0) {
+				if ((this.FetchPc + Marshal.SizeOf (typeof(uint))) % this.Core.SeqI.LineSize == 0) {
 					hasDone = true;
 				}
 				
@@ -1698,7 +1662,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 		public uint FetchNnpc { get; set; }
 
 		private bool IsFetchStalled { get; set; }
-		private uint LastFetchedBlock { get; set; }
+		private uint LastFetchedCacheLine { get; set; }
 
 		public IBranchPredictor Bpred { get; set; }
 

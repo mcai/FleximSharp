@@ -42,13 +42,13 @@ namespace MinCai.Simulators.Flexim.Startup
 //			string simulationTitle = "Olden_Custom1-mst_original-2x2";
 			//string simulationTitle = "Olden_Custom1-mst_original-Olden_Custom1_em3d_original-2x1";
 			
-			Simulation simulation = Simulation.LoadXML (Processor.WorkDirectory + Path.DirectorySeparatorChar + "simulations", simulationTitle + ".xml");
+			Simulation simulation = Simulation.Serializer.SingleInstance.LoadXML (Processor.WorkDirectory + Path.DirectorySeparatorChar + "simulations", simulationTitle + ".xml");
 			
 			Logger.Infof (Logger.Categories.Simulator, "run simulation(title={0:s})", simulationTitle);
 			
 			simulation.Execute ();
 			
-			Simulation.SaveXML (simulation);
+			Simulation.Serializer.SingleInstance.SaveXML (simulation);
 			
 			return 0;
 		}

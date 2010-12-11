@@ -149,11 +149,6 @@ namespace MinCai.Simulators.Flexim.Architecture
 			this.Data = data;
 		}
 
-		public override string ToString ()
-		{
-			return string.Format ("[MachineInstruction: Data=0x{0:x8}]", this.Data);
-		}
-
 		public uint this[BitField field] {
 			get { return BitHelper.Bits (this.Data, (int)(field.Hi), (int)(field.Lo)); }
 		}
@@ -323,11 +318,6 @@ namespace MinCai.Simulators.Flexim.Architecture
 			}
 		}
 
-		public override string ToString ()
-		{
-			return string.Format ("[IntRegisterFile: Regs.Length={0}]", this.Regs.Length);
-		}
-
 		public uint this[uint index] {
 			get {
 				Debug.Assert (index < RegisterConstants.NUM_INT_REGS);
@@ -370,9 +360,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 		{
 			Debug.Assert (index < RegisterConstants.NUM_FLOAT_REGS);
 			
-			float val = this.Regs.f[index];
-//			Logger.Infof(Logger.Categories.REGISTER, "    Reading float reg {0:d} as {1:f}.", index, val);
-			return val;
+			return this.Regs.f[index];
 		}
 
 		public void SetFloat (float val, uint index)
@@ -380,16 +368,13 @@ namespace MinCai.Simulators.Flexim.Architecture
 			Debug.Assert (index < RegisterConstants.NUM_FLOAT_REGS);
 			
 			this.Regs.f[index] = val;
-//			Logger.Infof(Logger.Categories.REGISTER, "    Setting float reg {0:d} to {1:f}.", index, val);
 		}
 
 		public double GetDouble (uint index)
 		{
 			Debug.Assert (index < RegisterConstants.NUM_FLOAT_REGS);
 			
-			double val = this.Regs.d[index / 2];
-//			Logger.Infof(Logger.Categories.REGISTER, "    Reading double reg {0:d} as {1:f}.", index, val);
-			return val;
+			return this.Regs.d[index / 2];
 		}
 
 		public void SetDouble (double val, uint index)
@@ -397,16 +382,13 @@ namespace MinCai.Simulators.Flexim.Architecture
 			Debug.Assert (index < RegisterConstants.NUM_FLOAT_REGS);
 			
 			this.Regs.d[index / 2] = val;
-//			Logger.Infof(Logger.Categories.REGISTER, "    Setting double reg {0:d} to {1:f}.", index, val);
 		}
 
 		public uint GetUint (uint index)
 		{
 			Debug.Assert (index < RegisterConstants.NUM_FLOAT_REGS);
 			
-			uint val = (uint)(this.Regs.i[index]);
-//			Logger.Infof(Logger.Categories.REGISTER, "    Reading float reg {0:d} bits as 0x{1:x8}.", index, val);
-			return val;
+			return (uint)(this.Regs.i[index]);
 		}
 
 		public void SetUint (uint val, uint index)
@@ -414,16 +396,13 @@ namespace MinCai.Simulators.Flexim.Architecture
 			Debug.Assert (index < RegisterConstants.NUM_FLOAT_REGS);
 			
 			this.Regs.i[index] = (int)val;
-//			Logger.Infof(Logger.Categories.REGISTER, "    Setting float reg (0:d} bits to 0x{1:x8}.", index, val);
 		}
 
 		public ulong GetUlong (uint index)
 		{
 			Debug.Assert (index < RegisterConstants.NUM_FLOAT_REGS);
 			
-			ulong val = (ulong)(this.Regs.l[index / 2]);
-//			Logger.Infof(Logger.Categories.REGISTER, "    Reading double reg {0:d} bits as 0x{1:x8}.", index, val);
-			return val;
+			return (ulong)(this.Regs.l[index / 2]);
 		}
 
 		public void SetUlong (ulong val, uint index)
@@ -431,12 +410,6 @@ namespace MinCai.Simulators.Flexim.Architecture
 			Debug.Assert (index < RegisterConstants.NUM_FLOAT_REGS);
 			
 			this.Regs.l[index / 2] = (long)val;
-//			Logger.Infof(Logger.Categories.REGISTER, "    Setting double reg {0:d} bits to 0x{1:x8}.", index, val);
-		}
-
-		public override string ToString ()
-		{
-			return string.Format ("[FloatRegisterFile]");
 		}
 
 		[StructLayout(LayoutKind.Explicit)]
@@ -608,11 +581,6 @@ namespace MinCai.Simulators.Flexim.Architecture
 			this.Num = num;
 		}
 
-		public override string ToString ()
-		{
-			return string.Format ("[RegisterDependency: Type={0}, Num={1}]", this.Type, this.Num);
-		}
-
 		public Types Type { get; private set; }
 		public uint Num { get; private set; }
 	}
@@ -665,11 +633,6 @@ namespace MinCai.Simulators.Flexim.Architecture
 		protected abstract void SetupDeps ();
 
 		public abstract void Execute (IThread thread);
-
-		public override string ToString ()
-		{
-			return string.Format ("[StaticInstruction: MachineInstruction={0}, Mnemonic={1}, Flags={2}, FunctionalUnitType={3}]", this.MachineInstruction, this.Mnemonic, this.Flags, this.FunctionalUnitType);
-		}
 
 		public uint this[BitField field] {
 			get { return this.MachineInstruction[field]; }

@@ -52,6 +52,7 @@
     <Compile Include="MemoryHierarchy.cs" />
     <Compile Include="OperatingSystem.cs" />
     <Compile Include="Instructions.cs" />
+    <Compile Include="Interop.IO.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
 </Project>
