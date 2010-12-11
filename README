@@ -12,7 +12,7 @@
 Current Version: 0.1 Pre-release.
 
 This README briefly describes what FleximSharp is and how to setup & run FleximSharp. For more details, 
-please refer to the FleximSharp User Guide under the subdirectory doc/ of the distribution.
+please refer to the FleximSharp User Guide (to be added in near future)  under the subdirectory doc/ of the distribution.
 
 == License Information ==
    Copyright (c) 2010 by Min Cai <min.cai.china@gmail.com>
@@ -21,7 +21,7 @@ please refer to the FleximSharp User Guide under the subdirectory doc/ of the di
    Please, read the license file "COPYING" for further information.
 
 == About ==
-   FleximSharp is an active clone of Flexim written in C#/Mono.
+   FleximSharp is an active clone of Flexim (http://github.com/mcai/flexim) written in C#/Mono.
    It is a modular and highly extensible architectural simulator for evaluating
    emerging multicore processors. It can run statically compiled MIPS32 LE programs.
    
@@ -67,17 +67,17 @@ please refer to the FleximSharp User Guide under the subdirectory doc/ of the di
  
    Download and unpack cross-compiler-mipsel.tar.bz2 from http://github.com/mcai/flexim/downloads/.
    Use it to compile MIPS32 LE binaries to be simulated by FleximSharp.
-   See the Makefiles under the subdirectory tests/ of the distribution for sample use.
+   See the Makefiles under the subdirectory tests/ of the Flexim distribution for sample use.
 
 == How to Build and Run FleximSharp ==
  1. Unpack the zip or tar file containing the FleximSharp source.
  
  2. In the main directory of the distribution (the one that this file is in), you can
-    edit and build Impetus source code by opening the .NET solution file within MonoDevelop.
+    edit and build FleximSharp source code by opening the .NET solution file within MonoDevelop.
     Note: By default, the FleximSharp binary is placed in the MinCai.Simulators.Flexim/bin/Debug folder.
 
  3. In order to run the simulator, you will need to set up a few configuration files.
-    The FleximSharp User Guide describes these files in detail.
+    The FleximSharp User Guide (to be added in near future) describes these files in detail.
     A few sample configuration files have been provided for your reference.
 
 
