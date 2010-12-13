@@ -488,7 +488,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 
 		public void Acquire (ReorderBufferEntry reorderBufferEntry, Action onCompletedCallback)
 		{
-			this.Pool.EventQueue.Schedule (delegate() {
+			this.Pool.EventQueue.Schedule (() => {
 				this.IsBusy = false;
 				onCompletedCallback ();
 			}, this.IssueLatency + this.OperationLatency);
@@ -547,9 +547,9 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			FunctionalUnit fu = this.FindFree (type);
 			
 			if (fu != null) {
-				fu.Acquire (reorderBufferEntry, delegate() { onCompletedCallback (reorderBufferEntry); });
+				fu.Acquire (reorderBufferEntry, () => onCompletedCallback (reorderBufferEntry));
 			} else {
-				this.EventQueue.Schedule (delegate() { this.Acquire (reorderBufferEntry, onCompletedCallback); }, 10);
+				this.EventQueue.Schedule (() => this.Acquire (reorderBufferEntry, onCompletedCallback), 10);
 			}
 		}
 
@@ -874,73 +874,13 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 				if (isAllStalled) {
 					break;
 				}
-				
-				DecodeBufferEntry decodeBufferEntry = this.Threads[(int)decodeThreadId].DecodeBuffer.First ();
-				
-				this.Threads[(int)decodeThreadId].Regs.IntRegs[RegisterConstants.ZERO_REG] = 0;
-				
-				DynamicInstruction dynamicInst = decodeBufferEntry.DynamicInstruction;
-				
-				if (!dynamicInst.StaticInstruction.IsNop) {
-					ReorderBufferEntry reorderBufferEntry = new ReorderBufferEntry (dynamicInst, dynamicInst.StaticInstruction.IDeps, dynamicInst.StaticInstruction.ODeps);
-					reorderBufferEntry.Npc = decodeBufferEntry.Npc;
-					reorderBufferEntry.Nnpc = decodeBufferEntry.Nnpc;
-					reorderBufferEntry.PredNpc = decodeBufferEntry.PredNpc;
-					reorderBufferEntry.PredNnpc = decodeBufferEntry.PredNnpc;
-					reorderBufferEntry.StackRecoverIndex = decodeBufferEntry.StackRecoverIndex;
-					reorderBufferEntry.DirUpdate = decodeBufferEntry.DirUpdate;
-					reorderBufferEntry.IsSpeculative = decodeBufferEntry.IsSpeculative;
 					
-					foreach (var iDep in reorderBufferEntry.IDeps) {
-						reorderBufferEntry.SrcPhysRegs[iDep] = this.Threads[(int)decodeThreadId].RenameTable[iDep];
-					}
-					
-					try {
-						foreach (var oDep in reorderBufferEntry.ODeps) {
-							reorderBufferEntry.OldPhysRegs[oDep] = this.Threads[(int)decodeThreadId].RenameTable[oDep];
-							this.Threads[(int)decodeThreadId].RenameTable[oDep] = reorderBufferEntry.PhysRegs[oDep] = this.GetPhysicalRegisterFile (oDep.Type).Alloc (reorderBufferEntry);
-						}
-					} catch (NoFreePhysicalRegisterException) {
-						decodeStalled[decodeThreadId] = true;
-						continue;
-					}
-					
-					if (dynamicInst.StaticInstruction.IsMemory) {
-						ReorderBufferEntry loadStoreQueueEntry = new ReorderBufferEntry (dynamicInst, (dynamicInst.StaticInstruction as MemoryOp).MemIDeps, (dynamicInst.StaticInstruction as MemoryOp).MemODeps);
-						
-						loadStoreQueueEntry.Npc = decodeBufferEntry.Npc;
-						loadStoreQueueEntry.Nnpc = decodeBufferEntry.Nnpc;
-						loadStoreQueueEntry.PredNpc = decodeBufferEntry.PredNpc;
-						loadStoreQueueEntry.PredNnpc = decodeBufferEntry.PredNnpc;
-						loadStoreQueueEntry.StackRecoverIndex = 0;
-						loadStoreQueueEntry.DirUpdate = null;
-						loadStoreQueueEntry.IsSpeculative = false;
-						
-						loadStoreQueueEntry.Ea = (dynamicInst.StaticInstruction as MemoryOp).Ea (this.Threads[(int)decodeThreadId]);
-						
-						reorderBufferEntry.LoadStoreQueueEntry = loadStoreQueueEntry;
-						
-						foreach (var iDep in loadStoreQueueEntry.IDeps) {
-							loadStoreQueueEntry.SrcPhysRegs[iDep] = this.Threads[(int)decodeThreadId].RenameTable[iDep];
-						}
-						
-						try {
-							foreach (var oDep in loadStoreQueueEntry.ODeps) {
-								loadStoreQueueEntry.OldPhysRegs[oDep] = this.Threads[(int)decodeThreadId].RenameTable[oDep];
-								this.Threads[(int)decodeThreadId].RenameTable[oDep] = loadStoreQueueEntry.PhysRegs[oDep] = this.GetPhysicalRegisterFile (oDep.Type).Alloc (loadStoreQueueEntry);
-							}
-						} catch (NoFreePhysicalRegisterException) {
-							decodeStalled[decodeThreadId] = true;
-							continue;
-						}
-						
-						this.Threads[(int)decodeThreadId].LoadStoreQueue.Add (loadStoreQueueEntry);
-					}
-					
-					this.Threads[(int)decodeThreadId].ReorderBuffer.Add (reorderBufferEntry);
+				try {
+					this.Threads[(int)decodeThreadId].RegisterRenameOne();
+				} catch (NoFreePhysicalRegisterException) {
+					decodeStalled[decodeThreadId] = true;
+					continue;
 				}
-				
-				this.Threads[(int)decodeThreadId].DecodeBuffer.RemoveFirst ();
 				
 				numRenamed++;
 			}
@@ -983,8 +923,6 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 					continue;
 				}
 				
-				numDispatchedPerThread[dispatchThreadId]++;
-				
 				if (reorderBufferEntry.IsAllOperandsReady) {
 					this.ReadyQueue.Add (reorderBufferEntry);
 					reorderBufferEntry.IsInReadyQueue = true;
@@ -1009,6 +947,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 					loadStoreQueueEntry.IsDispatched = true;
 				}
 				
+				numDispatchedPerThread[dispatchThreadId]++;
 				numDispatched++;
 			}
 		}
@@ -1049,20 +988,20 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 					readyQueueEntry.IsIssued = true;
 					readyQueueEntry.IsCompleted = true;
 				} else if (readyQueueEntry.IsInLoadStoreQueue && readyQueueEntry.DynamicInstruction.StaticInstruction.IsLoad) {
-					this.FuPool.Acquire (readyQueueEntry, delegate(ReorderBufferEntry readyQueueEntry1) {
+					this.FuPool.Acquire (readyQueueEntry, readyQueueEntry1 => {
 						bool isHitInLoadStoreQueue = readyQueueEntry1.DynamicInstruction.Thread.LoadStoreQueue.Any (loadStoreQueueEntry => loadStoreQueueEntry.DynamicInstruction.StaticInstruction.IsStore && loadStoreQueueEntry.Ea == readyQueueEntry.Ea);
 						
 						if (isHitInLoadStoreQueue) {
 							readyQueueEntry1.SignalCompleted ();
 						} else {
-							readyQueueEntry1.DynamicInstruction.Thread.Load (this.Processor.MMU.GetPhysicalAddress (readyQueueEntry1.DynamicInstruction.Thread.MemoryMapId, readyQueueEntry1.Ea), false, delegate() { readyQueueEntry1.SignalCompleted (); });
+							readyQueueEntry1.DynamicInstruction.Thread.Load (this.Processor.MMU.GetPhysicalAddress (readyQueueEntry1.DynamicInstruction.Thread.MemoryMapId, readyQueueEntry1.Ea), false, () => readyQueueEntry1.SignalCompleted ());
 						}
 					});
 					
 					readyQueueEntry.IsIssued = true;
 				} else {
 					if (readyQueueEntry.DynamicInstruction.StaticInstruction.FunctionalUnitType != FunctionalUnit.Types.None) {
-						this.FuPool.Acquire (readyQueueEntry, delegate(ReorderBufferEntry readyQueueEntry1) { readyQueueEntry1.SignalCompleted (); });
+						this.FuPool.Acquire (readyQueueEntry, readyQueueEntry1 => readyQueueEntry1.SignalCompleted ());
 						readyQueueEntry.IsIssued = true;
 					} else {
 						readyQueueEntry.IsIssued = true;
@@ -1133,17 +1072,6 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			this.EventProcessors.ForEach (eventProcessor => eventProcessor.AdvanceOneCycle ());
 			
 			this.CurrentCycle++;
-		}
-
-		private PhysicalRegisterFile GetPhysicalRegisterFile (RegisterDependency.Types type)
-		{
-			if (type == RegisterDependency.Types.Integer) {
-				return this.IntRegFile;
-			} else if (type == RegisterDependency.Types.Float) {
-				return this.FpRegFile;
-			} else {
-				return this.MiscRegFile;
-			}
 		}
 
 		public CoherentCache ICache { get; private set; }
@@ -1270,7 +1198,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			if (cacheLineToFetch != this.LastFetchedCacheLine) {
 				this.LastFetchedCacheLine = cacheLineToFetch;
 				
-				this.IFetch (this.Core.Processor.MMU.GetPhysicalAddress (this.MemoryMapId, this.FetchNpc), false, delegate() { this.IsFetchStalled = false; });
+				this.IFetch (this.Core.Processor.MMU.GetPhysicalAddress (this.MemoryMapId, this.FetchNpc), false, () => this.IsFetchStalled = false);
 				
 				this.IsFetchStalled = true;
 			}
@@ -1314,6 +1242,77 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 				
 				this.DecodeBuffer.Add (decodeBufferEntry);
 			}
+		}
+
+		private PhysicalRegisterFile GetPhysicalRegisterFile (RegisterDependency.Types type)
+		{
+			if (type == RegisterDependency.Types.Integer) {
+				return this.Core.IntRegFile;
+			} else if (type == RegisterDependency.Types.Float) {
+				return this.Core.FpRegFile;
+			} else {
+				return this.Core.MiscRegFile;
+			}
+		}
+		
+		public void RegisterRenameOne()
+		{
+				DecodeBufferEntry decodeBufferEntry = this.DecodeBuffer.First ();
+				
+				this.Regs.IntRegs[RegisterConstants.ZERO_REG] = 0;
+				
+				DynamicInstruction dynamicInst = decodeBufferEntry.DynamicInstruction;
+				
+				if (!dynamicInst.StaticInstruction.IsNop) {
+					ReorderBufferEntry reorderBufferEntry = new ReorderBufferEntry (dynamicInst, dynamicInst.StaticInstruction.IDeps, dynamicInst.StaticInstruction.ODeps);
+					reorderBufferEntry.Npc = decodeBufferEntry.Npc;
+					reorderBufferEntry.Nnpc = decodeBufferEntry.Nnpc;
+					reorderBufferEntry.PredNpc = decodeBufferEntry.PredNpc;
+					reorderBufferEntry.PredNnpc = decodeBufferEntry.PredNnpc;
+					reorderBufferEntry.StackRecoverIndex = decodeBufferEntry.StackRecoverIndex;
+					reorderBufferEntry.DirUpdate = decodeBufferEntry.DirUpdate;
+					reorderBufferEntry.IsSpeculative = decodeBufferEntry.IsSpeculative;
+					
+					foreach (var iDep in reorderBufferEntry.IDeps) {
+						reorderBufferEntry.SrcPhysRegs[iDep] = this.RenameTable[iDep];
+					}
+					
+					foreach (var oDep in reorderBufferEntry.ODeps) {
+						reorderBufferEntry.OldPhysRegs[oDep] = this.RenameTable[oDep];
+						this.RenameTable[oDep] = reorderBufferEntry.PhysRegs[oDep] = this.GetPhysicalRegisterFile (oDep.Type).Alloc (reorderBufferEntry);
+					}
+					
+					if (dynamicInst.StaticInstruction.IsMemory) {
+						ReorderBufferEntry loadStoreQueueEntry = new ReorderBufferEntry (dynamicInst, (dynamicInst.StaticInstruction as MemoryOp).MemIDeps, (dynamicInst.StaticInstruction as MemoryOp).MemODeps);
+						
+						loadStoreQueueEntry.Npc = decodeBufferEntry.Npc;
+						loadStoreQueueEntry.Nnpc = decodeBufferEntry.Nnpc;
+						loadStoreQueueEntry.PredNpc = decodeBufferEntry.PredNpc;
+						loadStoreQueueEntry.PredNnpc = decodeBufferEntry.PredNnpc;
+						loadStoreQueueEntry.StackRecoverIndex = 0;
+						loadStoreQueueEntry.DirUpdate = null;
+						loadStoreQueueEntry.IsSpeculative = false;
+						
+						loadStoreQueueEntry.Ea = (dynamicInst.StaticInstruction as MemoryOp).Ea (this);
+						
+						reorderBufferEntry.LoadStoreQueueEntry = loadStoreQueueEntry;
+						
+						foreach (var iDep in loadStoreQueueEntry.IDeps) {
+							loadStoreQueueEntry.SrcPhysRegs[iDep] = this.RenameTable[iDep];
+						}
+						
+						foreach (var oDep in loadStoreQueueEntry.ODeps) {
+							loadStoreQueueEntry.OldPhysRegs[oDep] = this.RenameTable[oDep];
+							this.RenameTable[oDep] = loadStoreQueueEntry.PhysRegs[oDep] = this.GetPhysicalRegisterFile (oDep.Type).Alloc (loadStoreQueueEntry);
+						}
+						
+						this.LoadStoreQueue.Add (loadStoreQueueEntry);
+					}
+					
+					this.ReorderBuffer.Add (reorderBufferEntry);
+				}
+				
+				this.DecodeBuffer.RemoveFirst ();
 		}
 
 		public void RefreshLoadStoreQueue ()
@@ -1363,7 +1362,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 					}
 					
 					if (loadStoreQueueEntry.DynamicInstruction.StaticInstruction.IsStore) {
-						this.Core.FuPool.Acquire (loadStoreQueueEntry, delegate(ReorderBufferEntry loadStoreQueueEntry1) { this.Store (this.Core.Processor.MMU.GetPhysicalAddress (this.MemoryMapId, loadStoreQueueEntry1.Ea), false, delegate() { }); });
+						this.Core.FuPool.Acquire (loadStoreQueueEntry, loadStoreQueueEntry1 => this.Store (this.Core.Processor.MMU.GetPhysicalAddress (this.MemoryMapId, loadStoreQueueEntry1.Ea), false, () => {}));
 					}
 					
 					foreach (var oDep in loadStoreQueueEntry.ODeps) {
@@ -1482,7 +1481,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 		{
 			uint pending = 2;
 			
-			this.Itlb.Access (addr, delegate() {
+			this.Itlb.Access (addr, () => {
 				pending--;
 				
 				if (pending == 0) {
@@ -1490,7 +1489,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 				}
 			});
 			
-			this.Core.ICache.Load (addr, isRetry, delegate() {
+			this.Core.ICache.Load (addr, isRetry, () => {
 				pending--;
 				
 				if (pending == 0) {
@@ -1503,7 +1502,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 		{
 			uint pending = 2;
 			
-			this.Dtlb.Access (addr, delegate() {
+			this.Dtlb.Access (addr, () => {
 				pending--;
 				
 				if (pending == 0) {
@@ -1511,7 +1510,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 				}
 			});
 			
-			this.Core.DCache.Load (addr, isRetry, delegate() {
+			this.Core.DCache.Load (addr, isRetry, () => {
 				pending--;
 				
 				if (pending == 0) {
@@ -1524,7 +1523,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 		{
 			uint pending = 2;
 			
-			this.Dtlb.Access (addr, delegate() {
+			this.Dtlb.Access (addr, () => {
 				pending--;
 				
 				if (pending == 0) {
@@ -1532,7 +1531,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 				}
 			});
 			
-			this.Core.DCache.Store (addr, isRetry, delegate() {
+			this.Core.DCache.Store (addr, isRetry, () => {
 				pending--;
 				
 				if (pending == 0) {

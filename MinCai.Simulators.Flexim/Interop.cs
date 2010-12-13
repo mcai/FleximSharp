@@ -481,21 +481,21 @@ namespace MinCai.Simulators.Flexim.Interop
 	public interface IThread
 	{
 		void Fetch ();
+		void RegisterRenameOne();
 		void RefreshLoadStoreQueue ();
 		void Commit ();
+
+		void RecoverReorderBuffer (ReorderBufferEntry branchReorderBufferEntry);
+
+		void IFetch (uint addr, bool isRetry, Action onCompletedCallback);
+		void Load (uint addr, bool isRetry, Action onCompletedCallback);
+		void Store (uint addr, bool isRetry, Action onCompletedCallback);
 
 		uint GetSyscallArg (int i);
 		void SetSyscallArg (int i, uint val);
 		void SetSyscallReturn (int returnVal);
 		void Syscall (uint callNum);
 		void Halt (int exitCode);
-
-		//To be refactored
-		void RecoverReorderBuffer (ReorderBufferEntry branchReorderBufferEntry);
-
-		void IFetch (uint addr, bool isRetry, Action onCompletedCallback);
-		void Load (uint addr, bool isRetry, Action onCompletedCallback);
-		void Store (uint addr, bool isRetry, Action onCompletedCallback);
 
 		string Name { get; }
 		uint Num { get; }
