@@ -478,9 +478,9 @@ namespace MinCai.Simulators.Flexim.Interop
 
 		InstructionSetArchitecture Isa { get; }
 
-		ReadyQueue ReadyQueue { get; }
-		WaitingQueue WaitingQueue { get; }
-		OoOEventQueue OoOEventQueue { get; }
+		List<ReorderBufferEntry> ReadyQueue { get; }
+		List<ReorderBufferEntry> WaitingQueue { get; }
+		List<ReorderBufferEntry> OoOEventQueue { get; }
 	}
 
 	public interface IThread
@@ -530,9 +530,9 @@ namespace MinCai.Simulators.Flexim.Interop
 
 		uint CommitWidth { get; }
 
-		DecodeBuffer DecodeBuffer { get; }
-		ReorderBuffer ReorderBuffer { get; }
-		LoadStoreQueue LoadStoreQueue { get; }
+		List<DecodeBufferEntry> DecodeBuffer { get; }
+		List<ReorderBufferEntry> ReorderBuffer { get; }
+		List<ReorderBufferEntry> LoadStoreQueue { get; }
 
 		bool IsSpeculative { get; set; }
 

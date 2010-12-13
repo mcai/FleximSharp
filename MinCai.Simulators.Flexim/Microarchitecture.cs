@@ -37,99 +37,6 @@ using Process = MinCai.Simulators.Flexim.OperatingSystem.Process;
 
 namespace MinCai.Simulators.Flexim.Microarchitecture
 {
-	public class PipelineList<EntryT> where EntryT : class
-	{
-		public PipelineList (string name)
-		{
-			this.Name = name;
-			this.Entries = new List<EntryT> ();
-		}
-
-		public bool IsEmpty {
-			get { return this.Entries.Count == 0; }
-		}
-
-		public uint Size {
-			get { return (uint)this.Entries.Count; }
-		}
-
-		public void TakeFront ()
-		{
-			this.Entries.RemoveAt (0);
-		}
-
-		public void TakeBack ()
-		{
-			this.Entries.RemoveAt (this.Entries.Count - 1);
-		}
-
-		public EntryT Front {
-			get {
-				if (!this.IsEmpty) {
-					return this.Entries[0];
-				}
-				
-				return null;
-			}
-		}
-
-		public EntryT Back {
-			get {
-				if (!this.IsEmpty) {
-					return this.Entries[this.Entries.Count - 1];
-				}
-				
-				return null;
-			}
-		}
-
-		public void Remove (EntryT val)
-		{
-			this.Entries.Remove (val);
-		}
-
-		public virtual void Add (EntryT val)
-		{
-			this.Entries.Add (val);
-		}
-
-		public void Clear ()
-		{
-			this.Entries.Clear ();
-		}
-
-		public List<EntryT>.Enumerator GetEnumerator ()
-		{
-			return this.Entries.GetEnumerator ();
-		}
-
-		public string Name { get; set; }
-		public List<EntryT> Entries { get; private set; }
-	}
-
-	public class PipelineQueue<EntryT> : PipelineList<EntryT> where EntryT : class
-	{
-		public PipelineQueue (string name, uint capacity) : base(name)
-		{
-			this.Capacity = capacity;
-		}
-
-		public bool IsFull {
-			get { return this.Size >= this.Capacity; }
-		}
-
-		public override void Add (EntryT val)
-		{
-			if (this.IsFull) {
-				Logger.Fatalf (Logger.Categories.Misc, "%s", this);
-			}
-			
-			base.Add (val);
-		}
-
-		public uint Capacity { get; private set; }
-	}
-
 	public static class BranchPredictorConstants
 	{
 		public static uint BRANCH_SHIFT = 3;
@@ -778,6 +685,29 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 		public string Name { get; private set; }
 		public Dictionary<RegisterDependency.Types, Dictionary<uint, PhysicalRegister>> Entries { get; private set; }
 	}
+	
+	public static class ListExtensions
+	{
+		public static bool IsEmpty<T>(this List<T> list)
+		{
+			return list.Count == 0;
+		}
+		
+		public static bool IsFull<T>(this List<T> list, uint capacity)
+		{
+			return list.Count >= (int)capacity;
+		}
+		
+		public static void TakeFront<T>(this List<T> list)
+		{
+			list.RemoveAt(0);
+		}
+		
+		public static void TakeBack<T>(this List<T> list)
+		{
+			list.RemoveAt(list.Count - 1);
+		}
+	}
 
 	public sealed class DecodeBufferEntry
 	{
@@ -804,13 +734,6 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 		}
 
 		public static ulong CurrentId { get; private set; }
-	}
-
-	public sealed class DecodeBuffer : PipelineQueue<DecodeBufferEntry>
-	{
-		public DecodeBuffer (Thread thread, uint capacity) : base("c" + thread.Core.Num + "t" + thread.Num + ".decodeBuffer", capacity)
-		{
-		}
 	}
 
 	public sealed class ReorderBufferEntry
@@ -900,41 +823,6 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 		public static ulong CurrentId { get; private set; }
 	}
 
-	public sealed class ReadyQueue : PipelineList<ReorderBufferEntry>
-	{
-		public ReadyQueue (Core core) : base("c" + core.Num + ".readyQueue")
-		{
-		}
-	}
-
-	public sealed class WaitingQueue : PipelineList<ReorderBufferEntry>
-	{
-		public WaitingQueue (Core core) : base("c" + core.Num + ".waitingQueue")
-		{
-		}
-	}
-
-	public sealed class OoOEventQueue : PipelineList<ReorderBufferEntry>
-	{
-		public OoOEventQueue (Core core) : base("c" + core.Num + ".oooEventQueue")
-		{
-		}
-	}
-
-	public sealed class ReorderBuffer : PipelineQueue<ReorderBufferEntry>
-	{
-		public ReorderBuffer (Thread thread, uint capacity) : base("c" + thread.Core.Num + "t" + thread.Num + ".reorderBuffer", capacity)
-		{
-		}
-	}
-
-	public sealed class LoadStoreQueue : PipelineQueue<ReorderBufferEntry>
-	{
-		public LoadStoreQueue (Thread thread, uint capacity) : base("c" + thread.Core.Num + "t" + thread.Num + ".loadStoreQueue", capacity)
-		{
-		}
-	}
-
 	public sealed class Core : ICore
 	{
 		public Core (IProcessor processor, uint num)
@@ -962,9 +850,9 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			
 			this.Isa = new Mips32InstructionSetArchitecture ();
 			
-			this.ReadyQueue = new ReadyQueue (this);
-			this.WaitingQueue = new WaitingQueue (this);
-			this.OoOEventQueue = new OoOEventQueue (this);
+			this.ReadyQueue = new List<ReorderBufferEntry> ();
+			this.WaitingQueue = new List<ReorderBufferEntry> ();
+			this.OoOEventQueue = new List<ReorderBufferEntry> ();
 		}
 
 		public void Fetch ()
@@ -979,7 +867,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			for (uint i = 0; i < this.Threads.Count; i++) {
 				IThread thread = this.Threads[(int)i];
 				
-				if (!decodeStalled[i] && !thread.DecodeBuffer.IsEmpty && !thread.ReorderBuffer.IsFull && !thread.LoadStoreQueue.IsFull) {
+				if (!decodeStalled[i] && !thread.DecodeBuffer.IsEmpty() && !thread.ReorderBuffer.IsFull(this.Processor.Config.ReorderBufferCapacity) && !thread.LoadStoreQueue.IsFull(this.Processor.Config.LoadStoreQueueCapacity)) {
 					isAllStalled = false;
 					return i;
 				}
@@ -1012,7 +900,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 					break;
 				}
 				
-				DecodeBufferEntry decodeBufferEntry = this.Threads[(int)decodeThreadId].DecodeBuffer.Front;
+				DecodeBufferEntry decodeBufferEntry = this.Threads[(int)decodeThreadId].DecodeBuffer.First();
 				
 				this.Threads[(int)decodeThreadId].Regs.IntRegs[RegisterConstants.ZERO_REG] = 0;
 				
@@ -1154,8 +1042,8 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 		{
 			List<ReorderBufferEntry> toWaitingQueue = new List<ReorderBufferEntry> ();
 			
-			while (!this.WaitingQueue.IsEmpty) {
-				ReorderBufferEntry waitingQueueEntry = this.WaitingQueue.Front;
+			while (!this.WaitingQueue.IsEmpty()) {
+				ReorderBufferEntry waitingQueueEntry = this.WaitingQueue.First();
 				
 				if (!waitingQueueEntry.IsValid) {
 					this.WaitingQueue.TakeFront ();
@@ -1181,8 +1069,8 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 		{
 			uint numIssued = 0;
 			
-			while (numIssued < this.IssueWidth && !this.ReadyQueue.IsEmpty) {
-				ReorderBufferEntry readyQueueEntry = this.ReadyQueue.Front;
+			while (numIssued < this.IssueWidth && !this.ReadyQueue.IsEmpty()) {
+				ReorderBufferEntry readyQueueEntry = this.ReadyQueue.First();
 				
 				if (readyQueueEntry.IsInLoadStoreQueue && readyQueueEntry.DynamicInstruction.StaticInstruction.IsStore) {
 					readyQueueEntry.IsIssued = true;
@@ -1191,7 +1079,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 					this.FuPool.Acquire (readyQueueEntry, delegate(ReorderBufferEntry readyQueueEntry1) {
 						bool isHitInLoadStoreQueue = false;
 						
-						foreach (var loadStoreQueueEntry in readyQueueEntry1.DynamicInstruction.Thread.LoadStoreQueue.Entries.AsReverseEnumerable ()) {
+						foreach (var loadStoreQueueEntry in readyQueueEntry1.DynamicInstruction.Thread.LoadStoreQueue.AsReverseEnumerable ()) {
 							if (loadStoreQueueEntry.DynamicInstruction.StaticInstruction.IsStore && loadStoreQueueEntry.Ea == readyQueueEntry.Ea) {
 								isHitInLoadStoreQueue = true;
 								break;
@@ -1225,8 +1113,8 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 
 		public void Writeback ()
 		{
-			while (!this.OoOEventQueue.IsEmpty) {
-				ReorderBufferEntry reorderBufferEntry = this.OoOEventQueue.Front;
+			while (!this.OoOEventQueue.IsEmpty()) {
+				ReorderBufferEntry reorderBufferEntry = this.OoOEventQueue.First();
 				
 				if (!reorderBufferEntry.IsValid) {
 					this.OoOEventQueue.TakeFront ();
@@ -1316,9 +1204,9 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 
 		public InstructionSetArchitecture Isa { get; private set; }
 
-		public ReadyQueue ReadyQueue { get; private set; }
-		public WaitingQueue WaitingQueue { get; private set; }
-		public OoOEventQueue OoOEventQueue { get; private set; }
+		public List<ReorderBufferEntry> ReadyQueue { get; private set; }
+		public List<ReorderBufferEntry> WaitingQueue { get; private set; }
+		public List<ReorderBufferEntry> OoOEventQueue { get; private set; }
 
 		public ulong CurrentCycle { get; private set; }
 
@@ -1380,9 +1268,9 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			
 			this.CommitWidth = core.Processor.Config.CommitWidth;
 			
-			this.DecodeBuffer = new DecodeBuffer (this, core.Processor.Config.DecodeBufferCapcity);
-			this.ReorderBuffer = new ReorderBuffer (this, core.Processor.Config.ReorderBufferCapacity);
-			this.LoadStoreQueue = new LoadStoreQueue (this, core.Processor.Config.LoadStoreQueueCapacity);
+			this.DecodeBuffer = new List<DecodeBufferEntry>();
+			this.ReorderBuffer = new List<ReorderBufferEntry>();
+			this.LoadStoreQueue = new List<ReorderBufferEntry>();
 			
 			this.FetchNpc = this.Regs.Npc;
 			this.FetchNnpc = this.Regs.Nnpc;
@@ -1429,7 +1317,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			
 			bool hasDone = false;
 			
-			while (!hasDone && !this.DecodeBuffer.IsFull && !this.IsFetchStalled) {
+			while (!hasDone && !this.DecodeBuffer.IsFull(this.Core.Processor.Config.DecodeBufferCapcity) && !this.IsFetchStalled) {
 				if (this.SetNpc ()) {
 					this.Regs.IsSpeculative = this.IsSpeculative = true;
 				}
@@ -1470,7 +1358,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 
 		public ReorderBufferEntry GetNextReorderBufferEntryToDispatch ()
 		{
-			return this.ReorderBuffer.Entries.Find (reorderBufferEntry => !reorderBufferEntry.IsDispatched);
+			return this.ReorderBuffer.Find (reorderBufferEntry => !reorderBufferEntry.IsDispatched);
 		}
 
 		public void RefreshLoadStoreQueue ()
@@ -1509,15 +1397,15 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			
 			uint numCommitted = 0;
 			
-			while (!this.ReorderBuffer.IsEmpty && numCommitted < this.CommitWidth) {
-				ReorderBufferEntry reorderBufferEntry = this.ReorderBuffer.Front;
+			while (!this.ReorderBuffer.IsEmpty() && numCommitted < this.CommitWidth) {
+				ReorderBufferEntry reorderBufferEntry = this.ReorderBuffer.First();
 				
 				if (!reorderBufferEntry.IsCompleted) {
 					break;
 				}
 				
 				if (reorderBufferEntry.IsEAComputation) {
-					ReorderBufferEntry loadStoreQueueEntry = this.LoadStoreQueue.Front;
+					ReorderBufferEntry loadStoreQueueEntry = this.LoadStoreQueue.First();
 					
 					if (!loadStoreQueueEntry.IsCompleted) {
 						break;
@@ -1562,15 +1450,15 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 		{
 			Logger.Infof (Logger.Categories.Simulator, "RecoverReorderBuffer({0:s})", branchReorderBufferEntry);
 			//TODO
-			while (!this.ReorderBuffer.IsEmpty) {
-				ReorderBufferEntry reorderBufferEntry = this.ReorderBuffer.Back;
+			while (!this.ReorderBuffer.IsEmpty()) {
+				ReorderBufferEntry reorderBufferEntry = this.ReorderBuffer.Last();
 				
 				if (!reorderBufferEntry.IsSpeculative) {
 					break;
 				}
 				
 				if (reorderBufferEntry.IsEAComputation) {
-					ReorderBufferEntry loadStoreQueueEntry = this.LoadStoreQueue.Back;
+					ReorderBufferEntry loadStoreQueueEntry = this.LoadStoreQueue.Last();
 					
 					loadStoreQueueEntry.Invalidate ();
 					
@@ -1737,9 +1625,9 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 		public uint CommitWidth { get; private set; }
 		private ulong LastCommitCycle { get; set; }
 
-		public DecodeBuffer DecodeBuffer { get; private set; }
-		public ReorderBuffer ReorderBuffer { get; private set; }
-		public LoadStoreQueue LoadStoreQueue { get; private set; }
+		public List<DecodeBufferEntry> DecodeBuffer { get; private set; }
+		public List<ReorderBufferEntry> ReorderBuffer { get; private set; }
+		public List<ReorderBufferEntry> LoadStoreQueue { get; private set; }
 
 		public bool IsSpeculative { get; set; }
 
