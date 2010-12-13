@@ -6,3 +6,4 @@
 6. bpred refactoring, simple variant first, like in SMTSIM.
 7. add on-chip interconnect simulation.
 8. add cycle-accurate DRAM controller simulation.
+9. add msrh-like pending accesses tracking, like in Multi2Sim.

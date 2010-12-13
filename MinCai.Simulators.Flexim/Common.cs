@@ -202,31 +202,36 @@ namespace MinCai.Simulators.Flexim.Common
 			return fcsr;
 		}
 	}
-	
+
 	static internal class StringHelper
-	{		
-		public static byte[] StringToBytes(string str, out int bytesCount)
+	{
+		public static byte[] StringToBytes (string str, out int bytesCount)
 		{
-			bytesCount = ASCIIEncoding.ASCII.GetByteCount(str) + 1;
-			return ASCIIEncoding.ASCII.GetBytes(str + char.MinValue);
+			bytesCount = ASCIIEncoding.ASCII.GetByteCount (str) + 1;
+			return ASCIIEncoding.ASCII.GetBytes (str + char.MinValue);
 		}
-		
-		public static string BytesToString(byte[] bytes)
+
+		public static string BytesToString (byte[] bytes)
 		{
-			return ASCIIEncoding.ASCII.GetString(bytes.TakeWhile(b => !b.Equals(char.MinValue)).ToArray());
+			return ASCIIEncoding.ASCII.GetString (bytes.TakeWhile (b => !b.Equals (char.MinValue)).ToArray ());
 		}
 	}
 
-	static internal class ListHelper
+	static internal class ListExtensions
 	{
-		public static IEnumerable<T> AsReverseEnumerable<T> (this IEnumerable<T> items)
+		public static bool IsFull<T> (this List<T> list, uint capacity)
 		{
-			IList<T> list = items as IList<T>;
-			if (list == null)
-				list = new List<T> (items);
-			for (int i = list.Count - 1; i >= 0; i--) {
-				yield return list[i];
-			}
+			return list.Count >= (int)capacity;
+		}
+
+		public static void RemoveFirst<T> (this List<T> list)
+		{
+			list.RemoveAt (0);
+		}
+
+		public static void RemoveLast<T> (this List<T> list)
+		{
+			list.RemoveAt (list.Count - 1);
 		}
 	}
 
@@ -447,9 +452,7 @@ namespace MinCai.Simulators.Flexim.Common
 		{
 			XmlConfig xmlConfig = new XmlConfig (name);
 			
-			foreach (var entry in entries) {
-				xmlConfig.Entries.Add (saveEntry (entry));
-			}
+			entries.ForEach(entry => xmlConfig.Entries.Add (saveEntry (entry)));
 			
 			return xmlConfig;
 		}
@@ -458,9 +461,7 @@ namespace MinCai.Simulators.Flexim.Common
 		{
 			List<K> entries = new List<K> ();
 			
-			foreach (var child in xmlConfig.Entries) {
-				entries.Add (loadEntry (child));
-			}
+			xmlConfig.Entries.ForEach(child => entries.Add (loadEntry (child)));
 			
 			return entries;
 		}
@@ -471,7 +472,6 @@ namespace MinCai.Simulators.Flexim.Common
 			
 			foreach (var pair in entries) {
 				XmlConfig child = saveEntry (pair.Value);
-				
 				xmlConfig.Entries.Add (child);
 			}
 			
@@ -526,9 +526,7 @@ namespace MinCai.Simulators.Flexim.Common
 				element.SetAttribute (pair.Key, pair.Value);
 			}
 			
-			foreach (var child in xmlConfig.Entries) {
-				Serialize (child, element);
-			}
+			xmlConfig.Entries.ForEach(child => Serialize (child, element));
 		}
 
 		private static void Serialize (XmlConfig xmlConfig, string xmlFileName)
@@ -542,9 +540,7 @@ namespace MinCai.Simulators.Flexim.Common
 				rootElement.SetAttribute (pair.Key, pair.Value);
 			}
 			
-			foreach (var child in xmlConfig.Entries) {
-				Serialize (child, rootElement);
-			}
+			xmlConfig.Entries.ForEach(child => Serialize (child, rootElement));
 			
 			doc.Save (xmlFileName);
 		}
@@ -733,12 +729,9 @@ namespace MinCai.Simulators.Flexim.Common
 		}
 
 		public void AdvanceOneCycle ()
-		{			
+		{
 			if (this.Actions.ContainsKey (this.CurrentCycle)) {
-				foreach (var action in this.Actions[this.CurrentCycle]) {
-					action ();
-				}
-				
+				this.Actions[this.CurrentCycle].ForEach(action => action());				
 				this.Actions.Remove (this.CurrentCycle);
 			}
 			
@@ -1285,11 +1278,7 @@ namespace MinCai.Simulators.Flexim.Common
 			
 			this.StringTable = this.SectionHeaders[this.Header.E_shstrndx].AssociatedEntity as ElfStringTable;
 			
-			foreach (var sectionHeader in this.SectionHeaders) {
-				if (sectionHeader.Name == ".strtab") {
-					this.SymbolStringTable = sectionHeader.AssociatedEntity as ElfStringTable;
-				}
-			}
+			this.SymbolStringTable = this.SectionHeaders.Find(sectionHeader => sectionHeader.Name == ".strtab").AssociatedEntity as ElfStringTable;
 			
 			this.Reader.BaseStream.Seek ((long)this.Header.E_phoff, 0);
 			

@@ -234,7 +234,7 @@ namespace MinCai.Simulators.Flexim.Interop
 			this.Evictions = 0;
 		}
 
-		public string Name {get; private set;}
+		public string Name { get; private set; }
 		public ulong Accesses { get; set; }
 		public ulong Hits { get; set; }
 		public ulong Evictions { get; set; }
@@ -364,13 +364,8 @@ namespace MinCai.Simulators.Flexim.Interop
 
 		public override void Reset ()
 		{
-			foreach (var core in this.Cores) {
-				core.Reset ();
-			}
-			
-			foreach (var context in this.Contexts) {
-				context.Reset ();
-			}
+			this.Cores.ForEach (core => core.Reset ());
+			this.Contexts.ForEach (context => context.Reset ());
 		}
 
 		public List<CoreStat> Cores { get; private set; }
@@ -496,10 +491,8 @@ namespace MinCai.Simulators.Flexim.Interop
 		void Halt (int exitCode);
 
 		//To be refactored
-		DynamicInstruction DecodeAndExecute ();
-		ReorderBufferEntry GetNextReorderBufferEntryToDispatch ();
 		void RecoverReorderBuffer (ReorderBufferEntry branchReorderBufferEntry);
-		
+
 		void IFetch (uint addr, bool isRetry, Action onCompletedCallback);
 		void Load (uint addr, bool isRetry, Action onCompletedCallback);
 		void Store (uint addr, bool isRetry, Action onCompletedCallback);

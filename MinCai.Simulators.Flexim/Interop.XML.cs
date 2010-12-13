@@ -23,6 +23,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using MinCai.Simulators.Flexim.Architecture;
 using MinCai.Simulators.Flexim.Microarchitecture;
 using MinCai.Simulators.Flexim.Common;
@@ -33,34 +34,34 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 {
 	public sealed partial class CacheGeometry
 	{
-		public sealed class Serializer: XmlConfigSerializer<CacheGeometry>
+		public sealed class Serializer : XmlConfigSerializer<CacheGeometry>
 		{
-			public Serializer()
+			public Serializer ()
 			{
 			}
-			
+
 			public override XmlConfig Save (CacheGeometry cacheGeometry)
 			{
-				XmlConfig xmlConfig = new XmlConfig("CacheGeometry");
+				XmlConfig xmlConfig = new XmlConfig ("CacheGeometry");
 				xmlConfig["size"] = cacheGeometry.Size + "";
 				xmlConfig["associativity"] = cacheGeometry.Associativity + "";
 				xmlConfig["lineSize"] = cacheGeometry.LineSize + "";
 				
 				return xmlConfig;
 			}
-			
+
 			public override CacheGeometry Load (XmlConfig xmlConfig)
 			{
-				uint size = uint.Parse(xmlConfig["size"]);
-				uint associativity = uint.Parse(xmlConfig["associativity"]);
-				uint lineSize = uint.Parse(xmlConfig["lineSize"]);
+				uint size = uint.Parse (xmlConfig["size"]);
+				uint associativity = uint.Parse (xmlConfig["associativity"]);
+				uint lineSize = uint.Parse (xmlConfig["lineSize"]);
 				
-				CacheGeometry cacheGeometry = new CacheGeometry(size, associativity, lineSize);
+				CacheGeometry cacheGeometry = new CacheGeometry (size, associativity, lineSize);
 				
 				return cacheGeometry;
 			}
-			
-			public static Serializer SingleInstance = new Serializer();
+
+			public static Serializer SingleInstance = new Serializer ();
 		}
 	}
 }
@@ -124,8 +125,7 @@ namespace MinCai.Simulators.Flexim.Interop
 				
 				foreach (var pair in workloadSet.Workloads) {
 					Workload workload = pair.Value;
-					
-					xmlConfig.Entries.Add (Workload.Serializer.SingleInstance.Save(workload));
+					xmlConfig.Entries.Add (Workload.Serializer.SingleInstance.Save (workload));
 				}
 				
 				return xmlConfig;
@@ -138,7 +138,7 @@ namespace MinCai.Simulators.Flexim.Interop
 				WorkloadSet workloadSet = new WorkloadSet (workloadSetTitle);
 				
 				foreach (var entry in xmlConfig.Entries) {
-					workloadSet.Register (Workload.Serializer.SingleInstance.Load(entry));
+					workloadSet.Register (Workload.Serializer.SingleInstance.Load (entry));
 				}
 				
 				return workloadSet;
@@ -152,42 +152,42 @@ namespace MinCai.Simulators.Flexim.Interop
 			public static Serializer SingleInstance = new Serializer ();
 		}
 	}
-	
-	public sealed partial class TlbConfig: Config
+
+	public sealed partial class TlbConfig : Config
 	{
-		public sealed class Serializer: XmlConfigSerializer<TlbConfig>
+		public sealed class Serializer : XmlConfigSerializer<TlbConfig>
 		{
-			public Serializer()
+			public Serializer ()
 			{
 			}
-			
+
 			public override XmlConfig Save (TlbConfig tlbConfig)
 			{
-				XmlConfig xmlConfig = new XmlConfig("TlbConfig");
+				XmlConfig xmlConfig = new XmlConfig ("TlbConfig");
 				xmlConfig["hitLatency"] = tlbConfig.HitLatency + "";
 				xmlConfig["missLatency"] = tlbConfig.MissLatency + "";
 				
-				xmlConfig.Entries.Add(CacheGeometry.Serializer.SingleInstance.Save(tlbConfig.Geometry));
+				xmlConfig.Entries.Add (CacheGeometry.Serializer.SingleInstance.Save (tlbConfig.Geometry));
 				
 				return xmlConfig;
 			}
-			
+
 			public override TlbConfig Load (XmlConfig xmlConfig)
 			{
-				uint hitLatency = uint.Parse(xmlConfig["hitLatency"]);
-				uint missLatency = uint.Parse(xmlConfig["missLatency"]);
+				uint hitLatency = uint.Parse (xmlConfig["hitLatency"]);
+				uint missLatency = uint.Parse (xmlConfig["missLatency"]);
 				
-				CacheGeometry geometry = CacheGeometry.Serializer.SingleInstance.Load(xmlConfig.Entries[0]);
+				CacheGeometry geometry = CacheGeometry.Serializer.SingleInstance.Load (xmlConfig.Entries[0]);
 				
-				TlbConfig tlbConfig = new TlbConfig(geometry, hitLatency, missLatency);
+				TlbConfig tlbConfig = new TlbConfig (geometry, hitLatency, missLatency);
 				
 				return tlbConfig;
 			}
-			
-			public static Serializer SingleInstance = new Serializer();
+
+			public static Serializer SingleInstance = new Serializer ();
 		}
 	}
-	
+
 	public sealed partial class CacheConfig : Config
 	{
 		public sealed class Serializer : XmlConfigSerializer<CacheConfig>
@@ -206,7 +206,7 @@ namespace MinCai.Simulators.Flexim.Interop
 				xmlConfig["hitLatency"] = cacheConfig.HitLatency + "";
 				xmlConfig["policy"] = cacheConfig.Policy + "";
 				
-				xmlConfig.Entries.Add(CacheGeometry.Serializer.SingleInstance.Save(cacheConfig.Geometry));
+				xmlConfig.Entries.Add (CacheGeometry.Serializer.SingleInstance.Save (cacheConfig.Geometry));
 				
 				return xmlConfig;
 			}
@@ -219,7 +219,7 @@ namespace MinCai.Simulators.Flexim.Interop
 				uint hitLatency = uint.Parse (xmlConfig["hitLatency"]);
 				CacheReplacementPolicy policy = (CacheReplacementPolicy)Enum.Parse (typeof(CacheReplacementPolicy), xmlConfig["policy"]);
 				
-				CacheGeometry geometry = CacheGeometry.Serializer.SingleInstance.Load(xmlConfig.Entries[0]);
+				CacheGeometry geometry = CacheGeometry.Serializer.SingleInstance.Load (xmlConfig.Entries[0]);
 				
 				CacheConfig cacheConfig = new CacheConfig (name, level, geometry, hitLatency, policy);
 				return cacheConfig;
@@ -350,8 +350,8 @@ namespace MinCai.Simulators.Flexim.Interop
 				xmlConfig["reorderBufferCapacity"] = processorConfig.ReorderBufferCapacity + "";
 				xmlConfig["loadStoreQueueCapacity"] = processorConfig.LoadStoreQueueCapacity + "";
 				
-				ProcessorConfig.Serializer.SaveList("Cores", processorConfig.Cores, coreConfig => CoreConfig.Serializer.SingleInstance.Save(coreConfig));
-				xmlConfig.Entries.Add(TlbConfig.Serializer.SingleInstance.Save(processorConfig.Tlb));
+				ProcessorConfig.Serializer.SaveList ("Cores", processorConfig.Cores, coreConfig => CoreConfig.Serializer.SingleInstance.Save (coreConfig));
+				xmlConfig.Entries.Add (TlbConfig.Serializer.SingleInstance.Save (processorConfig.Tlb));
 				
 				return xmlConfig;
 			}
@@ -374,8 +374,8 @@ namespace MinCai.Simulators.Flexim.Interop
 				ProcessorConfig processorConfig = new ProcessorConfig (maxCycle, maxInsts, maxTime, numThreadsPerCore, physicalRegisterFileCapacity, decodeWidth, issueWidth, commitWidth, decodeBufferCapacity, reorderBufferCapacity,
 				loadStoreQueueCapacity);
 				
-				processorConfig.Cores.AddRange(ProcessorConfig.Serializer.LoadList(xmlConfig.Entries[0], entry => CoreConfig.Serializer.SingleInstance.Load(entry)));
-				processorConfig.Tlb = TlbConfig.Serializer.SingleInstance.Load(xmlConfig.Entries[1]);				
+				processorConfig.Cores.AddRange (ProcessorConfig.Serializer.LoadList (xmlConfig.Entries[0], entry => CoreConfig.Serializer.SingleInstance.Load (entry)));
+				processorConfig.Tlb = TlbConfig.Serializer.SingleInstance.Load (xmlConfig.Entries[1]);
 				
 				return processorConfig;
 			}
@@ -441,9 +441,7 @@ namespace MinCai.Simulators.Flexim.Interop
 				
 				xmlConfig["architectureConfigTitle"] = simulationConfig.Architecture.Title;
 				
-				foreach (var context in simulationConfig.Contexts) {
-					xmlConfig.Entries.Add (ContextConfig.Serializer.SingleInstance.Save (context));
-				}
+				simulationConfig.Contexts.ForEach(context => xmlConfig.Entries.Add (ContextConfig.Serializer.SingleInstance.Save (context)));
 				
 				return xmlConfig;
 			}
@@ -456,9 +454,7 @@ namespace MinCai.Simulators.Flexim.Interop
 				
 				SimulationConfig simulationConfig = new SimulationConfig (architecture);
 				
-				foreach (var entry in xmlConfig.Entries) {
-					simulationConfig.Contexts.Add (ContextConfig.Serializer.SingleInstance.Load (entry));
-				}
+				xmlConfig.Entries.ForEach(entry => simulationConfig.Contexts.Add (ContextConfig.Serializer.SingleInstance.Load (entry)));
 				
 				return simulationConfig;
 			}
@@ -466,18 +462,18 @@ namespace MinCai.Simulators.Flexim.Interop
 			public static Serializer SingleInstance = new Serializer ();
 		}
 	}
-	
-	public sealed partial class TlbStat: Stat
+
+	public sealed partial class TlbStat : Stat
 	{
-		public sealed class Serializer: XmlConfigSerializer<TlbStat>
+		public sealed class Serializer : XmlConfigSerializer<TlbStat>
 		{
-			public Serializer()
+			public Serializer ()
 			{
 			}
-			
+
 			public override XmlConfig Save (TlbStat tlbStat)
 			{
-				XmlConfig xmlConfig = new XmlConfig("TlbStat");
+				XmlConfig xmlConfig = new XmlConfig ("TlbStat");
 				xmlConfig["name"] = tlbStat.Name;
 				xmlConfig["accesses"] = tlbStat.Accesses + "";
 				xmlConfig["hits"] = tlbStat.Hits + "";
@@ -485,23 +481,23 @@ namespace MinCai.Simulators.Flexim.Interop
 				
 				return xmlConfig;
 			}
-			
+
 			public override TlbStat Load (XmlConfig xmlConfig)
 			{
 				string name = xmlConfig["name"];
-				uint accesses = uint.Parse(xmlConfig["accesses"]);
-				uint hits = uint.Parse(xmlConfig["hits"]);
-				uint evictions = uint.Parse(xmlConfig["evictions"]);
+				uint accesses = uint.Parse (xmlConfig["accesses"]);
+				uint hits = uint.Parse (xmlConfig["hits"]);
+				uint evictions = uint.Parse (xmlConfig["evictions"]);
 				
-				TlbStat tlbStat = new TlbStat(name);
+				TlbStat tlbStat = new TlbStat (name);
 				tlbStat.Accesses = accesses;
 				tlbStat.Hits = hits;
 				tlbStat.Evictions = evictions;
 				
 				return tlbStat;
 			}
-			
-			public static Serializer SingleInstance = new Serializer();
+
+			public static Serializer SingleInstance = new Serializer ();
 		}
 	}
 
@@ -648,8 +644,8 @@ namespace MinCai.Simulators.Flexim.Interop
 				
 				xmlConfig["totalInsts"] = contextStat.TotalInsts + "";
 				
-				xmlConfig.Entries.Add(TlbStat.Serializer.SingleInstance.Save(contextStat.Itlb));
-				xmlConfig.Entries.Add(TlbStat.Serializer.SingleInstance.Save(contextStat.Dtlb));
+				xmlConfig.Entries.Add (TlbStat.Serializer.SingleInstance.Save (contextStat.Itlb));
+				xmlConfig.Entries.Add (TlbStat.Serializer.SingleInstance.Save (contextStat.Dtlb));
 				
 				return xmlConfig;
 			}
@@ -658,8 +654,8 @@ namespace MinCai.Simulators.Flexim.Interop
 			{
 				ulong totalInsts = ulong.Parse (xmlConfig["totalInsts"]);
 				
-				TlbStat itlb = TlbStat.Serializer.SingleInstance.Load(xmlConfig.Entries[0]);
-				TlbStat dtlb = TlbStat.Serializer.SingleInstance.Load(xmlConfig.Entries[1]);
+				TlbStat itlb = TlbStat.Serializer.SingleInstance.Load (xmlConfig.Entries[0]);
+				TlbStat dtlb = TlbStat.Serializer.SingleInstance.Load (xmlConfig.Entries[1]);
 				
 				ContextStat contextStat = new ContextStat ();
 				contextStat.TotalInsts = totalInsts;
@@ -719,13 +715,8 @@ namespace MinCai.Simulators.Flexim.Interop
 			{
 				XmlConfig xmlConfig = new XmlConfig ("ProcessorStat");
 				
-				foreach (var core in processorStat.Cores) {
-					xmlConfig.Entries.Add (CoreStat.Serializer.SingleInstance.Save (core));
-				}
-				
-				foreach (var context in processorStat.Contexts) {
-					xmlConfig.Entries.Add (ContextStat.Serializer.SingleInstance.Save (context));
-				}
+				processorStat.Cores.ForEach(core => xmlConfig.Entries.Add (CoreStat.Serializer.SingleInstance.Save (core)));
+				processorStat.Contexts.ForEach(context => xmlConfig.Entries.Add (ContextStat.Serializer.SingleInstance.Save (context)));
 				
 				return xmlConfig;
 			}
@@ -734,15 +725,8 @@ namespace MinCai.Simulators.Flexim.Interop
 			{
 				ProcessorStat processorStat = new ProcessorStat ();
 				
-				foreach (var entry in xmlConfig.Entries) {
-					if (entry.TypeName.Equals ("CoreStat")) {
-						processorStat.Cores.Add (CoreStat.Serializer.SingleInstance.Load (entry));
-					} else if (entry.TypeName.Equals ("ContextStat")) {
-						processorStat.Contexts.Add (ContextStat.Serializer.SingleInstance.Load (entry));
-					} else {
-						throw new Exception ();
-					}
-				}
+				xmlConfig.Entries.FindAll(entry => entry.TypeName.Equals("CoreStat")).ForEach(entry => processorStat.Cores.Add (CoreStat.Serializer.SingleInstance.Load (entry)));
+				xmlConfig.Entries.FindAll(entry => entry.TypeName.Equals("ContextStat")).ForEach(entry => processorStat.Contexts.Add (ContextStat.Serializer.SingleInstance.Load (entry)));
 				
 				return processorStat;
 			}

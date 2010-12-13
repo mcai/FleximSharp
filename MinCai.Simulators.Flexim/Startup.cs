@@ -27,9 +27,9 @@ using MinCai.Simulators.Flexim.Microarchitecture;
 namespace MinCai.Simulators.Flexim.Startup
 {
 	public class FleximMain
-	{		
+	{
 		public static int Main (string[] args)
-		{		
+		{
 			Logger.Info (Logger.Categories.Simulator, "FleximSharp - A modular and highly extensible multicore simulator written in C#/Mono.");
 			Logger.Info (Logger.Categories.Simulator, "Copyright © 2010 Min Cai (min.cai.china@gmail.com).");
 			Logger.Info (Logger.Categories.Simulator, "");
@@ -37,7 +37,7 @@ namespace MinCai.Simulators.Flexim.Startup
 //			string simulationTitle = "WCETBench-fir-1x1";
 			//string simulationTitle = "WCETBench-fir-2x1";
 			//string simulationTitle = "Olden_Custom1-em3d_original-1x1";
-				string simulationTitle = "Olden_Custom1-mst_original-1x1";
+			string simulationTitle = "Olden_Custom1-mst_original-1x1";
 			//string simulationTitle = "Olden_Custom1-mst_original-2x1";
 //			string simulationTitle = "Olden_Custom1-mst_original-2x2";
 			//string simulationTitle = "Olden_Custom1-mst_original-Olden_Custom1_em3d_original-2x1";
