@@ -201,7 +201,6 @@ namespace MinCai.Simulators.Flexim.Interop
 				XmlConfig xmlConfig = new XmlConfig ("CacheConfig");
 				
 				xmlConfig["name"] = cacheConfig.Name;
-				xmlConfig["level"] = cacheConfig.Level + "";
 				
 				xmlConfig["hitLatency"] = cacheConfig.HitLatency + "";
 				xmlConfig["policy"] = cacheConfig.Policy + "";
@@ -214,14 +213,13 @@ namespace MinCai.Simulators.Flexim.Interop
 			public override CacheConfig Load (XmlConfig xmlConfig)
 			{
 				string name = xmlConfig["name"];
-				uint level = uint.Parse (xmlConfig["level"]);
 				
 				uint hitLatency = uint.Parse (xmlConfig["hitLatency"]);
 				CacheReplacementPolicy policy = (CacheReplacementPolicy)Enum.Parse (typeof(CacheReplacementPolicy), xmlConfig["policy"]);
 				
 				CacheGeometry geometry = CacheGeometry.Serializer.SingleInstance.Load (xmlConfig.Entries[0]);
 				
-				CacheConfig cacheConfig = new CacheConfig (name, level, geometry, hitLatency, policy);
+				CacheConfig cacheConfig = new CacheConfig (name, geometry, hitLatency, policy);
 				return cacheConfig;
 			}
 

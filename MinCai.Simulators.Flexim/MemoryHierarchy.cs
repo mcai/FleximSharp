@@ -907,8 +907,6 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			throw new NotImplementedException ();
 		}
 
-		public abstract uint Level { get; }
-
 		public ICycleProvider CycleProvider { get; private set; }
 		public string Name { get; private set; }
 		public CoherentCacheNode Next { get; set; }
@@ -1012,10 +1010,12 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 
 		public override void Load (uint addr, bool isRetry, Action onCompletedCallback)
 		{
-			this.FindAndLock (addr, false, true, isRetry, (hasError, @set, way, state, tag, dirLock) => {
+			this.FindAndLock (addr, false, true, isRetry, (hasError, @set, way, state, tag, dirLock) =>
+			{
 				if (!hasError) {
 					if (!IsReadHit (state)) {
-						this.ReadRequest (this.Next, tag, (hasError1, isShared) => {
+						this.ReadRequest (this.Next, tag, (hasError1, isShared) =>
+						{
 							if (!hasError1) {
 								this.Cache.SetLine (@set, way, tag, isShared ? MESIState.Shared : MESIState.Exclusive);
 								this.Cache.AccessLine (@set, way);
@@ -1041,10 +1041,12 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 
 		public override void Store (uint addr, bool isRetry, Action onCompletedCallback)
 		{
-			this.FindAndLock (addr, false, false, isRetry, (hasError, @set, way, state, tag, dirLock) => {
+			this.FindAndLock (addr, false, false, isRetry, (hasError, @set, way, state, tag, dirLock) =>
+			{
 				if (!hasError) {
 					if (!IsWriteHit (state)) {
-						this.WriteRequest (this.Next, tag, hasError1 => {
+						this.WriteRequest (this.Next, tag, hasError1 =>
+						{
 							if (!hasError1) {
 								this.Cache.AccessLine (@set, way);
 								this.Cache.SetLine (@set, way, tag, MESIState.Modified);
@@ -1082,7 +1084,8 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			uint srcTag = tag;
 			CoherentCacheNode target = this.Next;
 			
-			this.Invalidate (null, @set, way, () => {
+			this.Invalidate (null, @set, way, () =>
+			{
 				if (state == MESIState.Invalid) {
 					onCompletedCallback (false);
 				} else if (state == MESIState.Modified) {
@@ -1095,12 +1098,14 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 
 		public override void EvictReceive (CoherentCacheNode source, uint addr, bool isWriteback, Action<bool> onReceiveReplyCallback)
 		{
-			this.FindAndLock (addr, false, false, false, (hasError, @set, way, state, tag, dirLock) => {
+			this.FindAndLock (addr, false, false, false, (hasError, @set, way, state, tag, dirLock) =>
+			{
 				if (!hasError) {
 					if (!isWriteback) {
 						this.EvictProcess (source, @set, way, dirLock, onReceiveReplyCallback);
 					} else {
-						this.Invalidate (source, @set, way, () => {
+						this.Invalidate (source, @set, way, () =>
+						{
 							if (state == MESIState.Shared) {
 								this.WriteRequest (this.Next, tag, hasError1 => this.EvictWritebackFinish (source, hasError1, @set, way, tag, dirLock, onReceiveReplyCallback));
 							} else {
@@ -1139,7 +1144,8 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 
 		private void EvictReplyReceive (bool hasError, uint srcSet, uint srcWay, Action<bool> onCompletedCallback)
 		{
-			this.Schedule (() => {
+			this.Schedule (() =>
+			{
 				if (!hasError) {
 					this.Cache.SetLine (srcSet, srcWay, 0, MESIState.Invalid);
 				}
@@ -1154,7 +1160,8 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 
 		public override void ReadRequestReceive (CoherentCacheNode source, uint addr, Action<bool, bool> onCompletedCallback)
 		{
-			this.FindAndLock (addr, this.Next == source, true, false, (hasError, @set, way, state, tag, dirLock) => {
+			this.FindAndLock (addr, this.Next == source, true, false, (hasError, @set, way, state, tag, dirLock) =>
+			{
 				if (!hasError) {
 					if (source.Next == this) {
 						this.ReadRequestUpdown (source, @set, way, tag, state, dirLock, onCompletedCallback);
@@ -1181,7 +1188,8 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 				
 				this.ReadRequestUpdownFinish (source, @set, way, dirLock, ref pending, onCompletedCallback);
 			} else {
-				this.ReadRequest (this.Next, tag, (hasError, isShared) => {
+				this.ReadRequest (this.Next, tag, (hasError, isShared) =>
+				{
 					if (!hasError) {
 						this.Cache.SetLine (@set, way, tag, isShared ? MESIState.Shared : MESIState.Exclusive);
 						this.ReadRequestUpdownFinish (source, @set, way, dirLock, ref pending, onCompletedCallback);
@@ -1250,9 +1258,11 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 
 		public override void WriteRequestReceive (CoherentCacheNode source, uint addr, Action<bool> onCompletedCallback)
 		{
-			this.FindAndLock (addr, this.Next == source, false, false, (hasError, @set, way, state, tag, dirLock) => {
+			this.FindAndLock (addr, this.Next == source, false, false, (hasError, @set, way, state, tag, dirLock) =>
+			{
 				if (!hasError) {
-					this.Invalidate (source, @set, way, () => {
+					this.Invalidate (source, @set, way, () =>
+					{
 						if (source.Next == this) {
 							if (state == MESIState.Modified || state == MESIState.Exclusive) {
 								this.WriteRequestUpdownFinish (source, false, @set, way, tag, state, dirLock, onCompletedCallback);
@@ -1308,7 +1318,8 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 					dirEntry.Owner = null;
 				}
 				
-				this.WriteRequest (sharer, tag, hasError => {
+				this.WriteRequest (sharer, tag, hasError =>
+				{
 					pending--;
 					
 					if (pending == 0) {
@@ -1330,10 +1341,6 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 		{
 			ulong retryLatency = (ulong)(this.HitLatency + (this.Random.Next (0, (int)(this.HitLatency + 2))));
 			this.Schedule (action, retryLatency);
-		}
-
-		public override uint Level {
-			get { return this.Config.Level; }
 		}
 
 		public uint HitLatency {
@@ -1387,12 +1394,6 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			this.Stat.Writes++;
 			
 			this.Schedule (() => onCompletedCallback (false), this.Latency);
-		}
-
-		public override uint Level {
-			get {
-				throw new NotImplementedException ();
-			}
 		}
 
 		public uint Latency {

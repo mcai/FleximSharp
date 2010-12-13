@@ -101,17 +101,15 @@ namespace MinCai.Simulators.Flexim.Interop
 
 	public sealed partial class CacheConfig : Config
 	{
-		public CacheConfig (string name, uint level, CacheGeometry geometry, uint hitLatency, CacheReplacementPolicy policy)
+		public CacheConfig (string name, CacheGeometry geometry, uint hitLatency, CacheReplacementPolicy policy)
 		{
 			this.Name = name;
-			this.Level = level;
 			this.Geometry = geometry;
 			this.HitLatency = hitLatency;
 			this.Policy = policy;
 		}
 
 		public string Name { get; set; }
-		public uint Level { get; set; }
 		public CacheGeometry Geometry { get; set; }
 		public uint HitLatency { get; set; }
 		public CacheReplacementPolicy Policy { get; set; }
@@ -481,7 +479,7 @@ namespace MinCai.Simulators.Flexim.Interop
 	public interface IThread
 	{
 		void Fetch ();
-		void RegisterRenameOne();
+		void RegisterRenameOne ();
 		void RefreshLoadStoreQueue ();
 		void Commit ();
 
