@@ -2,8 +2,7 @@
 2. benchmarking.
 3. performance optimization.
 4. thread state maintanence.
-5. predicate-based uniform pipeline shared resource scheduling.
-6. bpred refactoring, simple variant first, like in SMTSIM.
-7. add on-chip interconnect simulation.
-8. add cycle-accurate DRAM controller simulation.
-9. add msrh-like pending accesses tracking, like in Multi2Sim.
+5. bpred refactoring, simple variant first, like in SMTSIM.
+6. add on-chip interconnect simulation.
+7. add cycle-accurate DRAM controller simulation.
+8. add mshr-like pending accesses tracking, like in Multi2Sim.

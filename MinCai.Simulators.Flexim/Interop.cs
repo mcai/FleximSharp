@@ -480,6 +480,7 @@ namespace MinCai.Simulators.Flexim.Interop
 	{
 		void Fetch ();
 		void RegisterRenameOne ();
+		void DispatchOne ();
 		void RefreshLoadStoreQueue ();
 		void Commit ();
 

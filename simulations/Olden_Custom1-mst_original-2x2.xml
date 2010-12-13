@@ -3,26 +3,26 @@
     <ContextConfig workloadSetTitle="Olden_Custom1" workloadTitle="mst_original" />
     <ContextConfig workloadSetTitle="Olden_Custom1" workloadTitle="mst_original" />
   </SimulationConfig>
-  <SimulationStat cyclesPerSecond="6428.075" duration="720" instsPerCycle="1.00907196598947" totalCycles="4628214" totalInsts="4670201">
+  <SimulationStat cyclesPerSecond="3920.0688225539" duration="1206" instsPerCycle="0.979887482091876" totalCycles="4727603" totalInsts="4632519">
     <ProcessorStat>
       <CoreStat>
-        <CacheStat accesses="280648" blockingReads="0" blockingWrites="291" evictions="46" hits="280171" nonblockingReads="280357" nonblockingWrites="0" noRetryAccesses="280647" noRetryHits="280171" noRetryReadHits="279880" noRetryReads="280356" noRetryWriteHits="291" noRetryWrites="291" readHits="279880" readRetries="0" reads="280357" writeHits="291" writeRetries="0" writes="291" />
-        <CacheStat accesses="2733562" blockingReads="0" blockingWrites="22" evictions="19156" hits="2709196" nonblockingReads="724695" nonblockingWrites="2008845" noRetryAccesses="602745" noRetryHits="583289" noRetryReadHits="380000" noRetryReads="397181" noRetryWriteHits="203289" noRetryWrites="205564" readHits="705861" readRetries="0" reads="724695" writeHits="2003335" writeRetries="0" writes="2008867" />
+        <CacheStat accesses="280648" blockingReads="0" blockingWrites="290" evictions="43" hits="280175" nonblockingReads="280358" nonblockingWrites="0" noRetryAccesses="280648" noRetryHits="280175" noRetryReadHits="279885" noRetryReads="280358" noRetryWriteHits="290" noRetryWrites="290" readHits="279885" readRetries="0" reads="280358" writeHits="290" writeRetries="0" writes="290" />
+        <CacheStat accesses="2685483" blockingReads="0" blockingWrites="12" evictions="19153" hits="2661129" nonblockingReads="693013" nonblockingWrites="1992458" noRetryAccesses="603442" noRetryHits="584001" noRetryReadHits="380707" noRetryReads="397888" noRetryWriteHits="203294" noRetryWrites="205554" readHits="674159" readRetries="0" reads="693013" writeHits="1986970" writeRetries="0" writes="1992470" />
       </CoreStat>
       <CoreStat>
-        <CacheStat accesses="280645" blockingReads="0" blockingWrites="288" evictions="46" hits="280171" nonblockingReads="280357" nonblockingWrites="0" noRetryAccesses="280644" noRetryHits="280170" noRetryReadHits="279882" noRetryReads="280356" noRetryWriteHits="288" noRetryWrites="288" readHits="279883" readRetries="0" reads="280357" writeHits="288" writeRetries="0" writes="288" />
-        <CacheStat accesses="2743764" blockingReads="0" blockingWrites="20" evictions="19156" hits="2718543" nonblockingReads="727119" nonblockingWrites="2016625" noRetryAccesses="602740" noRetryHits="583284" noRetryReadHits="379996" noRetryReads="397178" noRetryWriteHits="203288" noRetryWrites="205562" readHits="707533" readRetries="0" reads="727119" writeHits="2011010" writeRetries="0" writes="2016645" />
+        <CacheStat accesses="280649" blockingReads="0" blockingWrites="290" evictions="43" hits="280176" nonblockingReads="280359" nonblockingWrites="0" noRetryAccesses="280648" noRetryHits="280175" noRetryReadHits="279885" noRetryReads="280358" noRetryWriteHits="290" noRetryWrites="290" readHits="279886" readRetries="0" reads="280359" writeHits="290" writeRetries="0" writes="290" />
+        <CacheStat accesses="2677108" blockingReads="0" blockingWrites="12" evictions="19154" hits="2652760" nonblockingReads="693249" nonblockingWrites="1983847" noRetryAccesses="603417" noRetryHits="583976" noRetryReadHits="380685" noRetryReads="397863" noRetryWriteHits="203291" noRetryWrites="205554" readHits="674391" readRetries="0" reads="693249" writeHits="1978369" writeRetries="0" writes="1983859" />
       </CoreStat>
-      <ContextStat totalInsts="2354125">
-        <TlbStat accesses="0" evictions="0" hits="0" name="itlb" />
-        <TlbStat accesses="0" evictions="0" hits="0" name="dtlb" />
+      <ContextStat totalInsts="2316082">
+        <TlbStat accesses="280358" evictions="54" hits="280067" name="itlb" />
+        <TlbStat accesses="603430" evictions="19154" hits="584020" name="dtlb" />
       </ContextStat>
-      <ContextStat totalInsts="2316076">
-        <TlbStat accesses="0" evictions="0" hits="0" name="itlb" />
-        <TlbStat accesses="0" evictions="0" hits="0" name="dtlb" />
+      <ContextStat totalInsts="2316437">
+        <TlbStat accesses="280358" evictions="54" hits="280067" name="itlb" />
+        <TlbStat accesses="603405" evictions="19155" hits="583994" name="dtlb" />
       </ContextStat>
     </ProcessorStat>
-    <CacheStat accesses="88350" blockingReads="0" blockingWrites="0" evictions="2289" hits="77719" nonblockingReads="42144" nonblockingWrites="46206" noRetryAccesses="79052" noRetryHits="72906" noRetryReadHits="33376" noRetryReads="35306" noRetryWriteHits="39530" noRetryWrites="43746" readHits="36692" readRetries="0" reads="42144" writeHits="41027" writeRetries="0" writes="46206" />
-    <MainMemoryStat accesses="8500" reads="1985" writes="6515" />
+    <CacheStat accesses="84429" blockingReads="0" blockingWrites="0" evictions="2241" hits="75865" nonblockingReads="39385" nonblockingWrites="45044" noRetryAccesses="79006" noRetryHits="72877" noRetryReadHits="33383" noRetryReads="35296" noRetryWriteHits="39494" noRetryWrites="43710" readHits="35037" readRetries="0" reads="39385" writeHits="40828" writeRetries="0" writes="45044" />
+    <MainMemoryStat accesses="8400" reads="1951" writes="6449" />
   </SimulationStat>
 </Simulation>

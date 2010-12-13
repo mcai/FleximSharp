@@ -831,6 +831,9 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			this.ReadyQueue = new List<ReorderBufferEntry> ();
 			this.WaitingQueue = new List<ReorderBufferEntry> ();
 			this.OoOEventQueue = new List<ReorderBufferEntry> ();
+			
+			this.RegisterRenameScheduler = new RoundRobinScheduler<IThread> (this.Threads, thread => thread.DecodeBuffer.Any () && !thread.ReorderBuffer.IsFull (this.Processor.Config.ReorderBufferCapacity) && !thread.LoadStoreQueue.IsFull (this.Processor.Config.LoadStoreQueueCapacity), thread => thread.RegisterRenameOne (), (int)this.DecodeWidth);
+			this.DispatchScheduler = new RoundRobinScheduler<IThread> (this.Threads, thread => thread.ReorderBuffer.Any (entry => !entry.IsDispatched), thread => thread.DispatchOne (), (int)this.DecodeWidth);
 		}
 
 		public void Fetch ()
@@ -838,119 +841,14 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			this.Threads.ForEach (thread => thread.Fetch ());
 		}
 
-		private uint FindNextThreadIdToDecode (ref bool isAllStalled, ref Dictionary<uint, bool> decodeStalled)
-		{
-			for (uint i = 0; i < this.Threads.Count; i++) {
-				IThread thread = this.Threads[(int)i];
-				
-				if (!decodeStalled[i] && thread.DecodeBuffer.Any () && !thread.ReorderBuffer.IsFull (this.Processor.Config.ReorderBufferCapacity) && !thread.LoadStoreQueue.IsFull (this.Processor.Config.LoadStoreQueueCapacity)) {
-					isAllStalled = false;
-					return i;
-				}
-			}
-			
-			isAllStalled = true;
-			return uint.MaxValue;
-		}
-
-		private uint decodeThreadId = 0;
-
 		public void RegisterRename ()
 		{
-			Dictionary<uint, bool> decodeStalled = new Dictionary<uint, bool> ();
-			
-			for (uint i = 0; i < this.Threads.Count; i++) {
-				decodeStalled[i] = false;
-			}
-			
-			decodeThreadId = (uint)((decodeThreadId + 1) % this.Threads.Count);
-			
-			uint numRenamed = 0;
-			
-			while (numRenamed < this.DecodeWidth) {
-				bool isAllStalled = true;
-				
-				decodeThreadId = this.FindNextThreadIdToDecode (ref isAllStalled, ref decodeStalled);
-				
-				if (isAllStalled) {
-					break;
-				}
-				
-				try {
-					this.Threads[(int)decodeThreadId].RegisterRenameOne ();
-				} catch (NoFreePhysicalRegisterException) {
-					decodeStalled[decodeThreadId] = true;
-					continue;
-				}
-				
-				numRenamed++;
-			}
+			this.RegisterRenameScheduler.ConsumeNext ();
 		}
-
-		private uint dispatchThreadId = 0;
 
 		public void Dispatch ()
 		{
-			uint numDispatched = 0;
-			Dictionary<uint, bool> dispatchStalled = new Dictionary<uint, bool> ();
-			Dictionary<uint, uint> numDispatchedPerThread = new Dictionary<uint, uint> ();
-			
-			for (uint i = 0; i < this.Threads.Count; i++) {
-				dispatchStalled[i] = false;
-				numDispatchedPerThread[i] = 0;
-			}
-			
-			dispatchThreadId = (uint)((dispatchThreadId + 1) % this.Threads.Count);
-			
-			while (numDispatched < this.DecodeWidth) {
-				bool allStalled = true;
-				
-				for (uint i = 0; i < this.Threads.Count; i++) {
-					if (!dispatchStalled[i]) {
-						allStalled = false;
-					}
-				}
-				
-				if (allStalled) {
-					break;
-				}
-				
-				ReorderBufferEntry reorderBufferEntry = this.Threads[(int)dispatchThreadId].ReorderBuffer.Find (entry => !entry.IsDispatched);
-				
-				dispatchStalled[dispatchThreadId] = (reorderBufferEntry == null);
-				
-				if (dispatchStalled[dispatchThreadId]) {
-					dispatchThreadId = (uint)((dispatchThreadId + 1) % this.Threads.Count);
-					continue;
-				}
-				
-				if (reorderBufferEntry.IsAllOperandsReady) {
-					this.ReadyQueue.Add (reorderBufferEntry);
-					reorderBufferEntry.IsInReadyQueue = true;
-				} else {
-					this.WaitingQueue.Add (reorderBufferEntry);
-				}
-				
-				reorderBufferEntry.IsDispatched = true;
-				
-				if (reorderBufferEntry.LoadStoreQueueEntry != null) {
-					ReorderBufferEntry loadStoreQueueEntry = reorderBufferEntry.LoadStoreQueueEntry;
-					
-					if (loadStoreQueueEntry.DynamicInstruction.StaticInstruction.IsStore) {
-						if (loadStoreQueueEntry.IsAllOperandsReady) {
-							this.ReadyQueue.Add (loadStoreQueueEntry);
-							loadStoreQueueEntry.IsInReadyQueue = true;
-						} else {
-							this.WaitingQueue.Add (loadStoreQueueEntry);
-						}
-					}
-					
-					loadStoreQueueEntry.IsDispatched = true;
-				}
-				
-				numDispatchedPerThread[dispatchThreadId]++;
-				numDispatched++;
-			}
+			this.DispatchScheduler.ConsumeNext ();
 		}
 
 		public void Wakeup ()
@@ -1101,6 +999,9 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 		public ulong CurrentCycle { get; private set; }
 
 		public List<EventProcessor> EventProcessors { get; private set; }
+
+		private RoundRobinScheduler<IThread> RegisterRenameScheduler { get; set; }
+		private RoundRobinScheduler<IThread> DispatchScheduler { get; set; }
 	}
 
 	public sealed class Thread : IThread
@@ -1315,6 +1216,35 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			}
 			
 			this.DecodeBuffer.RemoveFirst ();
+		}
+
+		public void DispatchOne ()
+		{
+			ReorderBufferEntry reorderBufferEntry = this.ReorderBuffer.Find (entry => !entry.IsDispatched);
+			
+			if (reorderBufferEntry.IsAllOperandsReady) {
+				this.Core.ReadyQueue.Add (reorderBufferEntry);
+				reorderBufferEntry.IsInReadyQueue = true;
+			} else {
+				this.Core.WaitingQueue.Add (reorderBufferEntry);
+			}
+			
+			reorderBufferEntry.IsDispatched = true;
+			
+			if (reorderBufferEntry.LoadStoreQueueEntry != null) {
+				ReorderBufferEntry loadStoreQueueEntry = reorderBufferEntry.LoadStoreQueueEntry;
+				
+				if (loadStoreQueueEntry.DynamicInstruction.StaticInstruction.IsStore) {
+					if (loadStoreQueueEntry.IsAllOperandsReady) {
+						this.Core.ReadyQueue.Add (loadStoreQueueEntry);
+						loadStoreQueueEntry.IsInReadyQueue = true;
+					} else {
+						this.Core.WaitingQueue.Add (loadStoreQueueEntry);
+					}
+				}
+				
+				loadStoreQueueEntry.IsDispatched = true;
+			}
 		}
 
 		public void RefreshLoadStoreQueue ()

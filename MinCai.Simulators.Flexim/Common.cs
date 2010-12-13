@@ -452,7 +452,7 @@ namespace MinCai.Simulators.Flexim.Common
 		{
 			XmlConfig xmlConfig = new XmlConfig (name);
 			
-			entries.ForEach(entry => xmlConfig.Entries.Add (saveEntry (entry)));
+			entries.ForEach (entry => xmlConfig.Entries.Add (saveEntry (entry)));
 			
 			return xmlConfig;
 		}
@@ -461,7 +461,7 @@ namespace MinCai.Simulators.Flexim.Common
 		{
 			List<K> entries = new List<K> ();
 			
-			xmlConfig.Entries.ForEach(child => entries.Add (loadEntry (child)));
+			xmlConfig.Entries.ForEach (child => entries.Add (loadEntry (child)));
 			
 			return entries;
 		}
@@ -526,7 +526,7 @@ namespace MinCai.Simulators.Flexim.Common
 				element.SetAttribute (pair.Key, pair.Value);
 			}
 			
-			xmlConfig.Entries.ForEach(child => Serialize (child, element));
+			xmlConfig.Entries.ForEach (child => Serialize (child, element));
 		}
 
 		private static void Serialize (XmlConfig xmlConfig, string xmlFileName)
@@ -540,7 +540,7 @@ namespace MinCai.Simulators.Flexim.Common
 				rootElement.SetAttribute (pair.Key, pair.Value);
 			}
 			
-			xmlConfig.Entries.ForEach(child => Serialize (child, rootElement));
+			xmlConfig.Entries.ForEach (child => Serialize (child, rootElement));
 			
 			doc.Save (xmlFileName);
 		}
@@ -731,7 +731,7 @@ namespace MinCai.Simulators.Flexim.Common
 		public void AdvanceOneCycle ()
 		{
 			if (this.Actions.ContainsKey (this.CurrentCycle)) {
-				this.Actions[this.CurrentCycle].ForEach(action => action());				
+				this.Actions[this.CurrentCycle].ForEach (action => action ());
 				this.Actions.Remove (this.CurrentCycle);
 			}
 			
@@ -1278,7 +1278,7 @@ namespace MinCai.Simulators.Flexim.Common
 			
 			this.StringTable = this.SectionHeaders[this.Header.E_shstrndx].AssociatedEntity as ElfStringTable;
 			
-			this.SymbolStringTable = this.SectionHeaders.Find(sectionHeader => sectionHeader.Name == ".strtab").AssociatedEntity as ElfStringTable;
+			this.SymbolStringTable = this.SectionHeaders.Find (sectionHeader => sectionHeader.Name == ".strtab").AssociatedEntity as ElfStringTable;
 			
 			this.Reader.BaseStream.Seek ((long)this.Header.E_phoff, 0);
 			
@@ -1313,5 +1313,57 @@ namespace MinCai.Simulators.Flexim.Common
 			
 			return file;
 		}
+	}
+
+	public class RoundRobinScheduler<T>
+	{
+		public RoundRobinScheduler (List<T> resources, Predicate<T> pred, Action<T> consumeAction, int quant)
+		{
+			this.Resources = resources;
+			this.Pred = pred;
+			this.ConsumeAction = consumeAction;
+			this.Quant = quant;
+			
+			this.CurrentResourceId = 0;
+		}
+
+		public void ConsumeNext ()
+		{
+			Dictionary<int, bool> stalled = new Dictionary<int, bool> ();
+			
+			for (int i = 0; i < this.Resources.Count; i++) {
+				stalled[i] = false;
+			}
+			
+			this.CurrentResourceId = (this.CurrentResourceId + 1) % this.Resources.Count;
+			
+			int consumedCount = 0;
+			
+			while (consumedCount < this.Quant) {
+				if (!this.Pred (this.Resources[this.CurrentResourceId]) || stalled[this.CurrentResourceId]) {
+					this.CurrentResourceId = this.Resources.FindIndex (this.Pred);
+				}
+				
+				if (this.CurrentResourceId == -1) {
+					break;
+				}
+				
+				try {
+					this.ConsumeAction (this.Resources[this.CurrentResourceId]);
+				} catch (Exception) {
+					stalled[this.CurrentResourceId] = true;
+					continue;
+				}
+				
+				consumedCount++;
+			}
+		}
+
+		public int CurrentResourceId { get; private set; }
+
+		public List<T> Resources { get; private set; }
+		public Predicate<T> Pred { get; private set; }
+		public Action<T> ConsumeAction { get; private set; }
+		public int Quant { get; private set; }
 	}
 }
