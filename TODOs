@@ -1,9 +1,8 @@
-1. Verification of Branch predictor stuff.
-2. Multi-level cache hierarchy configuration.
-3. benchmarking.
-4. performance optimization.
-5. thread state maintanence.
-6. predicate-based uniform pipeline shared resource scheduling.
-7. bpred refactoring, simple variant first, like in SMTSIM.
-8. add on-chip interconnect simulation.
-9. add cycle-accurate DRAM controller simulation.
+1. Multi-level cache hierarchy configuration.
+2. benchmarking.
+3. performance optimization.
+4. thread state maintanence.
+5. predicate-based uniform pipeline shared resource scheduling.
+6. bpred refactoring, simple variant first, like in SMTSIM.
+7. add on-chip interconnect simulation.
+8. add cycle-accurate DRAM controller simulation.

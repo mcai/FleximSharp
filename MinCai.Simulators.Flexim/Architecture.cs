@@ -549,7 +549,7 @@ namespace MinCai.Simulators.Flexim.Architecture
 			if (this.DecodedStaticInstructions.ContainsKey (pc)) {
 				return this.DecodedStaticInstructions[pc];
 			} else {
-				uint data = mem.ReadWord(pc);
+				uint data = mem.ReadWord (pc);
 				
 				MachineInstruction machineInstruction = new MachineInstruction (data);
 				

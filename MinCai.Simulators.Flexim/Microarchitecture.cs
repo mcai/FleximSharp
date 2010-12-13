@@ -617,7 +617,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			this.Add (FunctionalUnit.Types.FloatDivide, 1, 12, 12);
 			this.Add (FunctionalUnit.Types.FloatSquareRoot, 1, 24, 24);
 			
-			this.EventQueue = new DelegateEventQueue ();
+			this.EventQueue = new ActionEventQueue ();
 			this.Core.EventProcessors.Add (this.EventQueue);
 		}
 
@@ -650,7 +650,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 		public string Name { get; private set; }
 
 		public Dictionary<FunctionalUnit.Types, List<FunctionalUnit>> Entities { get; private set; }
-		public DelegateEventQueue EventQueue { get; private set; }
+		public ActionEventQueue EventQueue { get; private set; }
 	}
 
 	public sealed class PhysicalRegister
@@ -948,6 +948,9 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			
 			this.Threads = new List<IThread> ();
 			
+			this.ICache = new CoherentCache (this, this.Processor.Config.Cores[(int)this.Num].ICache, this.Processor.Simulation.Stat.Processor.Cores[(int)this.Num].ICache);
+			this.DCache = new CoherentCache (this, this.Processor.Config.Cores[(int)this.Num].DCache, this.Processor.Simulation.Stat.Processor.Cores[(int)this.Num].DCache);
+			
 			this.DecodeWidth = processor.Config.DecodeWidth;
 			this.IssueWidth = processor.Config.IssueWidth;
 			
@@ -1198,8 +1201,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 						if (isHitInLoadStoreQueue) {
 							readyQueueEntry1.SignalCompleted ();
 						} else {
-							readyQueueEntry1.DynamicInstruction.Thread.Load (this.Processor.MMU.GetPhysicalAddress (readyQueueEntry1.DynamicInstruction.Thread.MemoryMapId, readyQueueEntry1.Ea),
-							                false, delegate() { readyQueueEntry1.SignalCompleted (); });
+							readyQueueEntry1.DynamicInstruction.Thread.Load (this.Processor.MMU.GetPhysicalAddress (readyQueueEntry1.DynamicInstruction.Thread.MemoryMapId, readyQueueEntry1.Ea), false, delegate() { readyQueueEntry1.SignalCompleted (); });
 						}
 					});
 					
@@ -1296,8 +1298,8 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			}
 		}
 
-		public Sequencer SeqI { get; set; }
-		public Sequencer SeqD { get; set; }
+		public CoherentCache ICache { get; private set; }
+		public CoherentCache DCache { get; private set; }
 
 		public uint Num { get; private set; }
 		public IProcessor Processor { get; private set; }
@@ -1349,12 +1351,12 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			this.MemoryMapId = MemoryManagementUnit.CurrentMemoryMapId++;
 			this.Mem = new Memory ();
 			
-			this.Itlb = new TranslationLookasideBuffer(this.Core, this.Core.Processor.Config.Tlb, stat.Itlb);
-			this.Dtlb = new TranslationLookasideBuffer(this.Core, this.Core.Processor.Config.Tlb, stat.Dtlb);
-			
 			this.Process.Load (this);
 			
 			this.Stat = stat;
+			
+			this.Itlb = new TranslationLookasideBuffer (this.Core, this.Core.Processor.Config.Tlb, this.Stat.Itlb);
+			this.Dtlb = new TranslationLookasideBuffer (this.Core, this.Core.Processor.Config.Tlb, this.Stat.Dtlb);
 			
 			this.State = ThreadState.Active;
 			
@@ -1416,7 +1418,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 
 		public void Fetch ()
 		{
-			uint cacheLineToFetch = BitHelper.Aligned (this.FetchNpc, this.Core.SeqI.LineSize);
+			uint cacheLineToFetch = BitHelper.Aligned (this.FetchNpc, this.Core.ICache.Cache.LineSize);
 			if (cacheLineToFetch != this.LastFetchedCacheLine) {
 				this.LastFetchedCacheLine = cacheLineToFetch;
 				
@@ -1441,7 +1443,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 					hasDone = true;
 				}
 				
-				if ((this.FetchPc + Marshal.SizeOf (typeof(uint))) % this.Core.SeqI.LineSize == 0) {
+				if ((this.FetchPc + Marshal.SizeOf (typeof(uint))) % this.Core.ICache.Cache.LineSize == 0) {
 					hasDone = true;
 				}
 				
@@ -1636,26 +1638,24 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 //				throw new Exception ("Halted thread can not be halted again."); //TODO
 			}
 		}
-
+		
 		public void IFetch (uint addr, bool isRetry, Action onCompletedCallback)
 		{
 			uint pending = 2;
 			
-			this.Itlb.Access(addr, delegate() {
+			this.Itlb.Access (addr, delegate() {
 				pending--;
 				
-				if(pending == 0)
-				{
-					onCompletedCallback();
+				if (pending == 0) {
+					onCompletedCallback ();
 				}
 			});
 			
-			this.Core.SeqI.Load (addr, isRetry, delegate() {
+			this.Core.ICache.Load (addr, isRetry, delegate() {
 				pending--;
 				
-				if(pending == 0)
-				{
-					onCompletedCallback();
+				if (pending == 0) {
+					onCompletedCallback ();
 				}
 			});
 		}
@@ -1664,21 +1664,19 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 		{
 			uint pending = 2;
 			
-			this.Dtlb.Access(addr,  delegate() {
+			this.Dtlb.Access (addr, delegate() {
 				pending--;
 				
-				if(pending == 0)
-				{
-					onCompletedCallback();
+				if (pending == 0) {
+					onCompletedCallback ();
 				}
 			});
 			
-			this.Core.SeqD.Load (addr, isRetry,  delegate() {
+			this.Core.DCache.Load (addr, isRetry, delegate() {
 				pending--;
 				
-				if(pending == 0)
-				{
-					onCompletedCallback();
+				if (pending == 0) {
+					onCompletedCallback ();
 				}
 			});
 		}
@@ -1687,21 +1685,19 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 		{
 			uint pending = 2;
 			
-			this.Dtlb.Access(addr,  delegate() {
+			this.Dtlb.Access (addr, delegate() {
 				pending--;
 				
-				if(pending == 0)
-				{
-					onCompletedCallback();
+				if (pending == 0) {
+					onCompletedCallback ();
 				}
 			});
 			
-			this.Core.SeqD.Store (addr, isRetry,  delegate() {
+			this.Core.DCache.Store (addr, isRetry, delegate() {
 				pending--;
 				
-				if(pending == 0)
-				{
-					onCompletedCallback();
+				if (pending == 0) {
+					onCompletedCallback ();
 				}
 			});
 		}
@@ -1721,9 +1717,9 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 		public Process Process { get; private set; }
 
 		public Memory Mem { get; private set; }
-		
-		public TranslationLookasideBuffer Itlb {get; private set;}
-		public TranslationLookasideBuffer Dtlb {get; private set;}
+
+		public TranslationLookasideBuffer Itlb { get; private set; }
+		public TranslationLookasideBuffer Dtlb { get; private set; }
 
 		public CombinedRegisterFile Regs { get; private set; }
 
@@ -1783,17 +1779,7 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 			
 			for (int i = 0; i < this.Processor.Simulation.Config.Architecture.Processor.Cores.Count; i++) {
 				ICore core = this.Processor.Cores[i];
-				
-				CoherentCache l1I = new CoherentCache (core, this.Processor.Simulation.Config.Architecture.Processor.Cores[i].ICache, this.Processor.Simulation.Stat.Processor.Cores[i].ICache);
-				Sequencer seqI = new Sequencer ("seqI-" + i, l1I);
-				
-				CoherentCache l1D = new CoherentCache (core, this.Processor.Simulation.Config.Architecture.Processor.Cores[i].DCache, this.Processor.Simulation.Stat.Processor.Cores[i].DCache);
-				Sequencer seqD = new Sequencer ("seqD-" + i, l1D);
-				
-				core.SeqI = seqI;
-				core.SeqD = seqD;
-				
-				l1I.Next = l1D.Next = this.L2;
+				core.ICache.Next = core.DCache.Next = this.L2;
 			}
 			
 			this.MMU = new MemoryManagementUnit ();
@@ -1855,9 +1841,6 @@ namespace MinCai.Simulators.Flexim.Microarchitecture
 		public void Run ()
 		{
 			DateTime beginTime = DateTime.Now;
-			
-//			Barrier barrier = new Barrier(this.Cores.Count);
-//			barrier.Wait();
 			
 			while (this.ActiveThreadCount > 0 && this.Simulation.IsRunning) {
 				foreach (var core in this.Cores) {

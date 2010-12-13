@@ -725,33 +725,21 @@ namespace MinCai.Simulators.Flexim.Common
 		public ulong When { get; private set; }
 	}
 
-	public sealed class DelegateEventQueue : EventProcessor
+	public sealed class ActionEventQueue : EventProcessor
 	{
-		public class EventT
+		public ActionEventQueue ()
 		{
-			public EventT (Action action, ulong when)
-			{
-				this.Action = action;
-				this.When = when;
-			}
-
-			public Action Action { get; private set; }
-			public ulong When { get; private set; }
-		}
-
-		public DelegateEventQueue ()
-		{
-			this.Events = new Dictionary<ulong, List<EventT>> ();
+			this.Actions = new Dictionary<ulong, List<Action>> ();
 		}
 
 		public void AdvanceOneCycle ()
-		{
-			if (this.Events.ContainsKey (this.CurrentCycle)) {
-				foreach (var evt in this.Events[this.CurrentCycle]) {
-					evt.Action ();
+		{			
+			if (this.Actions.ContainsKey (this.CurrentCycle)) {
+				foreach (var action in this.Actions[this.CurrentCycle]) {
+					action ();
 				}
 				
-				this.Events.Remove (this.CurrentCycle);
+				this.Actions.Remove (this.CurrentCycle);
 			}
 			
 			this.CurrentCycle++;
@@ -761,15 +749,15 @@ namespace MinCai.Simulators.Flexim.Common
 		{
 			ulong when = this.CurrentCycle + delay;
 			
-			if (!this.Events.ContainsKey (when)) {
-				this.Events[when] = new List<EventT> ();
+			if (!this.Actions.ContainsKey (when)) {
+				this.Actions[when] = new List<Action> ();
 			}
 			
-			this.Events[when].Add (new EventT (action, when));
+			this.Actions[when].Add (action);
 		}
 
 		public ulong CurrentCycle { get; private set; }
-		public Dictionary<ulong, List<EventT>> Events { get; private set; }
+		public Dictionary<ulong, List<Action>> Actions { get; private set; }
 	}
 
 	public interface EventProcessor
@@ -781,29 +769,6 @@ namespace MinCai.Simulators.Flexim.Common
 	{
 		ulong CurrentCycle { get; }
 		List<EventProcessor> EventProcessors { get; }
-	}
-
-	public sealed class Barrier
-	{
-		public Barrier (int participants)
-		{
-			this.Participants = participants;
-		}
-
-		public void Wait ()
-		{
-			lock (this) {
-				if (--this.Participants > 0) {
-					do {
-						Monitor.Wait (this);
-					} while (this.Participants > 0);
-				} else {
-					Monitor.PulseAll (this);
-				}
-			}
-		}
-
-		public int Participants { get; private set; }
 	}
 }
 

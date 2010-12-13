@@ -459,8 +459,8 @@ namespace MinCai.Simulators.Flexim.Interop
 		void RefreshLoadStoreQueue ();
 		void Commit ();
 
-		Sequencer SeqI { get; set; }
-		Sequencer SeqD { get; set; }
+		CoherentCache ICache { get; }
+		CoherentCache DCache { get; }
 
 		uint Num { get; }
 
@@ -516,6 +516,9 @@ namespace MinCai.Simulators.Flexim.Interop
 		Process Process { get; }
 		Memory Mem { get; }
 		CombinedRegisterFile Regs { get; }
+
+		TranslationLookasideBuffer Itlb { get; }
+		TranslationLookasideBuffer Dtlb { get; }
 
 		uint FetchPc { get; set; }
 		uint FetchNpc { get; set; }

@@ -793,9 +793,9 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			this.Config = config;
 			this.Stat = stat;
 			
-			this.Cache = new Cache(cycleProvider, config.Geometry);
+			this.Cache = new Cache (cycleProvider, config.Geometry);
 			
-			this.EventQueue = new DelegateEventQueue ();
+			this.EventQueue = new ActionEventQueue ();
 			this.CycleProvider.EventProcessors.Add (this.EventQueue);
 		}
 
@@ -827,16 +827,16 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			}
 			
 			this.Cache.AccessLine (@set, way);
-			this.EventQueue.Schedule(onCompletedCallback, hit ? this.Config.HitLatency : this.Config.MissLatency);
+			this.EventQueue.Schedule (onCompletedCallback, hit ? this.Config.HitLatency : this.Config.MissLatency);
 		}
-		
-		public ICycleProvider CycleProvider {get; private set;}
-		public TlbConfig Config {get; private set;}
-		public TlbStat Stat {get; private set;}
+
+		public ICycleProvider CycleProvider { get; private set; }
+		public TlbConfig Config { get; private set; }
+		public TlbStat Stat { get; private set; }
 
 		public Cache Cache { get; private set; }
 
-		public DelegateEventQueue EventQueue { get; private set; }
+		public ActionEventQueue EventQueue { get; private set; }
 	}
 
 	public abstract class CoherentCacheNode
@@ -846,7 +846,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 			this.CycleProvider = cycleProvider;
 			this.Name = name;
 			
-			this.EventQueue = new DelegateEventQueue ();
+			this.EventQueue = new ActionEventQueue ();
 			this.CycleProvider.EventProcessors.Add (this.EventQueue);
 		}
 
@@ -912,42 +912,7 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 		public ICycleProvider CycleProvider { get; private set; }
 		public string Name { get; private set; }
 		public CoherentCacheNode Next { get; set; }
-		private DelegateEventQueue EventQueue { get; set; }
-	}
-
-	public sealed class Sequencer : CoherentCacheNode
-	{
-		public Sequencer (string name, CoherentCache l1Cache) : base(l1Cache.CycleProvider, name)
-		{
-			this.L1Cache = l1Cache;
-		}
-
-		public override void Load (uint addr, bool isRetry, Action onCompletedCallback)
-		{
-			this.L1Cache.Load (addr, isRetry, onCompletedCallback);
-		}
-
-		public override void Store (uint addr, bool isRetry, Action onCompletedCallback)
-		{
-			this.L1Cache.Store (addr, isRetry, onCompletedCallback);
-		}
-
-		public uint GetLineAddress (uint addr)
-		{
-			return addr.GetTag (this.L1Cache.Cache.Geometry);
-		}
-
-		public uint LineSize {
-			get { return this.L1Cache.Cache.LineSize; }
-		}
-
-		public override uint Level {
-			get {
-				throw new NotImplementedException ();
-			}
-		}
-
-		public CoherentCache L1Cache { get; private set; }
+		private ActionEventQueue EventQueue { get; set; }
 	}
 
 	public sealed class CoherentCache : CoherentCacheNode
@@ -1038,7 +1003,6 @@ namespace MinCai.Simulators.Flexim.MemoryHierarchy
 				this.Cache[@set][way].TransientTag = tag;
 				
 				if (!hasHit && state != MESIState.Invalid) {
-					
 					this.Schedule (delegate() { this.Evict (@set, way, delegate(bool hasError) {uint dumbTag1;if (!hasError) {this.Stat.Evictions++;this.Cache.GetLine (@set, way, out dumbTag1, out state);onCompletedCallback (false, @set, way, state, tag, dirLock);} else {this.Cache.GetLine (@set, way, out dumbTag, out state);dirLock.Unlock ();onCompletedCallback (true, @set, way, state, tag, dirLock);}}); }, this.HitLatency);
 				} else {
 					this.Schedule (delegate() { onCompletedCallback (false, @set, way, state, tag, dirLock); }, this.HitLatency);

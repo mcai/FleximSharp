@@ -51,15 +51,13 @@ please refer to the FleximSharp User Guide (to be added in near future)  under t
      e.g., wcet_bench, Olden and CPU2006.
      
    * Easy to begin with and easy to use. No scripting.
-     Only required are Mono Runtime, the simulator executable and a few XML files.
+     Only required are Mono installation, the compiled simulator executable and a few XML files.
 
 == System Requirements ==
- 1. Make sure that you have a Ubuntu 10.10 linux machine.
-   Other popular linux distros may work as well if you are lucky.
+ 1. Make sure that you have a Linux machine running (e.g., Ubuntu, OpenSUSE, Fedora).
  
- 2. Make sure that you have the latest Mono and MonoDevelop installed.
-   If not, type the following command to install them:
-   'sudo apt-get install monodevelop'
+ 2. Make sure that you have Mono 2.8.1 and MonoDevelop 2.4.1 installed.
+   If not, follow the Mono website (http://www.mono-project.com/) for installation instructions.
 
 == How to compile Benchmarks for FleximSharp ==
    FleximSharp supports the statically linked MIPS32 LE binaries. It supports the full set of wcet_bench benchmarks.
